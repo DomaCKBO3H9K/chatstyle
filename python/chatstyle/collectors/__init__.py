@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from chatstyle.collectors.tg_export import read_tg_export
 from chatstyle.collectors.txt import read_txt
 from chatstyle.errors import ChatstyleError
 
@@ -24,7 +25,16 @@ def collect(spec: str) -> list[str]:
     if scheme == "file":
         return read_txt(Path(value))
 
-    if scheme in ("tg", "tgexport"):
+    if scheme == "tgexport":
+        path_part, sep, sender = value.rpartition("#")
+        if not sep or not path_part or not sender.strip():
+            raise ChatstyleError(
+                "Для tgexport укажите путь и имя отправителя: "
+                "tgexport:путь/result.json#Имя Отправителя"
+            )
+        return read_tg_export(Path(path_part), sender.strip())
+
+    if scheme == "tg":
         raise ChatstyleError(f"Источник {scheme}: пока не реализован.")
 
     raise ChatstyleError(f"Неизвестный тип источника «{scheme}». Доступно: file, tg, tgexport.")

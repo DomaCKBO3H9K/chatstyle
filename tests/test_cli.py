@@ -149,3 +149,27 @@ def test_help(fixtures_cwd: None) -> None:
 def test_no_args_shows_help(fixtures_cwd: None) -> None:
     result = invoke([])
     assert "compare" in result.output
+
+
+def test_compare_with_tgexport(fixtures_cwd: None) -> None:
+    args = [
+        "compare",
+        "-u",
+        "tgexport:result.json#Борис",
+        "-c",
+        "tgexport:result.json#Анна Петрова",
+        "-c",
+        "file:same.txt",
+    ]
+    result = invoke(args)
+    assert result.exit_code == 0
+    assert "tgexport:result.json#Анна Петрова" in result.output
+    assert "file:same.txt" in result.output
+    assert "Неизвестный автор: tgexport:result.json#Борис" in result.output
+
+
+def test_compare_tgexport_unknown_sender(fixtures_cwd: None) -> None:
+    result = invoke(["compare", "-u", "tgexport:result.json#Вася", "-c", "file:same.txt"])
+    assert result.exit_code == 2
+    assert "Ошибка:" in result.output
+    assert "Анна Петрова" in result.output

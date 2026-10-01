@@ -85,17 +85,43 @@ def test_collect_file() -> None:
     assert result[0] == "ну привет))"
 
 
+def test_collect_tg_not_implemented() -> None:
+    with pytest.raises(ChatstyleError) as exc_info:
+        collect("tg:@user")
+    assert "не реализован" in str(exc_info.value)
+
+
+def test_collect_tgexport() -> None:
+    result = collect(f"tgexport:{FIXTURES / 'result.json'}#Анна Петрова")
+    assert len(result) == 5
+    assert result[0] == "привет))"
+    assert result[-1] == "ладно))\nщас дойду"
+
+
+def test_collect_tgexport_strips_sender() -> None:
+    result = collect(f"tgexport:{FIXTURES / 'result.json'}#  Борис  ")
+    assert result == ["Привет. Как дела?", "Посмотрю вечером.", "ок"]
+
+
 @pytest.mark.parametrize(
     "spec",
     [
-        "tg:@user",
-        "tgexport:result.json",
+        f"tgexport:{FIXTURES / 'result.json'}",
+        f"tgexport:{FIXTURES / 'result.json'}#",
+        f"tgexport:{FIXTURES / 'result.json'}#   ",
+        "tgexport:#Анна",
     ],
 )
-def test_collect_not_implemented(spec: str) -> None:
+def test_collect_tgexport_without_sender(spec: str) -> None:
     with pytest.raises(ChatstyleError) as exc_info:
         collect(spec)
-    assert "не реализован" in str(exc_info.value)
+    assert "имя отправителя" in str(exc_info.value)
+
+
+def test_collect_tgexport_unknown_sender() -> None:
+    with pytest.raises(ChatstyleError) as exc_info:
+        collect(f"tgexport:{FIXTURES / 'result.json'}#Вася")
+    assert "не найден" in str(exc_info.value)
 
 
 def test_collect_unknown_scheme() -> None:

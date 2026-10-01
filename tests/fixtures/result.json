@@ -1,0 +1,212 @@
+{
+ "name": "Борис",
+ "type": "personal_chat",
+ "id": 222,
+ "messages": [
+  {
+   "id": 1,
+   "type": "message",
+   "date": "2023-05-01T12:01:00",
+   "date_unixtime": "1682942460",
+   "from": "Анна Петрова",
+   "from_id": "user111",
+   "text": "привет))",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "привет))"
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "type": "message",
+   "date": "2023-05-01T12:02:00",
+   "date_unixtime": "1682942520",
+   "from": "Борис",
+   "from_id": "user222",
+   "text": "Привет. Как дела?",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Привет. Как дела?"
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "type": "message",
+   "date": "2023-05-01T12:03:00",
+   "date_unixtime": "1682942580",
+   "from": "Анна Петрова",
+   "from_id": "user111",
+   "text": [
+    "смотри ",
+    {
+     "type": "link",
+     "text": "https://example.com/a"
+    },
+    " круто"
+   ],
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "..."
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "type": "message",
+   "date": "2023-05-01T12:04:00",
+   "date_unixtime": "1682942640",
+   "from": "Анна Петрова",
+   "from_id": "user111",
+   "text": [
+    "ну ",
+    {
+     "type": "bold",
+     "text": "реально"
+    },
+    " норм, ",
+    {
+     "type": "mention",
+     "text": "@boris_k"
+    },
+    " глянь"
+   ],
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "..."
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "type": "message",
+   "date": "2023-05-01T12:05:00",
+   "date_unixtime": "1682942700",
+   "from": "Борис",
+   "from_id": "user222",
+   "text": "Посмотрю вечером.",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Посмотрю вечером."
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "type": "service",
+   "date": "2023-05-01T12:06:00",
+   "date_unixtime": "1682942760",
+   "actor": "Борис",
+   "actor_id": "user222",
+   "action": "pin_message",
+   "message_id": 3,
+   "text": "",
+   "text_entities": []
+  },
+  {
+   "id": 7,
+   "type": "message",
+   "date": "2023-05-01T12:07:00",
+   "date_unixtime": "1682942820",
+   "from": "Анна Петрова",
+   "from_id": "user111",
+   "text": "это чужое сообщение переслано",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "это чужое сообщение переслано"
+    }
+   ],
+   "forwarded_from": "Какой-то канал"
+  },
+  {
+   "id": 8,
+   "type": "message",
+   "date": "2023-05-01T12:08:00",
+   "date_unixtime": "1682942880",
+   "from": "Анна Петрова",
+   "from_id": "user111",
+   "text": "",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": ""
+    }
+   ],
+   "media_type": "sticker",
+   "sticker_emoji": "😀",
+   "file": "(File not included. Change data exporting settings to download.)",
+   "width": 512,
+   "height": 512
+  },
+  {
+   "id": 9,
+   "type": "message",
+   "date": "2023-05-01T12:09:00",
+   "date_unixtime": "1682942940",
+   "from": "Анна Петрова",
+   "from_id": "user111",
+   "text": "короче вот фотка",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "короче вот фотка"
+    }
+   ],
+   "photo": "(File not included. Change data exporting settings to download.)",
+   "width": 800,
+   "height": 600
+  },
+  {
+   "id": 10,
+   "type": "message",
+   "date": "2023-05-01T12:10:00",
+   "date_unixtime": "1682943000",
+   "from": "Анна Петрова",
+   "from_id": "user111",
+   "text": "",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": ""
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "type": "message",
+   "date": "2023-05-01T12:11:00",
+   "date_unixtime": "1682943060",
+   "from": "Борис",
+   "from_id": "user222",
+   "text": "ок",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "ок"
+    }
+   ]
+  },
+  {
+   "id": 12,
+   "type": "message",
+   "date": "2023-05-01T12:12:00",
+   "date_unixtime": "1682943120",
+   "from": "Анна Петрова",
+   "from_id": "user111",
+   "text": "ладно))\nщас дойду",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "ладно))\nщас дойду"
+    }
+   ]
+  }
+ ]
+}
