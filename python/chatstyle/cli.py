@@ -7,17 +7,24 @@ from rich.table import Table
 
 from chatstyle import __version__, _core
 from chatstyle.collectors import CollectOptions
+from chatstyle.collectors.impostors import load_impostor_directory
 from chatstyle.collectors.telegram import DEFAULT_LIMIT, TelethonFetcher
 from chatstyle.errors import ChatstyleError
 from chatstyle.features import FEATURE_LABELS, FILLER_WORD_PREFIX, FUNCTION_WORD_PREFIX
+from chatstyle.impostors import DEFAULT_SEED
 from chatstyle.paths import session_file
 from chatstyle.pipeline import (
     DISCLAIMER,
     AuthorProfile,
     ComparisonResult,
+    best_methods_text,
+    delta_text,
+    final_score_text,
     low_volume_warning,
     profile_author,
+    ranking_text,
     run_comparison,
+    unavailable_notes,
 )
 from chatstyle.report import report_format, write_report
 
@@ -87,6 +94,21 @@ def compare(
         Path | None,
         typer.Option("--report", help="Сохранить отчёт в файл .md или .html"),
     ] = None,
+    impostors: Annotated[
+        Path | None,
+        typer.Option(
+            "--impostors",
+            help="Папка с чужими текстами для General Impostors: один файл .txt на автора",
+        ),
+    ] = None,
+    seed: Annotated[
+        int,
+        typer.Option(
+            "--seed",
+            min=0,
+            help="Seed General Impostors: один и тот же seed даёт один и тот же результат",
+        ),
+    ] = DEFAULT_SEED,
 ) -> None:
     """Сравнить неизвестного автора с каждым кандидатом."""
     try:
@@ -102,7 +124,8 @@ def compare(
         notify=lambda message: typer.echo(message, err=True),
     )
     try:
-        result = run_comparison(unknown, candidate, options)
+        impostor_authors = load_impostor_directory(impostors) if impostors is not None else None
+        result = run_comparison(unknown, candidate, options, impostors=impostor_authors, seed=seed)
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
         raise typer.Exit(code=2) from exc
@@ -210,6 +233,8 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
     table.add_column("Слов", justify="right")
     table.add_column("Сообщений", justify="right")
     table.add_column("Сходство", justify="right")
+    table.add_column("Delta", justify="right")
+    table.add_column("Impostors (итог)", justify="right")
 
     for cand in result.candidates:
         table.add_row(
@@ -217,9 +242,17 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
             str(cand.words),
             str(cand.messages),
             f"{cand.similarity:.3f}",
+            delta_text(cand),
+            final_score_text(cand),
         )
 
     console.print(table)
+    console.print(ranking_text(result), soft_wrap=True)
+    best_line = best_methods_text(result)
+    if best_line:
+        console.print(best_line, soft_wrap=True)
+    for note in unavailable_notes(result):
+        console.print(note, soft_wrap=True)
 
     # 3. Предупреждение о малом объёме текста
     warning = low_volume_warning(result)

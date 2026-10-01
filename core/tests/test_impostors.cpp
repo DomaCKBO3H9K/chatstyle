@@ -84,6 +84,7 @@ TEST_CASE("impostors: too little text on the unknown or candidate side", "[impos
     const Messages short_text = {U"привет", U"как дела", U"ну ладно"};  // меньше двух кусков
     const auto unknown_short = run(short_text, {synthetic::casual(2, 60)}, extra, defaults());
     REQUIRE_FALSE(unknown_short[0].available);
+    REQUIRE(unknown_short[0].impostors == 4);  // пул считается и при недоступной оценке
 
     const auto unknown = synthetic::casual(1, 60);
     const std::vector<Messages> candidates = {short_text, synthetic::casual(2, 60), {}};

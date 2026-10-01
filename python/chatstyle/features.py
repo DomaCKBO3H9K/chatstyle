@@ -39,3 +39,14 @@ def style_features(messages: Sequence[str]) -> dict[str, float]:
         filler_words(),
         [URL_TOKEN, MENTION_TOKEN],
     )
+
+
+def describe_feature(key: str) -> str:
+    """Читаемое название признака ядра для отчётов: `fw:и` -> «служебное слово «и»»."""
+    if key in FEATURE_LABELS:
+        return FEATURE_LABELS[key]
+    if key.startswith(FUNCTION_WORD_PREFIX):
+        return f"служебное слово «{key[len(FUNCTION_WORD_PREFIX) :]}»"
+    if key.startswith(FILLER_WORD_PREFIX):
+        return f"слово-паразит «{key[len(FILLER_WORD_PREFIX) :]}»"
+    return key

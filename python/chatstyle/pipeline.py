@@ -1,17 +1,30 @@
 """Модуль пайплайна сравнения авторства.
 
-Содержит функции для подсчёта слов и запуска сравнения.
-Не использует typer, rich, print.
+Содержит функции для подсчёта слов и запуска сравнения тремя методами: косинусное сходство
+n-грамм, Burrows Delta и General Impostors. Не использует typer, rich, print.
 """
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from chatstyle import _core
 from chatstyle.collectors import CollectOptions, collect
+from chatstyle.delta import DEFAULT_CHUNK_WORDS, DEFAULT_MIN_CHUNKS, DeltaScore, burrows_delta
 from chatstyle.errors import ChatstyleError
 from chatstyle.features import style_features
+from chatstyle.impostors import (
+    DEFAULT_CHUNK_WORDS as IMPOSTORS_CHUNK_WORDS,
+)
+from chatstyle.impostors import (
+    DEFAULT_MIN_CHUNKS as IMPOSTORS_MIN_CHUNKS,
+)
+from chatstyle.impostors import (
+    DEFAULT_MIN_IMPOSTORS,
+    DEFAULT_SEED,
+    ImpostorsScore,
+    general_impostors,
+)
 from chatstyle.preprocess import MENTION_TOKEN, URL_TOKEN, preprocess
 
 MIN_WORDS: int = 1000
@@ -45,8 +58,26 @@ class CandidateResult:
     label: str
     words: int
     messages: int
-    similarity: float
+    similarity: float  # косинус TF-IDF символьных n-грамм, 0..1
     top_features: tuple[SharedFeature, ...] = ()
+    delta: DeltaScore | None = None  # None: метод не запускался
+    impostors_score: ImpostorsScore | None = None  # None: метод не запускался
+
+    @property
+    def final_score(self) -> float | None:
+        """Итоговая оценка — оценка General Impostors; None, если она недоступна."""
+        score = self.impostors_score
+        return score.score if score is not None and score.available else None
+
+
+METHOD_COSINE = "cosine"
+METHOD_DELTA = "delta"
+METHOD_IMPOSTORS = "impostors"
+METHOD_NAMES: dict[str, str] = {
+    METHOD_COSINE: "косинус",
+    METHOD_DELTA: "Delta",
+    METHOD_IMPOSTORS: "Impostors",
+}
 
 
 @dataclass(frozen=True)
@@ -56,6 +87,40 @@ class ComparisonResult:
     unknown_label: str
     unknown: AuthorStats
     candidates: tuple[CandidateResult, ...]
+    seed: int = DEFAULT_SEED
+    impostor_count: int = 0  # сколько посторонних авторов дала папка --impostors
+    ranked_by: str = METHOD_COSINE  # по какому методу отсортированы кандидаты
+
+    def best_by_method(self) -> dict[str, tuple[str, ...]]:
+        """Лучшие кандидаты по каждому методу, доступному ВСЕМ кандидатам.
+
+        При равенстве лучших несколько подписей. Метод, недоступный хотя бы одному кандидату,
+        не включается: сравнивать лучшего среди части кандидатов было бы нечестно.
+        """
+        best: dict[str, tuple[str, ...]] = {}
+        rows = self.candidates
+        if not rows:
+            return best
+        top_cosine = max(row.similarity for row in rows)
+        best[METHOD_COSINE] = tuple(row.label for row in rows if row.similarity == top_cosine)
+        deltas = [row.delta.delta for row in rows if row.delta is not None and row.delta.available]
+        if len(deltas) == len(rows):
+            lowest = min(deltas)
+            best[METHOD_DELTA] = tuple(
+                row.label for row in rows if row.delta is not None and row.delta.delta == lowest
+            )
+        scores = [row.final_score for row in rows if row.final_score is not None]
+        if len(scores) == len(rows):
+            highest = max(scores)
+            best[METHOD_IMPOSTORS] = tuple(row.label for row in rows if row.final_score == highest)
+        return best
+
+    def methods_agree(self) -> bool | None:
+        """Совпадают ли лучшие кандидаты методов; None, если методов меньше двух."""
+        best = list(self.best_by_method().values())
+        if len(best) < 2:
+            return None
+        return bool(set.intersection(*(set(labels) for labels in best)))
 
 
 def count_words(messages: Sequence[str]) -> int:
@@ -99,6 +164,78 @@ def low_volume_warning(result: ComparisonResult) -> str | None:
     )
 
 
+NOT_AVAILABLE = "—"
+
+
+def delta_text(candidate: CandidateResult) -> str:
+    """Delta кандидата для таблицы или прочерк."""
+    delta = candidate.delta
+    return f"{delta.delta:.2f}" if delta is not None and delta.available else NOT_AVAILABLE
+
+
+def final_score_text(candidate: CandidateResult) -> str:
+    """Итоговая оценка кандидата для таблицы или прочерк."""
+    score = candidate.final_score
+    return f"{score:.2f}" if score is not None else NOT_AVAILABLE
+
+
+def ranking_text(result: ComparisonResult) -> str:
+    """По какому методу отсортированы кандидаты."""
+    if result.ranked_by == METHOD_IMPOSTORS:
+        return "Порядок: по итоговой оценке (General Impostors)."
+    return "Порядок: по косинусному сходству (итоговая оценка недоступна)."
+
+
+def best_methods_text(result: ComparisonResult) -> str | None:
+    """Лучшие кандидаты по методам и согласие методов; None, если метод всего один."""
+    best = result.best_by_method()
+    if len(best) < 2:
+        return None
+    parts = [f"{METHOD_NAMES[method]} — {', '.join(labels)}" for method, labels in best.items()]
+    verdict = "методы согласны" if result.methods_agree() else "методы расходятся"
+    return f"Лучший по методам: {'; '.join(parts)} ({verdict})."
+
+
+def unavailable_notes(result: ComparisonResult) -> list[str]:
+    """Почему Delta и Impostors недоступны (пустой список, если доступны всем кандидатам).
+
+    Кандидаты с одной и той же причиной объединяются в одну строку.
+    """
+    notes: list[str] = []
+    short_delta = [
+        row.label for row in result.candidates if row.delta is not None and not row.delta.available
+    ]
+    if short_delta:
+        notes.append(
+            f"Burrows Delta недоступна ({', '.join(short_delta)}): слишком мало текста для "
+            f"оценки разброса признаков (нужно не меньше {DEFAULT_MIN_CHUNKS} кусков по "
+            f"{DEFAULT_CHUNK_WORDS} слов на всё сравнение)."
+        )
+
+    few_impostors: dict[int, list[str]] = {}
+    short_text: list[str] = []
+    for row in result.candidates:
+        score = row.impostors_score
+        if score is None or score.available:
+            continue
+        if score.impostors < DEFAULT_MIN_IMPOSTORS:
+            few_impostors.setdefault(score.impostors, []).append(row.label)
+        else:
+            short_text.append(row.label)
+    for count, labels in few_impostors.items():
+        notes.append(
+            f"General Impostors недоступен ({', '.join(labels)}): посторонних авторов {count} "
+            f"из {DEFAULT_MIN_IMPOSTORS}; добавьте папку с чужими текстами: --impostors DIR."
+        )
+    if short_text:
+        notes.append(
+            f"General Impostors недоступен ({', '.join(short_text)}): слишком мало текста "
+            f"(нужно не меньше {IMPOSTORS_MIN_CHUNKS} кусков по {IMPOSTORS_CHUNK_WORDS} слов "
+            "у неизвестного автора и у кандидата)."
+        )
+    return notes
+
+
 def _load_messages(spec: str, options: CollectOptions | None) -> list[str]:
     """Собрать и предобработать сообщения источника; пустой результат — ошибка."""
     messages = preprocess(collect(spec, options))
@@ -112,6 +249,8 @@ def run_comparison(
     candidate_specs: Sequence[str],
     options: CollectOptions | None = None,
     top_features: int = DEFAULT_TOP_FEATURES,
+    impostors: Mapping[str, Sequence[str]] | None = None,
+    seed: int = DEFAULT_SEED,
 ) -> ComparisonResult:
     """Запустить полный цикл сравнения.
 
@@ -125,6 +264,11 @@ def run_comparison(
         Параметры сбора (лимит, обновление кэша, уведомления) для источников tg:.
     top_features : int
         Сколько общих n-грамм с наибольшим вкладом сохранить для каждого кандидата.
+    impostors : Mapping[str, Sequence[str]] | None
+        Посторонние авторы (предобработанные сообщения) для General Impostors; остальные
+        кандидаты участвуют в нём автоматически.
+    seed : int
+        Seed General Impostors: один и тот же seed даёт один и тот же результат.
 
     Возвращает
     ----------
@@ -148,8 +292,10 @@ def run_comparison(
     unknown_messages = _load_messages(unknown_spec, options)
     candidate_messages = {spec: _load_messages(spec, options) for spec in candidate_specs}
 
-    # Вычисление сходства через ядро
+    # Три метода: косинус с объяснениями, Burrows Delta и General Impostors
     reports = _core.compare_detailed(unknown_messages, candidate_messages, top_features)
+    deltas = burrows_delta(unknown_messages, candidate_messages)
+    impostor_scores = general_impostors(unknown_messages, candidate_messages, impostors, seed=seed)
 
     # Формирование результатов
     results: list[CandidateResult] = []
@@ -164,11 +310,19 @@ def run_comparison(
                 messages=len(msgs),
                 similarity=report["similarity"],
                 top_features=tuple(SharedFeature(**item) for item in report["features"]),
+                delta=deltas[spec],
+                impostors_score=impostor_scores[spec],
             )
         )
 
-    # Сортировка по убыванию similarity (стабильная)
-    results.sort(key=lambda r: -r.similarity)
+    # Сортировка: по итоговой оценке, если она есть у всех кандидатов, иначе по косинусу.
+    # Сортировка стабильная, при равенстве остаётся порядок ввода.
+    ranked_by = METHOD_COSINE
+    if all(row.final_score is not None for row in results):
+        ranked_by = METHOD_IMPOSTORS
+        results.sort(key=lambda r: (-(r.final_score or 0.0), -r.similarity))
+    else:
+        results.sort(key=lambda r: -r.similarity)
 
     unknown_words = count_words(unknown_messages)
     unknown_stats = AuthorStats(
@@ -180,6 +334,9 @@ def run_comparison(
         unknown_label=unknown_spec,
         unknown=unknown_stats,
         candidates=tuple(results),
+        seed=seed,
+        impostor_count=len(impostors or {}),
+        ranked_by=ranked_by,
     )
 
 

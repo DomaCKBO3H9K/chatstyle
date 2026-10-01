@@ -154,9 +154,7 @@ std::vector<ImpostorsResult> general_impostors(
     }
     const Corpus corpus = build_corpus(authors, ignored_tokens, options.chunk_words);
     const auto& unknown_chunks = corpus.authors[0];
-    if (unknown_chunks.size() < options.min_chunks) {
-        return results;
-    }
+    const bool unknown_has_text = unknown_chunks.size() >= options.min_chunks;
 
     // пул посторонних кандидата: остальные кандидаты и extra_impostors, у которых есть текст
     std::vector<std::vector<std::size_t>> pools(candidates.size());
@@ -168,9 +166,12 @@ std::vector<ImpostorsResult> general_impostors(
                 pools[c].push_back(a);
             }
         }
-        usable[c] = corpus.authors[c + 1].size() >= options.min_chunks &&
+        usable[c] = unknown_has_text && corpus.authors[c + 1].size() >= options.min_chunks &&
                     pools[c].size() >= options.min_impostors;
         results[c].impostors = pools[c].size();
+    }
+    if (std::none_of(usable.begin(), usable.end(), [](char flag) { return flag != 0; })) {
+        return results;
     }
 
     std::mt19937 rng(options.seed);
