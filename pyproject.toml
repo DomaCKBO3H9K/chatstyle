@@ -16,6 +16,7 @@ chatstyle = "chatstyle.cli:app"
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
+experiments = ["matplotlib"]
 
 [tool.scikit-build]
 wheel.packages = ["python/chatstyle"]

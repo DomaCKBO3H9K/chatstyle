@@ -6,7 +6,7 @@
 """
 
 import random
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -57,14 +57,20 @@ def split_segments(messages: Sequence[str], words: int) -> tuple[list[str], list
     return list(messages[: ends[0]]), list(messages[ends[0] : ends[1]])
 
 
-def load_dataset(directory: Path, words: int) -> Dataset:
-    """Прочитать датасет и нарезать каждого автора на два куска по `words` слов."""
+def load_dataset(directory: Path, words: int, authors: Collection[str] | None = None) -> Dataset:
+    """Прочитать датасет и нарезать каждого автора на два куска по `words` слов.
+
+    Если задан `authors`, читаются только файлы этих авторов (остальные не считаются
+    пропущенными): так во всех срезах по объёму можно взять один и тот же набор.
+    """
     if not directory.is_dir():
         raise ChatstyleError(f"Папка датасета не найдена: {directory}")
     files = sorted(
         (p for p in directory.iterdir() if p.is_file() and p.suffix.lower() == ".txt"),
         key=lambda path: path.name,
     )
+    if authors is not None:
+        files = [path for path in files if path.stem in authors]
     if not files:
         raise ChatstyleError(f"В папке {directory} нет файлов .txt (по файлу на автора).")
 
