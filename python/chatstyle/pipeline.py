@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from chatstyle import _core
 from chatstyle.collectors import CollectOptions, collect
 from chatstyle.errors import ChatstyleError
+from chatstyle.features import style_features
 from chatstyle.preprocess import MENTION_TOKEN, URL_TOKEN, preprocess
 
 MIN_WORDS: int = 1000
@@ -57,6 +58,14 @@ def count_words(messages: Sequence[str]) -> int:
     return total
 
 
+def _load_messages(spec: str, options: CollectOptions | None) -> list[str]:
+    """Собрать и предобработать сообщения источника; пустой результат — ошибка."""
+    messages = preprocess(collect(spec, options))
+    if not messages:
+        raise ChatstyleError(f"В источнике {spec} не осталось сообщений после предобработки.")
+    return messages
+
+
 def run_comparison(
     unknown_spec: str,
     candidate_specs: Sequence[str],
@@ -92,22 +101,8 @@ def run_comparison(
             raise ChatstyleError(f"Кандидат указан дважды: {spec}")
         seen.add(spec)
 
-    # Сбор и предобработка неизвестного автора
-    unknown_raw = collect(unknown_spec, options)
-    unknown_messages = preprocess(unknown_raw)
-    if not unknown_messages:
-        raise ChatstyleError(
-            f"В источнике {unknown_spec} не осталось сообщений после предобработки."
-        )
-
-    # Сбор и предобработка кандидатов
-    candidate_messages: dict[str, list[str]] = {}
-    for spec in candidate_specs:
-        raw = collect(spec, options)
-        msgs = preprocess(raw)
-        if not msgs:
-            raise ChatstyleError(f"В источнике {spec} не осталось сообщений после предобработки.")
-        candidate_messages[spec] = msgs
+    unknown_messages = _load_messages(unknown_spec, options)
+    candidate_messages = {spec: _load_messages(spec, options) for spec in candidate_specs}
 
     # Вычисление сходства через ядро
     scores = _core.compare(unknown_messages, candidate_messages)
@@ -139,4 +134,23 @@ def run_comparison(
     return ComparisonResult(
         unknown=unknown_stats,
         candidates=tuple(results),
+    )
+
+
+@dataclass(frozen=True)
+class AuthorProfile:
+    """Профиль стиля одного автора."""
+
+    label: str
+    stats: AuthorStats
+    features: dict[str, float]
+
+
+def profile_author(spec: str, options: CollectOptions | None = None) -> AuthorProfile:
+    """Собрать сообщения автора и посчитать его стилевые признаки."""
+    messages = _load_messages(spec, options)
+    return AuthorProfile(
+        label=spec,
+        stats=AuthorStats(words=count_words(messages), messages=len(messages)),
+        features=style_features(messages),
     )

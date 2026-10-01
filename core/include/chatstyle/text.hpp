@@ -8,4 +8,8 @@ namespace chatstyle {
     std::string u32_to_utf8(const std::u32string& text);
     // Приводит кириллицу и латиницу к нижнему регистру по кодпоинтам
     std::u32string to_lower(const std::u32string& text);
+    // Буква латиницы (ASCII) или кириллицы
+    bool is_letter(char32_t cp);
+    // Заглавная буква из тех, что обрабатывает to_lower
+    bool is_upper(char32_t cp);
 }

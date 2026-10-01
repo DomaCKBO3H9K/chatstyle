@@ -179,4 +179,13 @@ std::u32string to_lower(const std::u32string& text) {
     return result;
 }
 
+bool is_letter(char32_t cp) {
+    return (cp >= 0x41 && cp <= 0x5A) || (cp >= 0x61 && cp <= 0x7A) ||
+           (cp >= 0x0400 && cp <= 0x0481) || (cp >= 0x048A && cp <= 0x04FF);
+}
+
+bool is_upper(char32_t cp) {
+    return lower_codepoint(cp) != cp;
+}
+
 } // namespace chatstyle

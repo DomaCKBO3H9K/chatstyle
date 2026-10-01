@@ -11,7 +11,7 @@ a = Analysis(
     scripts=[os.path.join(root, "python", "chatstyle", "__main__.py")],
     pathex=[os.path.join(root, "python")],
     hiddenimports=["chatstyle", "chatstyle._core"],
-    datas=[],
+    datas=[(os.path.join(root, "python", "chatstyle", "resources"), "chatstyle/resources")],
     binaries=[(core_spec.origin, "chatstyle")],
 )
 pyz = PYZ(a.pure)

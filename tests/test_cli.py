@@ -253,3 +253,31 @@ def test_login_error(monkeypatch: pytest.MonkeyPatch) -> None:
     result = invoke(["login"])
     assert result.exit_code == 2
     assert "Ошибка: нет ключей" in result.output
+
+
+def test_features_command(fixtures_cwd: None) -> None:
+    result = invoke(["features", "file:same.txt"])
+    assert result.exit_code == 0
+    assert "Автор: file:same.txt — " in result.output
+    assert "«))» на сообщение" in result.output
+    assert "доля сообщений с заглавной буквы" in result.output
+    assert "Частые слова-паразиты: ну " in result.output
+    assert "Частые служебные слова:" in result.output
+
+
+def test_features_top_limits_word_lists(fixtures_cwd: None) -> None:
+    result = invoke(["features", "file:same.txt", "--top", "1"])
+    assert result.exit_code == 0
+    line = next(x for x in result.output.splitlines() if x.startswith("Частые слова-паразиты"))
+    assert line.count(",") == 0
+
+
+def test_features_error_has_exit_code_2(fixtures_cwd: None) -> None:
+    result = invoke(["features", "file:nope_xyz.txt"])
+    assert result.exit_code == 2
+    assert "Ошибка:" in result.output
+
+
+def test_features_help_lists_command() -> None:
+    result = invoke(["--help"])
+    assert "features" in result.output

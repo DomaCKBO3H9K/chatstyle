@@ -5,6 +5,8 @@
 using chatstyle::utf8_to_u32;
 using chatstyle::u32_to_utf8;
 using chatstyle::to_lower;
+using chatstyle::is_letter;
+using chatstyle::is_upper;
 
 TEST_CASE("text: round-trip for ASCII and Cyrillic", "[text]") {
     std::string original = "Привет";
@@ -184,5 +186,20 @@ TEST_CASE("text: to_lower function", "[text]") {
     {
         std::u32string original;
         REQUIRE(to_lower(original).empty());
+    }
+}
+
+TEST_CASE("text: is_letter and is_upper", "[text]") {
+    for (char32_t cp : {U'a', U'Z', U'ё', U'Я', U'я', char32_t(0x0490)}) {
+        REQUIRE(is_letter(cp));
+    }
+    for (char32_t cp : {U'1', U' ', U')', U'-', char32_t(0x1F600), char32_t(0x0482)}) {
+        REQUIRE_FALSE(is_letter(cp));
+    }
+    for (char32_t cp : {U'A', U'Я', U'Ё', char32_t(0x0490)}) {
+        REQUIRE(is_upper(cp));
+    }
+    for (char32_t cp : {U'a', U'я', U'ё', U'1', U')'}) {
+        REQUIRE_FALSE(is_upper(cp));
     }
 }

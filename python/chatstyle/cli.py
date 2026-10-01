@@ -8,8 +8,15 @@ from chatstyle import __version__, _core
 from chatstyle.collectors import CollectOptions
 from chatstyle.collectors.telegram import DEFAULT_LIMIT, TelethonFetcher
 from chatstyle.errors import ChatstyleError
+from chatstyle.features import FEATURE_LABELS, FILLER_WORD_PREFIX, FUNCTION_WORD_PREFIX
 from chatstyle.paths import session_file
-from chatstyle.pipeline import MIN_WORDS, ComparisonResult, run_comparison
+from chatstyle.pipeline import (
+    MIN_WORDS,
+    AuthorProfile,
+    ComparisonResult,
+    profile_author,
+    run_comparison,
+)
 
 app = typer.Typer(
     add_completion=False,
@@ -89,6 +96,67 @@ def compare(
         raise typer.Exit(code=2) from exc
 
     _print_result(unknown, result)
+
+
+@app.command()
+def features(
+    source: Annotated[str, typer.Argument(help="Источник автора, например file:chat.txt")],
+    top: Annotated[
+        int,
+        typer.Option("--top", min=1, help="Сколько самых частых слов показать"),
+    ] = 10,
+    limit: Annotated[
+        int,
+        typer.Option("--limit", "-n", min=1, help="Максимум сообщений для источников tg:"),
+    ] = DEFAULT_LIMIT,
+    refresh: Annotated[
+        bool,
+        typer.Option("--refresh", help="Игнорировать кэш и заново загрузить сообщения"),
+    ] = False,
+) -> None:
+    """Показать стилевой профиль одного автора (пунктуация, оформление, частые слова)."""
+    options = CollectOptions(
+        limit=limit,
+        refresh=refresh,
+        notify=lambda message: typer.echo(message, err=True),
+    )
+    try:
+        profile = profile_author(source, options)
+    except ChatstyleError as exc:
+        typer.echo(f"Ошибка: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+
+    _print_profile(profile, top)
+
+
+def _print_profile(profile: AuthorProfile, top: int) -> None:
+    console = Console(highlight=False, markup=False)
+    console.print(
+        f"Автор: {profile.label} — {profile.stats.words} слов, {profile.stats.messages} сообщений",
+        soft_wrap=True,
+    )
+
+    table = Table(title=None)
+    table.add_column("Признак")
+    table.add_column("Значение", justify="right")
+    for key, label in FEATURE_LABELS.items():
+        table.add_row(label, f"{profile.features[key]:.3f}")
+    console.print(table)
+
+    for prefix, title in (
+        (FUNCTION_WORD_PREFIX, "Частые служебные слова"),
+        (FILLER_WORD_PREFIX, "Частые слова-паразиты"),
+    ):
+        ranked = sorted(
+            (
+                (key[len(prefix) :], value)
+                for key, value in profile.features.items()
+                if key.startswith(prefix) and value > 0
+            ),
+            key=lambda item: (-item[1], item[0]),
+        )[:top]
+        line = ", ".join(f"{word} {value:.3f}" for word, value in ranked) or "нет"
+        console.print(f"{title}: {line}", soft_wrap=True)
 
 
 @app.command()
