@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+      - name: Install project with dev dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Lint with ruff
+        run: ruff check python tests
+      - name: Run Python tests
+        run: pytest
+      - name: Configure CMake
+        run: cmake -S . -B build -DCHATSTYLE_BUILD_TESTS=ON -DCHATSTYLE_BUILD_PYTHON=OFF
+      - name: Build C++ tests
+        run: cmake --build build --config Release
+      - name: Run C++ tests
+        run: ctest --test-dir build -C Release --output-on-failure
