@@ -1,0 +1,17 @@
+*.session
+*.session-journal
+.env
+data/
+cache/
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+_skbuild/
+*.pyd
+*.so
+*.obj
