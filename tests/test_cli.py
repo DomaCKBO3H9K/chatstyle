@@ -1,7 +1,10 @@
 from pathlib import Path
 
 import pytest
+from chatstyle import cli as cli_module
 from chatstyle.cli import app
+from chatstyle.collectors import telegram as tg
+from chatstyle.errors import ChatstyleError
 from typer.testing import CliRunner
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -92,11 +95,11 @@ def test_missing_file(fixtures_cwd: None) -> None:
     assert "Ошибка:" in result.output
 
 
-def test_not_implemented_source(fixtures_cwd: None) -> None:
+def test_tg_source_without_keys(fixtures_cwd: None) -> None:
     args = ["compare", "-u", "tg:@user", "-c", "file:same.txt"]
     result = invoke(args)
     assert result.exit_code == 2
-    assert "не реализован" in result.output.lower()
+    assert "my.telegram.org" in result.output
 
 
 def test_not_utf8_source(fixtures_cwd: None) -> None:
@@ -173,3 +176,80 @@ def test_compare_tgexport_unknown_sender(fixtures_cwd: None) -> None:
     assert result.exit_code == 2
     assert "Ошибка:" in result.output
     assert "Анна Петрова" in result.output
+
+
+class FakeTelegram:
+    """Подмена TelethonFetcher для CLI: без сети и без файлов пользователя."""
+
+    instances: list["FakeTelegram"] = []
+
+    def __init__(self) -> None:
+        self.fetched: list[tuple[tg.TelegramSource, int]] = []
+        FakeTelegram.instances.append(self)
+
+    def fetch(self, source: tg.TelegramSource, limit: int) -> list[str]:
+        self.fetched.append((source, limit))
+        return ["ну привет))", "короче я щас дома", "типа весь день сидел за компом))"]
+
+    def login(self) -> str:
+        return "Иван Петров"
+
+
+@pytest.fixture
+def fake_telegram(monkeypatch: pytest.MonkeyPatch) -> type[FakeTelegram]:
+    FakeTelegram.instances = []
+    monkeypatch.setattr(tg, "TelethonFetcher", FakeTelegram)
+    monkeypatch.setattr(cli_module, "TelethonFetcher", FakeTelegram)
+    return FakeTelegram
+
+
+def test_compare_with_tg_source(fixtures_cwd: None, fake_telegram: type[FakeTelegram]) -> None:
+    args = ["compare", "-u", "tg:@boris", "-c", "file:same.txt", "--limit", "50"]
+    result = invoke(args)
+    assert result.exit_code == 0
+    assert "Неизвестный автор: tg:@boris" in result.output
+    assert "загружено из Telegram 3" in result.output
+    assert fake_telegram.instances[0].fetched == [(tg.TelegramSource("@boris", "@boris"), 50)]
+
+
+def test_tg_source_second_run_uses_cache_and_refresh_bypasses_it(
+    fixtures_cwd: None, fake_telegram: type[FakeTelegram]
+) -> None:
+    args = ["compare", "-u", "tg:@g#@u", "-c", "file:same.txt"]
+    assert invoke(args).exit_code == 0
+    second = invoke(args)
+    assert second.exit_code == 0
+    assert "из кэша" in second.output
+    refreshed = invoke([*args, "--refresh"])
+    assert refreshed.exit_code == 0
+    assert "загружено из Telegram" in refreshed.output
+    fetches = sum(len(instance.fetched) for instance in fake_telegram.instances)
+    assert fetches == 2
+
+
+def test_default_limit_is_3000(fixtures_cwd: None, fake_telegram: type[FakeTelegram]) -> None:
+    invoke(["compare", "-u", "tg:@boris", "-c", "file:same.txt"])
+    assert fake_telegram.instances[0].fetched[0][1] == 3000
+
+
+def test_limit_must_be_positive(fixtures_cwd: None) -> None:
+    result = invoke(["compare", "-u", "file:unknown.txt", "-c", "file:same.txt", "--limit", "0"])
+    assert result.exit_code == 2
+
+
+def test_login_success(fake_telegram: type[FakeTelegram]) -> None:
+    result = invoke(["login"])
+    assert result.exit_code == 0
+    assert "Вход выполнен: Иван Петров" in result.output
+    assert "telegram.session" in result.output
+
+
+def test_login_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Failing:
+        def login(self) -> str:
+            raise ChatstyleError("нет ключей")
+
+    monkeypatch.setattr(cli_module, "TelethonFetcher", Failing)
+    result = invoke(["login"])
+    assert result.exit_code == 2
+    assert "Ошибка: нет ключей" in result.output

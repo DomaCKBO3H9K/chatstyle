@@ -85,10 +85,11 @@ def test_collect_file() -> None:
     assert result[0] == "ну привет))"
 
 
-def test_collect_tg_not_implemented() -> None:
+def test_collect_tg_without_keys_explains(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
     with pytest.raises(ChatstyleError) as exc_info:
         collect("tg:@user")
-    assert "не реализован" in str(exc_info.value)
+    assert "my.telegram.org" in str(exc_info.value)
 
 
 def test_collect_tgexport() -> None:

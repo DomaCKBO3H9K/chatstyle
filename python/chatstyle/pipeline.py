@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from chatstyle import _core
-from chatstyle.collectors import collect
+from chatstyle.collectors import CollectOptions, collect
 from chatstyle.errors import ChatstyleError
 from chatstyle.preprocess import MENTION_TOKEN, URL_TOKEN, preprocess
 
@@ -60,6 +60,7 @@ def count_words(messages: Sequence[str]) -> int:
 def run_comparison(
     unknown_spec: str,
     candidate_specs: Sequence[str],
+    options: CollectOptions | None = None,
 ) -> ComparisonResult:
     """Запустить полный цикл сравнения.
 
@@ -69,6 +70,8 @@ def run_comparison(
         Спецификация источника неизвестного автора.
     candidate_specs : Sequence[str]
         Спецификации источников кандидатов.
+    options : CollectOptions | None
+        Параметры сбора (лимит, обновление кэша, уведомления) для источников tg:.
 
     Возвращает
     ----------
@@ -90,7 +93,7 @@ def run_comparison(
         seen.add(spec)
 
     # Сбор и предобработка неизвестного автора
-    unknown_raw = collect(unknown_spec)
+    unknown_raw = collect(unknown_spec, options)
     unknown_messages = preprocess(unknown_raw)
     if not unknown_messages:
         raise ChatstyleError(
@@ -100,7 +103,7 @@ def run_comparison(
     # Сбор и предобработка кандидатов
     candidate_messages: dict[str, list[str]] = {}
     for spec in candidate_specs:
-        raw = collect(spec)
+        raw = collect(spec, options)
         msgs = preprocess(raw)
         if not msgs:
             raise ChatstyleError(f"В источнике {spec} не осталось сообщений после предобработки.")

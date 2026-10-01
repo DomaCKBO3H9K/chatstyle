@@ -5,7 +5,10 @@ from rich.console import Console
 from rich.table import Table
 
 from chatstyle import __version__, _core
+from chatstyle.collectors import CollectOptions
+from chatstyle.collectors.telegram import DEFAULT_LIMIT, TelethonFetcher
 from chatstyle.errors import ChatstyleError
+from chatstyle.paths import session_file
 from chatstyle.pipeline import MIN_WORDS, ComparisonResult, run_comparison
 
 app = typer.Typer(
@@ -56,15 +59,51 @@ def compare(
             help="Источник кандидата; можно указать несколько раз",
         ),
     ],
+    limit: Annotated[
+        int,
+        typer.Option(
+            "--limit",
+            "-n",
+            min=1,
+            help="Максимум сообщений на автора для источников tg:",
+        ),
+    ] = DEFAULT_LIMIT,
+    refresh: Annotated[
+        bool,
+        typer.Option(
+            "--refresh",
+            help="Игнорировать кэш и заново загрузить сообщения из Telegram",
+        ),
+    ] = False,
 ) -> None:
     """Сравнить неизвестного автора с каждым кандидатом."""
+    options = CollectOptions(
+        limit=limit,
+        refresh=refresh,
+        notify=lambda message: typer.echo(message, err=True),
+    )
     try:
-        result = run_comparison(unknown, candidate)
+        result = run_comparison(unknown, candidate, options)
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
         raise typer.Exit(code=2) from exc
 
     _print_result(unknown, result)
+
+
+@app.command()
+def login() -> None:
+    """Войти в Telegram и сохранить сессию (один раз, для источников tg:)."""
+    typer.echo(
+        "Будут запрошены номер телефона, код из Telegram и пароль двухфакторной защиты "
+        "(если включена). Данные вводятся только в этом окне."
+    )
+    try:
+        name = TelethonFetcher().login()
+    except ChatstyleError as exc:
+        typer.echo(f"Ошибка: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(f"Вход выполнен: {name}. Сессия сохранена в {session_file()}")
 
 
 def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
