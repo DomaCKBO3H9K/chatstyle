@@ -15,3 +15,7 @@ _skbuild/
 *.pyd
 *.so
 *.obj
+
+# данные и результаты оценки качества (реальные переписки и их производные не коммитятся)
+experiments/data/
+experiments/results/

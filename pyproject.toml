@@ -23,6 +23,7 @@ cmake.version = ">=3.20"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = [".", "tests"]
 
 [tool.ruff]
 line-length = 100

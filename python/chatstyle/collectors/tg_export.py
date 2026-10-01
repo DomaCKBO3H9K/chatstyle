@@ -55,6 +55,33 @@ def _flatten_text(text: Any) -> str:
     return ""
 
 
+def _load_messages(path: Path) -> list[object]:
+    """Прочитать экспорт одного чата и вернуть список его сообщений (сырые записи)."""
+    try:
+        raw_text = path.read_text(encoding="utf-8-sig")
+    except OSError as exc:
+        raise ChatstyleError(f"Не удалось прочитать файл {path}: {exc}") from exc
+    except UnicodeDecodeError as exc:
+        raise ChatstyleError(f"Файл {path} не в кодировке UTF-8.") from exc
+
+    try:
+        data = json.loads(raw_text)
+    except json.JSONDecodeError as exc:
+        raise ChatstyleError(f"Файл {path} не является корректным JSON: {exc}") from exc
+
+    if not isinstance(data, dict):
+        raise ChatstyleError(f"Файл {path} не похож на экспорт Telegram.")
+    if "chats" in data:
+        raise ChatstyleError(
+            "Это экспорт всех чатов. Экспортируйте один чат (Export chat history) и повторите."
+        )
+
+    messages = data.get("messages")
+    if not isinstance(messages, list):
+        raise ChatstyleError(f"Файл {path} не похож на экспорт Telegram: нет списка messages.")
+    return messages
+
+
 def read_tg_export(path: Path, sender: str) -> list[str]:
     """Вернуть тексты сообщений ``sender`` из JSON‑экспорта Telegram Desktop.
 
@@ -78,28 +105,7 @@ def read_tg_export(path: Path, sender: str) -> list[str]:
         При проблемах чтения файла, парсинга JSON, неверном формате
         экспорта или отсутствии указанного отправителя.
     """
-    try:
-        raw_text = path.read_text(encoding="utf-8-sig")
-    except OSError as exc:
-        raise ChatstyleError(f"Не удалось прочитать файл {path}: {exc}") from exc
-    except UnicodeDecodeError as exc:
-        raise ChatstyleError(f"Файл {path} не в кодировке UTF-8.") from exc
-
-    try:
-        data = json.loads(raw_text)
-    except json.JSONDecodeError as exc:
-        raise ChatstyleError(f"Файл {path} не является корректным JSON: {exc}") from exc
-
-    if not isinstance(data, dict):
-        raise ChatstyleError(f"Файл {path} не похож на экспорт Telegram.")
-    if "chats" in data:
-        raise ChatstyleError(
-            "Это экспорт всех чатов. Экспортируйте один чат (Export chat history) и повторите."
-        )
-
-    messages = data.get("messages")
-    if not isinstance(messages, list):
-        raise ChatstyleError(f"Файл {path} не похож на экспорт Telegram: нет списка messages.")
+    messages = _load_messages(path)
 
     author_counter: Counter[str] = Counter()
     result: list[str] = []
@@ -129,4 +135,23 @@ def read_tg_export(path: Path, sender: str) -> list[str]:
         most_common = ", ".join(f"{name} ({cnt})" for name, cnt in author_counter.most_common(10))
         raise ChatstyleError(f"Отправитель «{sender}» не найден в {path}. Есть: {most_common}.")
 
+    return result
+
+
+def read_tg_export_by_sender(path: Path) -> dict[str, list[str]]:
+    """Тексты всех отправителей группового чата: ключ — ``from_id`` (или имя, если id нет).
+
+    Правила те же, что у ``read_tg_export``: пересланные, сервисные и пустые сообщения
+    пропускаются, порядок сообщений сохраняется. Ключи идут в порядке первого появления.
+    """
+    result: dict[str, list[str]] = {}
+    for msg in _load_messages(path):
+        if not isinstance(msg, dict) or msg.get("type") != "message" or "forwarded_from" in msg:
+            continue
+        key = msg.get("from_id") or msg.get("from")
+        if not isinstance(key, str) or not key:
+            continue
+        flat = _flatten_text(msg.get("text"))
+        if flat.strip():
+            result.setdefault(key, []).append(flat)
     return result

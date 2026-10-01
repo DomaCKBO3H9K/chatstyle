@@ -21,7 +21,7 @@ jobs:
       - name: Install project with dev dependencies
         run: python -m pip install -e ".[dev]"
       - name: Lint with ruff
-        run: ruff check python tests
+        run: ruff check python tests experiments
       - name: Run Python tests
         run: pytest
       - name: Configure CMake

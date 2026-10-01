@@ -10,7 +10,13 @@ from dataclasses import dataclass
 
 from chatstyle import _core
 from chatstyle.collectors import CollectOptions, collect
-from chatstyle.delta import DEFAULT_CHUNK_WORDS, DEFAULT_MIN_CHUNKS, DeltaScore, burrows_delta
+from chatstyle.delta import (
+    DEFAULT_CHUNK_WORDS,
+    DEFAULT_MIN_CHUNKS,
+    DEFAULT_TOP_DIFFERENCES,
+    DeltaScore,
+    burrows_delta,
+)
 from chatstyle.errors import ChatstyleError
 from chatstyle.features import style_features
 from chatstyle.impostors import (
@@ -244,6 +250,50 @@ def _load_messages(spec: str, options: CollectOptions | None) -> list[str]:
     return messages
 
 
+def compare_messages(
+    unknown_messages: Sequence[str],
+    candidate_messages: Mapping[str, Sequence[str]],
+    *,
+    impostors: Mapping[str, Sequence[str]] | None = None,
+    seed: int = DEFAULT_SEED,
+    top_features: int = DEFAULT_TOP_FEATURES,
+    top_differences: int = DEFAULT_TOP_DIFFERENCES,
+) -> tuple[tuple[CandidateResult, ...], str]:
+    """Три метода по готовым предобработанным сообщениям: косинус, Burrows Delta, Impostors.
+
+    Общая часть `run_comparison` и оценки качества (experiments/): оба считают одним и тем же
+    кодом. Возвращает кандидатов в порядке ранжирования и название метода, по которому они
+    отсортированы (по итоговой оценке, если она есть у всех, иначе по косинусу).
+    """
+    reports = _core.compare_detailed(list(unknown_messages), dict(candidate_messages), top_features)
+    deltas = burrows_delta(unknown_messages, candidate_messages, top_differences=top_differences)
+    impostor_scores = general_impostors(unknown_messages, candidate_messages, impostors, seed=seed)
+
+    results: list[CandidateResult] = []
+    for label, messages in candidate_messages.items():
+        report = reports[label]
+        results.append(
+            CandidateResult(
+                label=label,
+                words=count_words(messages),
+                messages=len(messages),
+                similarity=report["similarity"],
+                top_features=tuple(SharedFeature(**item) for item in report["features"]),
+                delta=deltas[label],
+                impostors_score=impostor_scores[label],
+            )
+        )
+
+    # Сортировка стабильная: при равенстве остаётся порядок ввода
+    ranked_by = METHOD_COSINE
+    if all(row.final_score is not None for row in results):
+        ranked_by = METHOD_IMPOSTORS
+        results.sort(key=lambda r: (-(r.final_score or 0.0), -r.similarity))
+    else:
+        results.sort(key=lambda r: -r.similarity)
+    return tuple(results), ranked_by
+
+
 def run_comparison(
     unknown_spec: str,
     candidate_specs: Sequence[str],
@@ -292,37 +342,13 @@ def run_comparison(
     unknown_messages = _load_messages(unknown_spec, options)
     candidate_messages = {spec: _load_messages(spec, options) for spec in candidate_specs}
 
-    # Три метода: косинус с объяснениями, Burrows Delta и General Impostors
-    reports = _core.compare_detailed(unknown_messages, candidate_messages, top_features)
-    deltas = burrows_delta(unknown_messages, candidate_messages)
-    impostor_scores = general_impostors(unknown_messages, candidate_messages, impostors, seed=seed)
-
-    # Формирование результатов
-    results: list[CandidateResult] = []
-    for spec in candidate_specs:
-        msgs = candidate_messages[spec]
-        words = count_words(msgs)
-        report = reports[spec]
-        results.append(
-            CandidateResult(
-                label=spec,
-                words=words,
-                messages=len(msgs),
-                similarity=report["similarity"],
-                top_features=tuple(SharedFeature(**item) for item in report["features"]),
-                delta=deltas[spec],
-                impostors_score=impostor_scores[spec],
-            )
-        )
-
-    # Сортировка: по итоговой оценке, если она есть у всех кандидатов, иначе по косинусу.
-    # Сортировка стабильная, при равенстве остаётся порядок ввода.
-    ranked_by = METHOD_COSINE
-    if all(row.final_score is not None for row in results):
-        ranked_by = METHOD_IMPOSTORS
-        results.sort(key=lambda r: (-(r.final_score or 0.0), -r.similarity))
-    else:
-        results.sort(key=lambda r: -r.similarity)
+    results, ranked_by = compare_messages(
+        unknown_messages,
+        candidate_messages,
+        impostors=impostors,
+        seed=seed,
+        top_features=top_features,
+    )
 
     unknown_words = count_words(unknown_messages)
     unknown_stats = AuthorStats(
@@ -333,7 +359,7 @@ def run_comparison(
     return ComparisonResult(
         unknown_label=unknown_spec,
         unknown=unknown_stats,
-        candidates=tuple(results),
+        candidates=results,
         seed=seed,
         impostor_count=len(impostors or {}),
         ranked_by=ranked_by,
