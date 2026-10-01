@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -29,5 +30,9 @@ struct StyleLexicon {
 //   r:avg_chars, r:avg_words средняя длина сообщения в символах и в словах
 SparseVector style_features(const std::vector<std::u32string>& messages,
                             const StyleLexicon& lexicon);
+
+// Число слов в сообщении: служебные метки не считаются, слова определяются как в style_features
+std::size_t word_count(const std::u32string& message,
+                       const std::vector<std::u32string>& ignored_tokens);
 
 }  // namespace chatstyle

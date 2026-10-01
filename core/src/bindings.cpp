@@ -1,6 +1,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <chatstyle/compare.hpp>
+#include <chatstyle/delta.hpp>
 #include <chatstyle/style_features.hpp>
 #include <chatstyle/text.hpp>
 #include <chatstyle/version.hpp>
@@ -87,6 +88,65 @@ PYBIND11_MODULE(_core, m) {
         py::arg("top_k") = 20,
         "Compare an unknown author with each candidate; returns "
         "{name: {similarity, features: [{feature, contribution, unknown_count, candidate_count}]}}"
+    );
+
+    m.def("burrows_delta",
+        [](const std::vector<std::string>& unknown,
+           const py::dict& candidates,
+           const std::vector<std::string>& function_words,
+           const std::vector<std::string>& filler_words,
+           const std::vector<std::string>& ignored_tokens,
+           std::size_t chunk_words,
+           std::size_t min_chunks,
+           std::size_t top_words,
+           std::size_t top_k) {
+            const auto input = read_candidates(candidates);
+            std::vector<std::vector<std::u32string>> candidate_texts;
+            for (const auto& texts : input.texts) {
+                candidate_texts.push_back(to_u32(texts));
+            }
+            const chatstyle::StyleLexicon lexicon{
+                to_u32(function_words), to_u32(filler_words), to_u32(ignored_tokens)};
+            chatstyle::DeltaOptions options;
+            options.chunk_words = chunk_words;
+            options.min_chunks = min_chunks;
+            options.top_words = top_words;
+            const auto results =
+                chatstyle::burrows_delta(to_u32(unknown), candidate_texts, lexicon, options);
+
+            py::dict output;
+            for (std::size_t i = 0; i < input.names.size(); ++i) {
+                py::list differences;
+                for (std::size_t k = 0; k < results[i].differences.size() && k < top_k; ++k) {
+                    const auto& item = results[i].differences[k];
+                    py::dict entry;
+                    entry["feature"] = py::str(chatstyle::u32_to_utf8(item.feature));
+                    entry["unknown_value"] = item.unknown_value;
+                    entry["candidate_value"] = item.candidate_value;
+                    entry["sigma"] = item.sigma;
+                    entry["z_difference"] = item.z_difference;
+                    differences.append(entry);
+                }
+                py::dict report;
+                report["available"] = results[i].available;
+                report["delta"] = results[i].delta;
+                report["features_used"] = results[i].features_used;
+                report["differences"] = differences;
+                output[py::str(input.names[i])] = report;
+            }
+            return output;
+        },
+        py::arg("unknown"),
+        py::arg("candidates"),
+        py::arg("function_words"),
+        py::arg("filler_words"),
+        py::arg("ignored_tokens"),
+        py::arg("chunk_words") = 200,
+        py::arg("min_chunks") = 6,
+        py::arg("top_words") = 100,
+        py::arg("top_k") = 20,
+        "Burrows Delta of an unknown author against each candidate; returns "
+        "{name: {available, delta, features_used, differences: [...]}}"
     );
 
     m.def("style_features",

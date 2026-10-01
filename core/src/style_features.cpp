@@ -92,7 +92,7 @@ void count_punctuation(const std::u32string& text, PunctuationCounts& counts) {
 
 // Слово: серия букв, внутри допускается один дефис между буквами («что-то»)
 std::size_t count_words(const std::u32string& lowered,
-                        std::unordered_map<std::u32string, std::size_t>& counts) {
+                        std::unordered_map<std::u32string, std::size_t>* counts) {
     const std::size_t size = lowered.size();
     std::size_t total = 0;
     std::size_t i = 0;
@@ -111,7 +111,9 @@ std::size_t count_words(const std::u32string& lowered,
                 break;
             }
         }
-        ++counts[lowered.substr(i, j - i)];
+        if (counts != nullptr) {
+            ++(*counts)[lowered.substr(i, j - i)];
+        }
         ++total;
         i = j;
     }
@@ -194,7 +196,7 @@ SparseVector style_features(const std::vector<std::u32string>& messages,
                 ++ye_count;
             }
         }
-        total_words += count_words(lowered, word_counts);
+        total_words += count_words(lowered, &word_counts);
     }
 
     const auto messages_n = static_cast<double>(used_messages);
@@ -221,6 +223,11 @@ SparseVector style_features(const std::vector<std::u32string>& messages,
     add_word_frequencies(result, U"fw:", lexicon.function_words, word_counts, total_words);
     add_word_frequencies(result, U"fl:", lexicon.filler_words, word_counts, total_words);
     return result;
+}
+
+std::size_t word_count(const std::u32string& message,
+                       const std::vector<std::u32string>& ignored_tokens) {
+    return count_words(to_lower(clean_message(message, ignored_tokens)), nullptr);
 }
 
 }  // namespace chatstyle
