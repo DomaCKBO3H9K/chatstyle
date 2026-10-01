@@ -1,5 +1,6 @@
 #include "chatstyle/similarity.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <unordered_map>
 #include <utility>
@@ -86,6 +87,44 @@ double cosine(const SparseVector& a, const SparseVector& b) {
         return 0.0;
     }
     return similarity;
+}
+
+std::vector<FeatureContribution> top_contributions(const SparseVector& a, const SparseVector& b, std::size_t k) {
+    std::vector<FeatureContribution> result;
+    if (k == 0 || a.empty() || b.empty()) {
+        return result;
+    }
+
+    double norm_a = 0.0;
+    for (const auto& [_, value] : a) {
+        norm_a += value * value;
+    }
+    double norm_b = 0.0;
+    for (const auto& [_, value] : b) {
+        norm_b += value * value;
+    }
+    const double scale = std::sqrt(norm_a) * std::sqrt(norm_b);
+    if (scale == 0.0) {
+        return result;
+    }
+
+    for (const auto& [key, value] : a) {
+        const auto found = b.find(key);
+        if (found != b.end()) {
+            result.push_back({key, value * found->second / scale});
+        }
+    }
+
+    const auto better = [](const FeatureContribution& left, const FeatureContribution& right) {
+        if (left.contribution != right.contribution) {
+            return left.contribution > right.contribution;
+        }
+        return left.feature < right.feature;
+    };
+    const std::size_t count = std::min(k, result.size());
+    std::partial_sort(result.begin(), result.begin() + static_cast<std::ptrdiff_t>(count), result.end(), better);
+    result.resize(count);
+    return result;
 }
 
 }

@@ -37,4 +37,21 @@ namespace chatstyle {
 
         return result;
     }
+
+    std::u32string readable_ngram(const std::u32string& ngram) {
+        std::u32string result;
+        result.reserve(ngram.size());
+        for (const char32_t cp : ngram) {
+            if (cp == kStartMarker) {
+                result.push_back(U'^');
+            } else if (cp == kEndMarker) {
+                result.push_back(U'$');
+            } else if (cp == U' ') {
+                result.push_back(0x2423);  // «␣»
+            } else {
+                result.push_back(cp);
+            }
+        }
+        return result;
+    }
 }

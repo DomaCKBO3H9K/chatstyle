@@ -15,6 +15,7 @@ from chatstyle.features import style_features
 from chatstyle.preprocess import MENTION_TOKEN, URL_TOKEN, preprocess
 
 MIN_WORDS: int = 1000
+DEFAULT_TOP_FEATURES: int = 20
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,16 @@ class AuthorStats:
 
 
 @dataclass(frozen=True)
+class SharedFeature:
+    """Общая n-грамма, давшая вклад в сходство."""
+
+    feature: str  # читаемый вид: пробел «␣», начало сообщения «^», конец «$»
+    contribution: float  # вклад в косинус; сумма вкладов по всем общим n-граммам = сходство
+    unknown_count: float
+    candidate_count: float
+
+
+@dataclass(frozen=True)
 class CandidateResult:
     """Результат для одного кандидата."""
 
@@ -33,6 +44,7 @@ class CandidateResult:
     words: int
     messages: int
     similarity: float
+    top_features: tuple[SharedFeature, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -70,6 +82,7 @@ def run_comparison(
     unknown_spec: str,
     candidate_specs: Sequence[str],
     options: CollectOptions | None = None,
+    top_features: int = DEFAULT_TOP_FEATURES,
 ) -> ComparisonResult:
     """Запустить полный цикл сравнения.
 
@@ -81,6 +94,8 @@ def run_comparison(
         Спецификации источников кандидатов.
     options : CollectOptions | None
         Параметры сбора (лимит, обновление кэша, уведомления) для источников tg:.
+    top_features : int
+        Сколько общих n-грамм с наибольшим вкладом сохранить для каждого кандидата.
 
     Возвращает
     ----------
@@ -105,20 +120,21 @@ def run_comparison(
     candidate_messages = {spec: _load_messages(spec, options) for spec in candidate_specs}
 
     # Вычисление сходства через ядро
-    scores = _core.compare(unknown_messages, candidate_messages)
+    reports = _core.compare_detailed(unknown_messages, candidate_messages, top_features)
 
     # Формирование результатов
     results: list[CandidateResult] = []
     for spec in candidate_specs:
         msgs = candidate_messages[spec]
         words = count_words(msgs)
-        sim = scores[spec]
+        report = reports[spec]
         results.append(
             CandidateResult(
                 label=spec,
                 words=words,
                 messages=len(msgs),
-                similarity=sim,
+                similarity=report["similarity"],
+                top_features=tuple(SharedFeature(**item) for item in report["features"]),
             )
         )
 

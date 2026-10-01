@@ -90,3 +90,56 @@ TEST_CASE("[compare] broken UTF-8 does not throw", "[compare]") {
     REQUIRE(result[0] >= 0.0);
     REQUIRE(result[0] <= 1.0);
 }
+
+TEST_CASE("[compare] explanations: top features are readable and sorted", "[compare]") {
+    const std::vector<std::string> unknown = {"привет как дела"};
+    const std::vector<std::vector<std::string>> candidates = {{"привет как дела"}, {"hello world"}};
+    const auto reports = chatstyle::compare_with_explanations(unknown, candidates, 5);
+    REQUIRE(reports.size() == 2);
+
+    const auto& same = reports[0];
+    REQUIRE_THAT(same.similarity, Catch::Matchers::WithinAbs(1.0, 1e-9));
+    REQUIRE(same.top_features.size() == 5);
+    for (std::size_t i = 0; i < same.top_features.size(); ++i) {
+        const auto& item = same.top_features[i];
+        REQUIRE(item.contribution > 0.0);
+        REQUIRE(item.unknown_count > 0.0);
+        REQUIRE(item.candidate_count > 0.0);
+        for (const char32_t cp : item.feature) {
+            REQUIRE(cp != 0x02);
+            REQUIRE(cp != 0x03);
+            REQUIRE(cp != U' ');
+        }
+        if (i > 0) {
+            REQUIRE(item.contribution <= same.top_features[i - 1].contribution);
+        }
+    }
+    // единственная общая n-грамма с английским текстом — пробел
+    REQUIRE(reports[1].top_features.size() == 1);
+    REQUIRE(reports[1].top_features[0].feature == U"␣");
+    REQUIRE(reports[1].similarity > 0.0);
+}
+
+TEST_CASE("[compare] explanations agree with compare_to_unknown and sum to similarity", "[compare]") {
+    const std::vector<std::string> unknown = {"ну привет)) как дела", "щас приду"};
+    const std::vector<std::vector<std::string>> candidates = {{"ну привет как жизнь))", "щас буду"}};
+    const auto plain = compare_to_unknown(unknown, candidates);
+    const auto reports = chatstyle::compare_with_explanations(unknown, candidates, 100000);
+    REQUIRE(reports.size() == 1);
+    REQUIRE(reports[0].similarity == plain[0]);
+    double total = 0.0;
+    for (const auto& item : reports[0].top_features) {
+        total += item.contribution;
+    }
+    REQUIRE_THAT(total, Catch::Matchers::WithinAbs(plain[0], 1e-9));
+}
+
+TEST_CASE("[compare] explanations: top_k zero and no candidates", "[compare]") {
+    const std::vector<std::string> unknown = {"привет"};
+    const auto none = chatstyle::compare_with_explanations(unknown, {}, 5);
+    REQUIRE(none.empty());
+    const auto zero = chatstyle::compare_with_explanations(unknown, {{"привет"}}, 0);
+    REQUIRE(zero.size() == 1);
+    REQUIRE(zero[0].top_features.empty());
+    REQUIRE_THAT(zero[0].similarity, Catch::Matchers::WithinAbs(1.0, 1e-9));
+}

@@ -21,6 +21,21 @@ std::vector<std::u32string> to_u32(const std::vector<std::string>& texts) {
     return result;
 }
 
+struct Candidates {
+    std::vector<std::string> names;
+    std::vector<std::vector<std::string>> texts;
+};
+
+// Обходит словарь кандидатов в порядке вставки, чтобы результат шёл в том же порядке
+Candidates read_candidates(const py::dict& candidates) {
+    Candidates result;
+    for (auto item : candidates) {
+        result.names.push_back(item.first.cast<std::string>());
+        result.texts.push_back(item.second.cast<std::vector<std::string>>());
+    }
+    return result;
+}
+
 }  // namespace
 
 PYBIND11_MODULE(_core, m) {
@@ -29,25 +44,49 @@ PYBIND11_MODULE(_core, m) {
 
     m.def("compare",
         [](const std::vector<std::string>& unknown, const py::dict& candidates) -> py::dict {
-            std::vector<std::string> names;
-            std::vector<std::vector<std::string>> texts;
+            const auto input = read_candidates(candidates);
 
-            for (auto item : candidates) {
-                names.push_back(item.first.cast<std::string>());
-                texts.push_back(item.second.cast<std::vector<std::string>>());
-            }
-
-            auto scores = chatstyle::compare_to_unknown(unknown, texts);
+            const auto scores = chatstyle::compare_to_unknown(unknown, input.texts);
 
             py::dict result;
-            for (std::size_t i = 0; i < names.size(); ++i) {
-                result[py::str(names[i])] = scores[i];
+            for (std::size_t i = 0; i < input.names.size(); ++i) {
+                result[py::str(input.names[i])] = scores[i];
             }
             return result;
         },
         py::arg("unknown"),
         py::arg("candidates"),
         "Compare an unknown author with each candidate; returns {name: similarity in [0, 1]}"
+    );
+
+    m.def("compare_detailed",
+        [](const std::vector<std::string>& unknown, const py::dict& candidates, std::size_t top_k) {
+            const auto input = read_candidates(candidates);
+            const auto reports = chatstyle::compare_with_explanations(unknown, input.texts, top_k);
+
+            py::dict result;
+            for (std::size_t i = 0; i < input.names.size(); ++i) {
+                py::list features;
+                for (const auto& item : reports[i].top_features) {
+                    py::dict entry;
+                    entry["feature"] = py::str(chatstyle::u32_to_utf8(item.feature));
+                    entry["contribution"] = item.contribution;
+                    entry["unknown_count"] = item.unknown_count;
+                    entry["candidate_count"] = item.candidate_count;
+                    features.append(entry);
+                }
+                py::dict report;
+                report["similarity"] = reports[i].similarity;
+                report["features"] = features;
+                result[py::str(input.names[i])] = report;
+            }
+            return result;
+        },
+        py::arg("unknown"),
+        py::arg("candidates"),
+        py::arg("top_k") = 20,
+        "Compare an unknown author with each candidate; returns "
+        "{name: {similarity, features: [{feature, contribution, unknown_count, candidate_count}]}}"
     );
 
     m.def("style_features",

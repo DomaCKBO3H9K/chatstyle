@@ -105,3 +105,9 @@ TEST_CASE("ngrams: count_char_ngrams invalid ranges", "[ngrams]") {
     REQUIRE_THROWS_AS(chatstyle::count_char_ngrams({U"a"}, 0, 2), std::invalid_argument);
     REQUIRE_THROWS_AS(chatstyle::count_char_ngrams({U"a"}, 3, 2), std::invalid_argument);
 }
+
+TEST_CASE("ngrams: readable_ngram shows markers and spaces", "[ngrams]") {
+    REQUIRE(chatstyle::readable_ngram(mk(U"^п р$")) == U"^п␣р$");
+    REQUIRE(chatstyle::readable_ngram(U"абв") == U"абв");
+    REQUIRE(chatstyle::readable_ngram(U"").empty());
+}

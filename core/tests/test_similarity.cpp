@@ -2,6 +2,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <chatstyle/similarity.hpp>
 #include <vector>
+#include <cmath>
 
 using chatstyle::SparseVector;
 using chatstyle::cosine;
@@ -111,4 +112,44 @@ TEST_CASE("tfidf skips non-positive values", "[similarity]") {
     REQUIRE(r[0].size() == 1);
     REQUIRE(r[0].count(U"y") == 0);
     REQUIRE(r[0].count(U"z") == 0);
+}
+
+TEST_CASE("similarity: top_contributions ties are ordered by key and sum to cosine", "[similarity]") {
+    SparseVector a = {{U"x", 3.0}, {U"y", 4.0}};
+    SparseVector b = {{U"x", 4.0}, {U"y", 3.0}};
+    const auto top = chatstyle::top_contributions(a, b, 5);
+    REQUIRE(top.size() == 2);
+    REQUIRE(top[0].feature == U"x");
+    REQUIRE(top[1].feature == U"y");
+    REQUIRE_THAT(top[0].contribution, Catch::Matchers::WithinAbs(0.48, 1e-12));
+    REQUIRE_THAT(top[1].contribution, Catch::Matchers::WithinAbs(0.48, 1e-12));
+    REQUIRE_THAT(top[0].contribution + top[1].contribution,
+                 Catch::Matchers::WithinAbs(cosine(a, b), 1e-12));
+}
+
+TEST_CASE("similarity: top_contributions picks the largest and respects k", "[similarity]") {
+    SparseVector a = {{U"x", 1.0}, {U"y", 2.0}, {U"z", 3.0}};
+    SparseVector b = {{U"y", 2.0}, {U"z", 1.0}, {U"w", 9.0}};
+    const double scale = std::sqrt(14.0) * std::sqrt(86.0);
+
+    const auto one = chatstyle::top_contributions(a, b, 1);
+    REQUIRE(one.size() == 1);
+    REQUIRE(one[0].feature == U"y");
+    REQUIRE_THAT(one[0].contribution, Catch::Matchers::WithinAbs(4.0 / scale, 1e-12));
+
+    const auto all = chatstyle::top_contributions(a, b, 10);
+    REQUIRE(all.size() == 2);
+    REQUIRE(all[1].feature == U"z");
+    REQUIRE_THAT(all[1].contribution, Catch::Matchers::WithinAbs(3.0 / scale, 1e-12));
+    REQUIRE_THAT(all[0].contribution + all[1].contribution,
+                 Catch::Matchers::WithinAbs(cosine(a, b), 1e-12));
+}
+
+TEST_CASE("similarity: top_contributions edge cases", "[similarity]") {
+    SparseVector a = {{U"x", 1.0}};
+    SparseVector b = {{U"y", 1.0}};
+    REQUIRE(chatstyle::top_contributions(a, b, 5).empty());
+    REQUIRE(chatstyle::top_contributions(a, a, 0).empty());
+    REQUIRE(chatstyle::top_contributions(a, SparseVector{}, 5).empty());
+    REQUIRE(chatstyle::top_contributions(SparseVector{}, SparseVector{}, 5).empty());
 }
