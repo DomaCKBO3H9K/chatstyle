@@ -7,4 +7,5 @@ def test_core_version() -> None:
 
 def test_package_version_matches_core() -> None:
     import chatstyle
+
     assert chatstyle.__version__ == _core.version()
