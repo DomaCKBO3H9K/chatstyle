@@ -2,6 +2,7 @@
 #include <pybind11/stl.h>
 #include <chatstyle/compare.hpp>
 #include <chatstyle/delta.hpp>
+#include <chatstyle/impostors.hpp>
 #include <chatstyle/style_features.hpp>
 #include <chatstyle/text.hpp>
 #include <chatstyle/version.hpp>
@@ -147,6 +148,64 @@ PYBIND11_MODULE(_core, m) {
         py::arg("top_k") = 20,
         "Burrows Delta of an unknown author against each candidate; returns "
         "{name: {available, delta, features_used, differences: [...]}}"
+    );
+
+    m.def("general_impostors",
+        [](const std::vector<std::string>& unknown,
+           const py::dict& candidates,
+           const std::vector<std::vector<std::string>>& impostors,
+           const std::vector<std::string>& ignored_tokens,
+           std::size_t iterations,
+           double feature_fraction,
+           std::size_t max_impostors,
+           std::size_t min_impostors,
+           std::size_t min_chunks,
+           std::size_t chunk_words,
+           unsigned seed) {
+            const auto input = read_candidates(candidates);
+            std::vector<std::vector<std::u32string>> candidate_texts;
+            for (const auto& texts : input.texts) {
+                candidate_texts.push_back(to_u32(texts));
+            }
+            std::vector<std::vector<std::u32string>> impostor_texts;
+            for (const auto& texts : impostors) {
+                impostor_texts.push_back(to_u32(texts));
+            }
+            chatstyle::ImpostorsOptions options;
+            options.iterations = iterations;
+            options.feature_fraction = feature_fraction;
+            options.max_impostors = max_impostors;
+            options.min_impostors = min_impostors;
+            options.min_chunks = min_chunks;
+            options.chunk_words = chunk_words;
+            options.seed = seed;
+            const auto results = chatstyle::general_impostors(
+                to_u32(unknown), candidate_texts, impostor_texts, to_u32(ignored_tokens), options);
+
+            py::dict output;
+            for (std::size_t i = 0; i < input.names.size(); ++i) {
+                py::dict report;
+                report["available"] = results[i].available;
+                report["score"] = results[i].score;
+                report["impostors"] = results[i].impostors;
+                report["iterations"] = results[i].iterations;
+                output[py::str(input.names[i])] = report;
+            }
+            return output;
+        },
+        py::arg("unknown"),
+        py::arg("candidates"),
+        py::arg("impostors"),
+        py::arg("ignored_tokens"),
+        py::arg("iterations") = 100,
+        py::arg("feature_fraction") = 0.5,
+        py::arg("max_impostors") = 25,
+        py::arg("min_impostors") = 3,
+        py::arg("min_chunks") = 2,
+        py::arg("chunk_words") = 200,
+        py::arg("seed") = 1,
+        "General Impostors score of each candidate; returns "
+        "{name: {available, score, impostors, iterations}}"
     );
 
     m.def("style_features",

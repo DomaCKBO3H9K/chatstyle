@@ -3,10 +3,11 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <chatstyle/delta.hpp>
 #include <cmath>
-#include <random>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#include "synthetic_text.hpp"
 
 using chatstyle::burrows_delta;
 using chatstyle::DeltaOptions;
@@ -16,7 +17,7 @@ using Catch::Matchers::WithinAbs;
 
 namespace {
 
-using Messages = std::vector<std::u32string>;
+using Messages = synthetic::Messages;
 
 std::vector<std::size_t> chunk_sizes(const Messages& messages, std::size_t chunk_words,
                                      const Messages& ignored = {}) {
@@ -34,52 +35,6 @@ DeltaOptions options(std::size_t chunk_words, std::size_t min_chunks = 6,
     result.min_chunks = min_chunks;
     result.top_words = top_words;
     return result;
-}
-
-// Детерминированный выбор без std::uniform_int_distribution: его результат зависит от платформы
-struct Generator {
-    std::mt19937 engine;
-    explicit Generator(unsigned seed) : engine(seed) {}
-    std::size_t below(std::size_t limit) { return engine() % limit; }
-};
-
-Messages casual_style(unsigned seed, std::size_t count) {
-    static const Messages words = {U"ну", U"типа", U"короче", U"блин", U"я", U"и", U"не", U"щас"};
-    Generator rng(seed);
-    Messages messages;
-    for (std::size_t m = 0; m < count; ++m) {
-        std::u32string text;
-        const std::size_t length = 8 + rng.below(7);
-        for (std::size_t w = 0; w < length; ++w) {
-            text += (w ? U" " : U"") + words[rng.below(words.size())];
-        }
-        if (rng.below(10) < 6) {
-            text += U"))";
-        }
-        messages.push_back(text);
-    }
-    return messages;
-}
-
-Messages formal_style(unsigned seed, std::size_t count) {
-    static const Messages words = {U"что",   U"для", U"при", U"также",
-                                   U"однако", U"это", U"в",   U"поэтому"};
-    Generator rng(seed);
-    Messages messages;
-    for (std::size_t m = 0; m < count; ++m) {
-        std::u32string text;
-        const std::size_t length = 8 + rng.below(7);
-        for (std::size_t w = 0; w < length; ++w) {
-            std::u32string word = words[rng.below(words.size())];
-            if (w == 0) {
-                word[0] -= 0x20;  // заглавная первая буква («а»..«я» -> «А»..«Я»)
-            }
-            text += (w ? U" " : U"") + word;
-        }
-        text += U".";
-        messages.push_back(text);
-    }
-    return messages;
 }
 
 StyleLexicon chat_lexicon() {
@@ -206,8 +161,8 @@ TEST_CASE("delta: top_words limits word features, ties are broken by key", "[del
 }
 
 TEST_CASE("delta: differences are sorted by absolute difference", "[delta]") {
-    const auto unknown = casual_style(1, 60);
-    const std::vector<Messages> candidates = {formal_style(3, 60)};
+    const auto unknown = synthetic::casual(1, 60);
+    const std::vector<Messages> candidates = {synthetic::formal(3, 60)};
     const auto results = burrows_delta(unknown, candidates, chat_lexicon(), options(50));
     REQUIRE(results[0].available);
     const auto& diffs = results[0].differences;
@@ -226,8 +181,8 @@ TEST_CASE("delta: differences are sorted by absolute difference", "[delta]") {
 // --- синтетические стили ---
 
 TEST_CASE("delta: same style is much closer than a different style", "[delta]") {
-    const auto unknown = casual_style(1, 60);
-    const std::vector<Messages> candidates = {casual_style(2, 60), formal_style(3, 60)};
+    const auto unknown = synthetic::casual(1, 60);
+    const std::vector<Messages> candidates = {synthetic::casual(2, 60), synthetic::formal(3, 60)};
     const auto results = burrows_delta(unknown, candidates, chat_lexicon(), options(50));
     REQUIRE(results[0].available);
     REQUIRE(results[1].available);
@@ -236,8 +191,8 @@ TEST_CASE("delta: same style is much closer than a different style", "[delta]") 
 }
 
 TEST_CASE("delta: result is deterministic", "[delta]") {
-    const auto unknown = casual_style(1, 40);
-    const std::vector<Messages> candidates = {casual_style(2, 40), formal_style(3, 40)};
+    const auto unknown = synthetic::casual(1, 40);
+    const std::vector<Messages> candidates = {synthetic::casual(2, 40), synthetic::formal(3, 40)};
     const auto first = burrows_delta(unknown, candidates, chat_lexicon(), options(50));
     const auto second = burrows_delta(unknown, candidates, chat_lexicon(), options(50));
     REQUIRE(first.size() == second.size());
