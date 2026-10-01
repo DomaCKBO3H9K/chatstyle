@@ -229,12 +229,10 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
 
     # 2. Таблица кандидатов
     table = Table(title=None)
-    table.add_column("Кандидат", no_wrap=True)
-    table.add_column("Слов", justify="right")
-    table.add_column("Сообщений", justify="right")
-    table.add_column("Сходство", justify="right")
-    table.add_column("Delta", justify="right")
-    table.add_column("Impostors (итог)", justify="right")
+    # длинная подпись источника переносится, а заголовки чисел не сокращаются
+    table.add_column("Кандидат", overflow="fold")
+    for header in ("Слов", "Сообщений", "Сходство", "Delta", "Impostors (итог)"):
+        table.add_column(header, justify="right", no_wrap=True, min_width=len(header))
 
     for cand in result.candidates:
         table.add_row(
