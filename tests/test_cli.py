@@ -281,3 +281,54 @@ def test_features_error_has_exit_code_2(fixtures_cwd: None) -> None:
 def test_features_help_lists_command() -> None:
     result = invoke(["--help"])
     assert "features" in result.output
+
+
+def test_report_markdown_is_written(fixtures_cwd: None, tmp_path: Path) -> None:
+    report = tmp_path / "report.md"
+    args = ["compare", "-u", "file:unknown.txt", "-c", "file:same.txt", "--report", str(report)]
+    result = invoke(args)
+    assert result.exit_code == 0
+    assert "Отчёт сохранён:" in result.output
+    text = report.read_text(encoding="utf-8")
+    assert "# Отчёт chatstyle" in text
+    assert "`file:same.txt`" in text
+    assert "не доказательство авторства" in text
+
+
+def test_report_html_is_written_for_several_candidates(fixtures_cwd: None, tmp_path: Path) -> None:
+    report = tmp_path / "report.html"
+    args = [
+        "compare",
+        "-u",
+        "file:unknown.txt",
+        "-c",
+        "file:other.txt",
+        "-c",
+        "file:same.txt",
+        "--report",
+        str(report),
+    ]
+    assert invoke(args).exit_code == 0
+    text = report.read_text(encoding="utf-8")
+    assert "<h2>Метод</h2>" in text
+    assert text.index("file:same.txt") < text.index("file:other.txt")
+    assert "<h3><code>file:same.txt</code>" in text
+
+
+def test_report_wrong_extension_fails_before_collecting(fixtures_cwd: None, tmp_path: Path) -> None:
+    report = tmp_path / "report.txt"
+    args = ["compare", "-u", "file:nope_xyz.txt", "-c", "file:same.txt", "--report", str(report)]
+    result = invoke(args)
+    assert result.exit_code == 2
+    assert "Неизвестный формат отчёта" in result.output
+    assert "nope_xyz" not in result.output  # источники даже не читались
+    assert not report.exists()
+
+
+def test_report_write_error_after_table(fixtures_cwd: None, tmp_path: Path) -> None:
+    report = tmp_path / "нет" / "report.md"
+    args = ["compare", "-u", "file:unknown.txt", "-c", "file:same.txt", "--report", str(report)]
+    result = invoke(args)
+    assert result.exit_code == 2
+    assert "Сходство" in result.output
+    assert "Не удалось записать отчёт" in result.output

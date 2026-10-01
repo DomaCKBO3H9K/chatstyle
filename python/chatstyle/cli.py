@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -11,20 +12,20 @@ from chatstyle.errors import ChatstyleError
 from chatstyle.features import FEATURE_LABELS, FILLER_WORD_PREFIX, FUNCTION_WORD_PREFIX
 from chatstyle.paths import session_file
 from chatstyle.pipeline import (
-    MIN_WORDS,
+    DISCLAIMER,
     AuthorProfile,
     ComparisonResult,
+    low_volume_warning,
     profile_author,
     run_comparison,
 )
+from chatstyle.report import report_format, write_report
 
 app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
     help="chatstyle — верификация авторства русскоязычной переписки по стилю письма.",
 )
-
-DISCLAIMER: str = "Результат — статистическая оценка сходства стиля, а не доказательство авторства."
 
 
 def _version_callback(value: bool) -> None:
@@ -82,8 +83,19 @@ def compare(
             help="Игнорировать кэш и заново загрузить сообщения из Telegram",
         ),
     ] = False,
+    report: Annotated[
+        Path | None,
+        typer.Option("--report", help="Сохранить отчёт в файл .md или .html"),
+    ] = None,
 ) -> None:
     """Сравнить неизвестного автора с каждым кандидатом."""
+    try:
+        if report is not None:
+            report_format(report)  # формат проверяется до сбора данных
+    except ChatstyleError as exc:
+        typer.echo(f"Ошибка: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+
     options = CollectOptions(
         limit=limit,
         refresh=refresh,
@@ -96,6 +108,14 @@ def compare(
         raise typer.Exit(code=2) from exc
 
     _print_result(unknown, result)
+
+    if report is not None:
+        try:
+            write_report(report, result)
+        except ChatstyleError as exc:
+            typer.echo(f"Ошибка: {exc}", err=True)
+            raise typer.Exit(code=2) from exc
+        typer.echo(f"Отчёт сохранён: {report}")
 
 
 @app.command()
@@ -202,21 +222,8 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
     console.print(table)
 
     # 3. Предупреждение о малом объёме текста
-    low_text_parts: list[str] = []
-
-    if result.unknown.words < MIN_WORDS:
-        low_text_parts.append(f"неизвестный автор — {result.unknown.words}")
-
-    for cand in result.candidates:
-        if cand.words < MIN_WORDS:
-            low_text_parts.append(f"{cand.label} — {cand.words}")
-
-    if low_text_parts:
-        warning = (
-            f"Внимание: мало текста (меньше {MIN_WORDS} слов): "
-            + "; ".join(low_text_parts)
-            + ". Оценка может быть ненадёжной."
-        )
+    warning = low_volume_warning(result)
+    if warning:
         console.print(warning, soft_wrap=True)
 
     # 4. Дисклеймер

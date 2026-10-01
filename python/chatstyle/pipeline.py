@@ -15,7 +15,9 @@ from chatstyle.features import style_features
 from chatstyle.preprocess import MENTION_TOKEN, URL_TOKEN, preprocess
 
 MIN_WORDS: int = 1000
-DEFAULT_TOP_FEATURES: int = 20
+# Сколько общих n-грамм хранится на кандидата: отчёт скрывает тривиальные и берёт из них 20
+DEFAULT_TOP_FEATURES: int = 100
+DISCLAIMER: str = "Результат — статистическая оценка сходства стиля, а не доказательство авторства."
 
 
 @dataclass(frozen=True)
@@ -51,6 +53,7 @@ class CandidateResult:
 class ComparisonResult:
     """Результат сравнения неизвестного автора с кандидатами."""
 
+    unknown_label: str
     unknown: AuthorStats
     candidates: tuple[CandidateResult, ...]
 
@@ -68,6 +71,32 @@ def count_words(messages: Sequence[str]) -> int:
         words = re.findall(r"\w+", cleaned)
         total += len(words)
     return total
+
+
+def low_volume_sides(result: ComparisonResult) -> list[tuple[str | None, int]]:
+    """Стороны с объёмом меньше MIN_WORDS: (подпись кандидата или None для неизвестного, слов)."""
+    sides: list[tuple[str | None, int]] = []
+    if result.unknown.words < MIN_WORDS:
+        sides.append((None, result.unknown.words))
+    for candidate in result.candidates:
+        if candidate.words < MIN_WORDS:
+            sides.append((candidate.label, candidate.words))
+    return sides
+
+
+def low_volume_warning(result: ComparisonResult) -> str | None:
+    """Предупреждение о малом объёме текста у любой из сторон или None, если текста хватает."""
+    sides = low_volume_sides(result)
+    if not sides:
+        return None
+    parts = [
+        f"{'неизвестный автор' if label is None else label} — {words}" for label, words in sides
+    ]
+    return (
+        f"Внимание: мало текста (меньше {MIN_WORDS} слов): "
+        + "; ".join(parts)
+        + ". Оценка может быть ненадёжной."
+    )
 
 
 def _load_messages(spec: str, options: CollectOptions | None) -> list[str]:
@@ -148,6 +177,7 @@ def run_comparison(
     )
 
     return ComparisonResult(
+        unknown_label=unknown_spec,
         unknown=unknown_stats,
         candidates=tuple(results),
     )
