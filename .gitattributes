@@ -1,1 +1,2 @@
 * text=auto eol=lf
+tests/fixtures/not_utf8.txt -text

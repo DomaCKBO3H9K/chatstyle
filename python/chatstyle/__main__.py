@@ -1,9 +1,8 @@
-def main() -> int:
-    from chatstyle import _core
+def main() -> None:
+    from chatstyle.cli import app
 
-    print(f"chatstyle core {_core.version()}")
-    return 0
+    app(prog_name="chatstyle")
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

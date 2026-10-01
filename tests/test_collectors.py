@@ -1,0 +1,104 @@
+from pathlib import Path
+
+import pytest
+from chatstyle.collectors import collect, split_spec
+from chatstyle.collectors.txt import read_txt
+from chatstyle.errors import ChatstyleError
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def test_read_txt_utf8(tmp_path: Path) -> None:
+    file = tmp_path / "test.txt"
+    file.write_bytes("привет\nмир\n".encode())
+    result = read_txt(file)
+    assert result == ["привет", "мир"]
+
+
+def test_read_txt_bom_and_crlf(tmp_path: Path) -> None:
+    file = tmp_path / "bom.txt"
+    content = b"\xef\xbb\xbf" + "привет\r\nмир".encode()
+    file.write_bytes(content)
+    result = read_txt(file)
+    assert result == ["привет", "мир"]
+
+
+def test_read_txt_keeps_empty_lines(tmp_path: Path) -> None:
+    file = tmp_path / "empty.txt"
+    file.write_bytes(b"a\n\nb")
+    result = read_txt(file)
+    assert result == ["a", "", "b"]
+
+
+def test_read_txt_not_utf8_raises() -> None:
+    path = FIXTURES / "not_utf8.txt"
+    with pytest.raises(ChatstyleError) as exc_info:
+        read_txt(path)
+    assert "UTF-8" in str(exc_info.value)
+
+
+def test_read_txt_missing_file_raises(tmp_path: Path) -> None:
+    path = tmp_path / "nope.txt"
+    with pytest.raises(ChatstyleError):
+        read_txt(path)
+
+
+def test_read_txt_directory_raises(tmp_path: Path) -> None:
+    with pytest.raises(ChatstyleError):
+        read_txt(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "spec, expected",
+    [
+        ("file:a.txt", ("file", "a.txt")),
+        ("FILE:a.txt", ("file", "a.txt")),
+        (r"file:C:\data\a.txt", ("file", r"C:\data\a.txt")),
+        ("tg:@user", ("tg", "@user")),
+    ],
+)
+def test_split_spec(spec: str, expected: tuple[str, str]) -> None:
+    assert split_spec(spec) == expected
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "a.txt",
+        ":a.txt",
+        "file:",
+        "",
+    ],
+)
+def test_split_spec_invalid(spec: str) -> None:
+    with pytest.raises(ChatstyleError) as exc_info:
+        split_spec(spec)
+    if spec == "a.txt":
+        assert "file:" in str(exc_info.value)
+
+
+def test_collect_file() -> None:
+    path = FIXTURES / "unknown.txt"
+    spec = f"file:{path}"
+    result = collect(spec)
+    assert len(result) > 10
+    assert result[0] == "ну привет))"
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "tg:@user",
+        "tgexport:result.json",
+    ],
+)
+def test_collect_not_implemented(spec: str) -> None:
+    with pytest.raises(ChatstyleError) as exc_info:
+        collect(spec)
+    assert "не реализован" in str(exc_info.value)
+
+
+def test_collect_unknown_scheme() -> None:
+    with pytest.raises(ChatstyleError) as exc_info:
+        collect("ftp:x")
+    assert "Неизвестный" in str(exc_info.value)
