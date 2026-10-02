@@ -169,6 +169,16 @@ def compare(
         bool,
         typer.Option("--emoji", help="Добавить сходство по эмодзи (какие и в каком порядке)"),
     ] = False,
+    lexical: Annotated[
+        bool,
+        typer.Option(
+            "--lexical",
+            help=(
+                "Добавить в смесь лексику (языковая модель и пословные n-граммы): "
+                "точнее, но чувствительнее к теме"
+            ),
+        ),
+    ] = False,
     rhythm: Annotated[
         bool,
         typer.Option(
@@ -205,6 +215,7 @@ def compare(
             wordgrams=wordgrams,
             emoji=emoji,
             rhythm=rhythm,
+            lexical=lexical,
         )
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)

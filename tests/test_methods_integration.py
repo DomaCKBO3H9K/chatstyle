@@ -208,7 +208,7 @@ def test_cli_full_table_and_summary(tmp_path: Path) -> None:
         "other.txt", out.index("Кандидат")
     )
     assert (
-        "Порядок: по смеси методов (языковая модель, слова, каркас служебных слов, Delta)." in out
+        "Порядок: по стилевой смеси (каркас служебных слов, Delta, языковая модель без тем)." in out
     )
     assert "(методы согласны)" in out
     assert "недоступ" not in out
@@ -230,7 +230,7 @@ def test_cli_dashes_and_hint_without_impostors(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "—" in result.output
     assert (
-        "Порядок: по смеси методов (языковая модель, слова, каркас служебных слов, Delta)."
+        "Порядок: по стилевой смеси (каркас служебных слов, Delta, языковая модель без тем)."
         in result.output
     )
     assert "посторонних авторов 1 из 3" in result.output

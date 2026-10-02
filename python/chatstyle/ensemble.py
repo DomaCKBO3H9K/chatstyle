@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import random
+import re
 import statistics
 from collections import Counter
 from collections.abc import Mapping, Sequence
@@ -21,6 +22,8 @@ from chatstyle.wordgrams import words_of
 
 DEFAULT_CAP_WORDS = 2500
 SKELETON_WORDS = 300  # сколько самых частых слов (по всем авторам сравнения) остаются «каркасом»
+MASKED_WORDS = 150  # столько самых частых слов остаются в тексте для замаскированной модели
+_TOKEN = re.compile(r"[^\W\d_]+|\d+|[^\w\s]|\s", re.UNICODE)
 _BLANK = chr(0xF0000)  # любое слово вне «каркаса»
 _FIRST_CODE = 0xF0001
 
@@ -89,6 +92,47 @@ def skeleton_cosine(
         return {}
     reports = _core.compare_detailed(unknown_view, views, 0)
     return {label: report["similarity"] for label, report in reports.items()}
+
+
+def mask_rare_words(messages: Sequence[str], keep: set[str]) -> list[str]:
+    """Text distortion: слова вне `keep` — звёздочки той же длины, цифры — «#», знаки остаются.
+
+    Остаётся то, как автор строит текст (частые слова, знаки, длины слов, регистр потерян), а
+    тема и имена исчезают.
+    """
+    masked: list[str] = []
+    for message in messages:
+        parts: list[str] = []
+        for token in _TOKEN.findall(message):
+            if token.isalpha():
+                lower = token.lower()
+                parts.append(lower if lower in keep else "*" * len(token))
+            elif token.isdigit():
+                parts.append("#" * len(token))
+            else:
+                parts.append(token)
+        text = "".join(parts).strip()
+        if text:
+            masked.append(text)
+    return masked
+
+
+def masked_charlm(
+    unknown: Sequence[str],
+    candidates: Mapping[str, Sequence[str]],
+    keep_words: int = MASKED_WORDS,
+    order: int = 6,
+) -> dict[str, float]:
+    """Выигрыш языковой модели символов (бит/символ) при замаскированных редких словах."""
+    counts: Counter[str] = Counter()
+    for messages in (unknown, *candidates.values()):
+        for message in messages:
+            counts.update(words_of(message))
+    keep = {word for word, _ in counts.most_common(keep_words)}
+    unknown_view = mask_rare_words(unknown, keep)
+    views = {label: mask_rare_words(messages, keep) for label, messages in candidates.items()}
+    reports = _core.charlm_compare(unknown_view, views, order, True)
+    return {label: report["llr"] for label, report in reports.items() if report["available"]}
 
 
 def z_scores(scores: Mapping[str, float]) -> dict[str, float]:

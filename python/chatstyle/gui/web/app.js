@@ -407,6 +407,7 @@ function compareForm() {
     charlm: $("charlm").checked,
     wordgrams: $("wordgrams").checked,
     emoji: $("emoji").checked,
+    lexical: $("lexical").checked,
     rhythm: $("rhythm").checked,
   };
 }

@@ -181,7 +181,7 @@ def test_result_view_matches_the_terminal_texts() -> None:
     assert view.rows[0][1:] == ("79", "19", "0.643", "—", "—")
     assert (
         view.notes[0]
-        == "Порядок: по смеси методов (языковая модель, слова, каркас служебных слов, Delta)."
+        == "Порядок: по стилевой смеси (каркас служебных слов, Delta, языковая модель без тем)."
     )
     assert any("Burrows Delta недоступна" in note for note in view.notes)
     assert any("посторонних авторов 1 из 3" in note for note in view.notes)
@@ -202,7 +202,7 @@ def test_result_view_with_all_methods(tmp_path: Path) -> None:
     view = build_result_view(outcome.result)
     assert (
         view.notes[0]
-        == "Порядок: по смеси методов (языковая модель, слова, каркас служебных слов, Delta)."
+        == "Порядок: по стилевой смеси (каркас служебных слов, Delta, языковая модель без тем)."
     )
     assert "(методы согласны)" in view.notes[1]
     assert all("недоступ" not in note for note in view.notes)

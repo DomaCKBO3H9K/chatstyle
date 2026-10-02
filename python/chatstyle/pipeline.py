@@ -18,7 +18,13 @@ from chatstyle.delta import (
     burrows_delta,
 )
 from chatstyle.emoji import emoji_views
-from chatstyle.ensemble import DEFAULT_CAP_WORDS, balanced_candidates, mix, skeleton_cosine
+from chatstyle.ensemble import (
+    DEFAULT_CAP_WORDS,
+    balanced_candidates,
+    masked_charlm,
+    mix,
+    skeleton_cosine,
+)
 from chatstyle.errors import ChatstyleError
 from chatstyle.features import ALL_STYLE_GROUPS, FUNCTION_WORD_PREFIX, style_features
 from chatstyle.impostors import (
@@ -117,6 +123,7 @@ class ComparisonResult:
     emoji: bool = False  # считалось ли сходство по эмодзи
     rhythm: bool = False  # считался ли ритм письма по времени сообщений
     ensemble: bool = False  # считалась ли смесь методов
+    lexical: bool = False  # входила ли в смесь лексика (языковая модель и слова)
 
     def best_by_method(self) -> dict[str, tuple[str, ...]]:
         """Лучшие кандидаты по каждому методу, доступному ВСЕМ кандидатам.
@@ -251,7 +258,11 @@ def final_score_text(candidate: CandidateResult) -> str:
 def ranking_text(result: ComparisonResult) -> str:
     """По какому методу отсортированы кандидаты."""
     if result.ranked_by == METHOD_ENSEMBLE:
-        return "Порядок: по смеси методов (языковая модель, слова, каркас служебных слов, Delta)."
+        if result.lexical:
+            return (
+                "Порядок: по смеси методов (языковая модель, слова, каркас служебных слов, Delta)."
+            )
+        return "Порядок: по стилевой смеси (каркас служебных слов, Delta, языковая модель без тем)."
     if result.ranked_by == METHOD_IMPOSTORS:
         return "Порядок: по итоговой оценке (General Impostors)."
     return "Порядок: по косинусному сходству (итоговая оценка недоступна)."
@@ -397,21 +408,30 @@ def _ensemble_scores(
     unknown_messages: Sequence[str],
     candidate_messages: Mapping[str, Sequence[str]],
     cap_words: int,
+    lexical: bool = False,
 ) -> dict[str, float]:
-    """Смесь методов (среднее z): языковая модель, слова, «каркас» служебных слов, Delta.
+    """Смесь методов (среднее z) по кандидатам одного размера (`cap_words` слов).
 
-    Считается по кандидатам одного размера (`cap_words` слов), нужно не меньше двух
-    кандидатов; сигнал, недоступный хоть одному кандидату, в смесь не входит.
+    Стилевая смесь (по умолчанию): «каркас» служебных слов, Delta и языковая модель по
+    тексту с замаскированными редкими словами — тема почти не влияет. С `lexical` вместо
+    замаскированной модели берутся обычная языковая модель символов и пословные n-граммы:
+    на реальных чатах точнее, но чувствительнее к теме. Нужно не меньше двух кандидатов;
+    сигнал, недоступный хоть одному кандидату, в смесь не входит.
     """
     if len(candidate_messages) < 2:
         return {}
     candidates = balanced_candidates(candidate_messages, cap_words)
-    signals = (
-        _charlm_scores(unknown_messages, candidates),
-        _wordgram_similarities(unknown_messages, candidates),
+    signals = [
         skeleton_cosine(unknown_messages, candidates),
         _delta_closeness(unknown_messages, candidates),
-    )
+    ]
+    if lexical:
+        signals += [
+            _charlm_scores(unknown_messages, candidates),
+            _wordgram_similarities(unknown_messages, candidates),
+        ]
+    else:
+        signals.append(masked_charlm(unknown_messages, candidates))
     return mix(signals, list(candidates))
 
 
@@ -473,6 +493,7 @@ def compare_messages(
     rhythm: bool = False,
     ensemble: bool = True,
     cap_words: int = DEFAULT_CAP_WORDS,
+    lexical: bool = False,
 ) -> tuple[tuple[CandidateResult, ...], str]:
     """Три метода по готовым предобработанным сообщениям: косинус, Burrows Delta, Impostors.
 
@@ -496,7 +517,9 @@ def compare_messages(
     emoji_scores = _emoji_similarities(unknown_messages, candidate_messages) if emoji else {}
     rhythm_scores = _rhythm_similarities(unknown_messages, candidate_messages) if rhythm else {}
     ensemble_scores = (
-        _ensemble_scores(unknown_messages, candidate_messages, cap_words) if ensemble else {}
+        _ensemble_scores(unknown_messages, candidate_messages, cap_words, lexical)
+        if ensemble
+        else {}
     )
 
     results: list[CandidateResult] = []
@@ -548,6 +571,7 @@ def run_comparison(
     rhythm: bool = False,
     ensemble: bool = True,
     cap_words: int = DEFAULT_CAP_WORDS,
+    lexical: bool = False,
 ) -> ComparisonResult:
     """Запустить полный цикл сравнения.
 
@@ -603,6 +627,7 @@ def run_comparison(
         rhythm=rhythm,
         ensemble=ensemble,
         cap_words=cap_words,
+        lexical=lexical,
     )
 
     unknown_words = count_words(unknown_messages)
@@ -624,6 +649,7 @@ def run_comparison(
         emoji=emoji,
         rhythm=rhythm,
         ensemble=any(row.ensemble_score is not None for row in results),
+        lexical=lexical,
     )
 
 

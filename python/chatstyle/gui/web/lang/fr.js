@@ -273,7 +273,9 @@ registerLanguage("fr", {
   "error.chat_missing": "La conversation importée est introuvable. Importez-la de nouveau dans l'onglet « Conversations ».",
   "method.ensemble": "mélange",
   "result.ensemble": "Mélange",
-  "result.summary.ensemble": "Proximité relative des candidats selon le mélange de méthodes (modèle de langage, mots, squelette des mots-outils, Delta) : les parts totalisent 1. Ce n'est pas la probabilité d'être l'auteur.",
+  "result.summary.ensemble": "Proximité relative des candidats selon le mélange de style (squelette des mots-outils, Delta, modèle de langage sans sujets) : les parts totalisent 1. Ce n'est pas la probabilité d'être l'auteur.",
   "metric.ensemble": "Proximité selon le mélange de méthodes",
-  "note.ranking.ensemble": "Ordre : selon le mélange de méthodes (modèle de langage, mots, squelette des mots-outils, Delta)."
+  "note.ranking.ensemble": "Ordre : selon le mélange de style (squelette des mots-outils, Delta, modèle de langage sans sujets).",
+  "lexical.label": "Ajouter le vocabulaire au mélange (plus précis, mais plus sensible au sujet)",
+  "lexical.hint": "Par défaut l'ordre des candidats ne repose que sur le style : mots-outils, Delta et un modèle de langage sans sujets."
 });

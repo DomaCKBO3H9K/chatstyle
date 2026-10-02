@@ -273,7 +273,9 @@ registerLanguage("es", {
   "error.chat_missing": "No se encontró el chat cargado. Cárgalo de nuevo en la pestaña «Chats».",
   "method.ensemble": "mezcla",
   "result.ensemble": "Mezcla",
-  "result.summary.ensemble": "Cercanía relativa de los candidatos según la mezcla de métodos (modelo de lenguaje, palabras, esqueleto de palabras funcionales, Delta): las proporciones suman 1. No es la probabilidad de autoría.",
+  "result.summary.ensemble": "Cercanía relativa de los candidatos según la mezcla de estilo (esqueleto de palabras funcionales, Delta, modelo de lenguaje sin temas): las proporciones suman 1. No es la probabilidad de autoría.",
   "metric.ensemble": "Cercanía según la mezcla de métodos",
-  "note.ranking.ensemble": "Orden: según la mezcla de métodos (modelo de lenguaje, palabras, esqueleto de palabras funcionales, Delta)."
+  "note.ranking.ensemble": "Orden: según la mezcla de estilo (esqueleto de palabras funcionales, Delta, modelo de lenguaje sin temas).",
+  "lexical.label": "Añadir el vocabulario a la mezcla (más preciso, pero más sensible al tema)",
+  "lexical.hint": "Por defecto el orden de los candidatos usa solo el estilo: palabras funcionales, Delta y un modelo de lenguaje sin temas."
 });

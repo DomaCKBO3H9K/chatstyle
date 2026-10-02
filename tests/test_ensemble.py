@@ -6,16 +6,19 @@ from chatstyle.cli import app
 from chatstyle.ensemble import (
     balanced_candidates,
     cap_messages,
+    mask_rare_words,
+    masked_charlm,
     mix,
     skeleton_cosine,
     z_scores,
 )
-from chatstyle.gui.api import compare_view_dict
-from chatstyle.gui.model import CompareOutcome
+from chatstyle.gui.api import Api, compare_view_dict
+from chatstyle.gui.model import CompareForm, CompareOutcome, run_compare
 from chatstyle.pipeline import (
     METHOD_ENSEMBLE,
     CandidateResult,
     ensemble_text,
+    ranking_text,
     run_comparison,
 )
 from chatstyle.report import write_report
@@ -159,7 +162,7 @@ def test_cli_and_reports_show_the_mix(tmp_path: Path) -> None:
         spec(files["same"]),
     ]
     out = runner.invoke(app, args, env={"COLUMNS": "220"}).output
-    assert "Смесь" in out and "Порядок: по смеси методов" in out
+    assert "Смесь" in out and "Порядок: по стилевой смеси" in out
 
     result = run_comparison(spec(files["unknown"]), [spec(files["other"]), spec(files["same"])])
     for suffix in ("md", "html"):
@@ -202,3 +205,67 @@ def test_random_synthetic_authors_are_recognized_beyond_the_workspace(tmp_path: 
         result = run_comparison(spec(unknown), [spec(other), spec(same)])
         wins += result.candidates[0].label == spec(same)
     assert wins == 5
+
+
+# --- стилевая смесь и лексика ---
+
+
+def test_mask_rare_words_keeps_frequent_words_punctuation_and_lengths() -> None:
+    masked = mask_rare_words(["Я не знаю 42!", "   ", "!!!"], keep={"я", "не"})
+    assert masked == ["я не **** ##!", "!!!"]
+
+
+def test_masked_charlm_prefers_the_same_style(tmp_path: Path) -> None:
+    unknown = casual(1, 60)
+    scores = masked_charlm(unknown, {"same": casual(2, 60), "other": formal(3, 60)})
+    assert scores["same"] > 0 > scores["other"]
+    assert masked_charlm([], {"a": ["раз"], "b": ["два"]}) == {}
+
+
+def test_style_mix_is_the_default_and_lexical_changes_the_note(tmp_path: Path) -> None:
+    files = write_workspace(tmp_path)
+    args = (spec(files["unknown"]), [spec(files["other"]), spec(files["same"])])
+    style = run_comparison(*args)
+    lexical = run_comparison(*args, lexical=True)
+    assert style.lexical is False and lexical.lexical is True
+    assert "стилевой смеси" in ranking_text(style)
+    assert "стилевой смеси" not in ranking_text(lexical)
+    assert style.candidates[0].label == lexical.candidates[0].label == spec(files["same"])
+
+
+def test_cli_lexical_flag(tmp_path: Path) -> None:
+    files = write_workspace(tmp_path)
+    args = [
+        "compare",
+        "-u",
+        spec(files["unknown"]),
+        "-c",
+        spec(files["other"]),
+        "-c",
+        spec(files["same"]),
+    ]
+    plain = runner.invoke(app, args, env={"COLUMNS": "220"})
+    assert plain.exit_code == 0 and "Порядок: по стилевой смеси" in plain.output
+    lexical = runner.invoke(app, [*args, "--lexical"], env={"COLUMNS": "220"})
+    assert (
+        lexical.exit_code == 0
+        and "Порядок: по смеси методов (языковая модель, слова" in lexical.output
+    )
+
+
+def test_gui_form_passes_lexical_and_rejects_non_bool(tmp_path: Path) -> None:
+    files = write_workspace(tmp_path)
+    outcome = run_compare(
+        CompareForm(
+            unknown=spec(files["unknown"]),
+            candidates=(spec(files["other"]), spec(files["same"])),
+            lexical=True,
+        )
+    )
+    assert outcome.result.lexical is True
+    api = Api(allowed_paths=["u.txt", "a.txt"])
+    answer = api.start_compare(
+        {"unknown": "file:u.txt", "candidates": ["file:a.txt"], "lexical": "yes"}
+    )
+    assert answer["ok"] is False
+    assert {item["code"] for item in answer["errors"]} == {"bad_input"}

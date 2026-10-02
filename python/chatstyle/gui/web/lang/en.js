@@ -273,7 +273,9 @@ registerLanguage("en", {
   "error.chat_missing": "The uploaded chat was not found. Upload it again on the Chats tab.",
   "method.ensemble": "mix",
   "result.ensemble": "Mix",
-  "result.summary.ensemble": "Relative closeness of the candidates by the mix of methods (language model, words, function-word skeleton, Delta): the shares add up to 1. This is not the probability of authorship.",
+  "result.summary.ensemble": "Relative closeness of the candidates by the style mix (function-word skeleton, Delta, language model without topics): the shares add up to 1. This is not the probability of authorship.",
   "metric.ensemble": "Closeness by the mix of methods",
-  "note.ranking.ensemble": "Order: by the mix of methods (language model, words, function-word skeleton, Delta)."
+  "note.ranking.ensemble": "Order: by the style mix (function-word skeleton, Delta, language model without topics).",
+  "lexical.label": "Add vocabulary to the mix (more accurate, but more sensitive to topic)",
+  "lexical.hint": "By default the order of candidates uses style only: function words, Delta and a language model without topics."
 });

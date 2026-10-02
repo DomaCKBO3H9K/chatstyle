@@ -110,6 +110,7 @@ class CompareForm:
     charlm: bool = False  # добавить языковую модель символов
     wordgrams: bool = False  # добавить пословные n-граммы
     emoji: bool = False  # добавить сходство по эмодзи
+    lexical: bool = False  # в смесь добавить лексику (точнее, но чувствительнее к теме)
     rhythm: bool = False  # добавить ритм письма по времени сообщений
 
 
@@ -188,6 +189,7 @@ def run_compare(form: CompareForm) -> CompareOutcome:
         charlm=form.charlm,
         wordgrams=form.wordgrams,
         emoji=form.emoji,
+        lexical=form.lexical,
         rhythm=form.rhythm,
         impostors=impostors,
         seed=form.seed if form.seed is not None else DEFAULT_SEED,

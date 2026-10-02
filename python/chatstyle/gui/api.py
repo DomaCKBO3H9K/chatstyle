@@ -516,6 +516,7 @@ class Api:
             charlm=bool(form.get("charlm", False)),
             wordgrams=bool(form.get("wordgrams", False)),
             emoji=bool(form.get("emoji", False)),
+            lexical=bool(form.get("lexical", False)),
             rhythm=bool(form.get("rhythm", False)),
         )
         problems = check_compare_form(compare_form)
@@ -665,6 +666,7 @@ class Api:
             and isinstance(form.get("charlm", False), bool)
             and isinstance(form.get("wordgrams", False), bool)
             and isinstance(form.get("emoji", False), bool)
+            and isinstance(form.get("lexical", False), bool)
             and isinstance(form.get("rhythm", False), bool)
         )
         if not well_formed:
