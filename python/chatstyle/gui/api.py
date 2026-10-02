@@ -14,13 +14,16 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import webbrowser
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from chatstyle import __version__
+from chatstyle.collectors.telegram import DEFAULT_LIMIT
+from chatstyle.collectors.telegram_login import LoginState, TelegramLogin
 from chatstyle.collectors.tg_export import list_tg_senders
-from chatstyle.errors import ChatstyleError
+from chatstyle.errors import ChatstyleError, CodedError
 from chatstyle.features import (
     FEATURE_LABELS,
     FILLER_WORD_PREFIX,
@@ -51,6 +54,7 @@ from chatstyle.pipeline import (
     unavailable_facts,
 )
 
+TELEGRAM_SITE = "https://my.telegram.org"  # единственный адрес, который окно открывает в браузере
 WORD_LIST_PREFIXES = (("fw", FUNCTION_WORD_PREFIX), ("fl", FILLER_WORD_PREFIX))
 WORD_LIST_LIMIT = 10
 WHY_LIMIT = 6
@@ -163,6 +167,16 @@ def profile_view_dict(profile: AuthorProfile) -> dict[str, Any]:
     }
 
 
+def state_dict(state: LoginState) -> dict[str, Any]:
+    """Состояние входа для окна."""
+    return {
+        "step": state.step,
+        "name": state.name,
+        "has_keys": state.has_keys,
+        "remote_failed": state.remote_failed,
+    }
+
+
 def first_path(chosen: Any) -> str | None:
     """Путь из ответа диалога pywebview (кортеж путей, строка или пусто при отмене)."""
     if not chosen:
@@ -174,9 +188,16 @@ def first_path(chosen: Any) -> str | None:
 class Api:
     """Мосты для JS-интерфейса: диалоги, запуск фоновых задач, опрос результатов."""
 
-    def __init__(self, window_provider: Callable[[], Any | None] = lambda: None) -> None:
+    def __init__(
+        self,
+        window_provider: Callable[[], Any | None] = lambda: None,
+        telegram: TelegramLogin | None = None,
+    ) -> None:
         self._window_provider = window_provider
+        self._telegram = telegram if telegram is not None else TelegramLogin()
         self._job: BackgroundJob[Any] | None = None
+        self._job_error_code: str | None = None
+        self._job_error_params: dict[str, str] = {}
 
     def init(self) -> dict[str, str]:
         return {"disclaimer": DISCLAIMER, "version": __version__}
@@ -264,12 +285,24 @@ class Api:
             except ValueError:
                 seed = None
 
+        limit_text = str(form.get("limit", "") or "").strip()
+        limit: int | None
+        if limit_text == "":
+            limit = DEFAULT_LIMIT
+        else:
+            try:
+                limit = int(limit_text)
+            except ValueError:
+                limit = None
+
         compare_form = CompareForm(
             unknown=form.get("unknown", ""),
             candidates=tuple(form.get("candidates", []) or []),
             impostors_dir=form.get("impostors_dir", ""),
             seed=seed,
             report_path=form.get("report_path", ""),
+            limit=limit,
+            refresh=bool(form.get("refresh", False)),
         )
         problems = check_compare_form(compare_form)
         if problems:
@@ -294,13 +327,57 @@ class Api:
         polled = self._job.poll()
         if polled is None:
             return {"state": "running"}
+        self._job_error_code = getattr(self._job, "error_code", None)
+        self._job_error_params = getattr(self._job, "error_params", {})
         self._job = None
         ok, payload = polled
         if not ok:
-            return {"state": "error", "error": core_error(str(payload))}
+            code = self._job_error_code
+            known = error(code, **self._job_error_params) if code else core_error(str(payload))
+            return {"state": "error", "error": known}
         if isinstance(payload, CompareOutcome):
             return {"state": "done", "kind": "compare", "view": compare_view_dict(payload)}
         return {"state": "done", "kind": "profile", "view": profile_view_dict(payload)}
+
+    # --- вход в Telegram: шаги, секреты (код, пароль) нигде не сохраняются ---
+
+    def telegram_status(self) -> dict[str, Any]:
+        """Без сети: шаг входа, имя аккаунта, заданы ли ключи."""
+        return state_dict(self._telegram.status())
+
+    def telegram_save_keys(self, api_id: str, api_hash: str) -> dict[str, Any]:
+        def action() -> LoginState:
+            self._telegram.save_keys(api_id, api_hash)
+            return self._telegram.status()
+
+        return self._telegram_step(action)
+
+    def telegram_begin(self, phone: str) -> dict[str, Any]:
+        return self._telegram_step(lambda: self._telegram.begin(phone))
+
+    def telegram_code(self, code: str) -> dict[str, Any]:
+        return self._telegram_step(lambda: self._telegram.submit_code(code))
+
+    def telegram_password(self, password: str) -> dict[str, Any]:
+        return self._telegram_step(lambda: self._telegram.submit_password(password))
+
+    def telegram_cancel(self) -> dict[str, Any]:
+        return self._telegram_step(self._telegram.cancel)
+
+    def telegram_logout(self) -> dict[str, Any]:
+        return self._telegram_step(self._telegram.logout)
+
+    def telegram_open_site(self) -> None:
+        webbrowser.open(TELEGRAM_SITE)
+
+    @staticmethod
+    def _telegram_step(action: Callable[[], LoginState]) -> dict[str, Any]:
+        try:
+            return {"ok": True, "state": state_dict(action())}
+        except CodedError as exc:
+            return {"ok": False, "error": error(exc.code, **exc.params)}
+        except ChatstyleError as exc:
+            return {"ok": False, "error": core_error(exc)}
 
     def open_report(self, path: str) -> dict[str, Any] | None:
         file_path = Path(path)

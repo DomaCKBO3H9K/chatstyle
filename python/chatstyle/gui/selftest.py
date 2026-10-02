@@ -118,12 +118,21 @@ def _scenario(window, folder: Path) -> str:  # noqa: ANN001
             raise AssertionError(
                 f"язык {code}: ожидали {[direction, compare, True]}, увидели {seen}"
             )
+    window.evaluate_js("document.getElementById('tg-chip').click()")
+    opened = window.evaluate_js(
+        "[document.getElementById('tg').open,"
+        " document.getElementById('tg-body').children.length > 0,"
+        " document.getElementById('tg-chip').textContent.length > 0]"
+    )
+    window.evaluate_js("document.getElementById('tg-close').click()")
+    if opened != [True, True, True]:
+        raise AssertionError(f"окно подключения Telegram: {opened}")
     before = window.evaluate_js("currentTheme()")
     window.evaluate_js("document.getElementById('theme').click()")
     after = window.evaluate_js("document.documentElement.dataset.theme")
     if after == before or after not in ("light", "dark"):
         raise AssertionError(f"тема не переключилась: было {before}, стало {after}")
-    return "OK: сравнение 2 кандидатов, отчёт, профиль, языки, тема"
+    return "OK: сравнение 2 кандидатов, отчёт, профиль, языки, Telegram, тема"
 
 
 def check() -> str:

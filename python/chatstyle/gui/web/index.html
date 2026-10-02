@@ -16,6 +16,7 @@
       <button role="tab" id="tab-profile" aria-selected="false" aria-controls="view-profile" data-i18n="tab.profile"></button>
     </div>
     <div class="tools">
+      <button class="tool" id="tg-chip" type="button" aria-haspopup="dialog"></button>
       <select id="lang" class="tool" data-i18n-aria="lang.aria"></select>
       <button class="tool" id="theme" type="button"></button>
     </div>
@@ -30,6 +31,7 @@
           <div class="row">
             <button class="btn" id="unknown-file" data-i18n="btn.file"></button>
             <button class="btn" id="unknown-tg" data-i18n="btn.telegram"></button>
+            <button class="btn" id="unknown-tg-live" data-i18n="btn.telegram_live"></button>
           </div>
         </div>
       </div>
@@ -40,6 +42,7 @@
         <div class="row">
           <button class="btn" id="add-file" data-i18n="btn.add_file"></button>
           <button class="btn" id="add-tg" data-i18n="btn.add_telegram"></button>
+          <button class="btn" id="add-tg-live" data-i18n="btn.add_telegram_live"></button>
         </div>
       </div>
 
@@ -57,6 +60,11 @@
             <span class="label" data-i18n="adv.seed"></span>
             <input type="text" inputmode="numeric" id="seed" value="1">
           </label>
+          <label class="field">
+            <span class="label" data-i18n="adv.limit"></span>
+            <input type="text" inputmode="numeric" id="limit" value="3000">
+          </label>
+          <label class="check"><input type="checkbox" id="refresh"><span data-i18n="adv.refresh"></span></label>
           <div class="field">
             <label class="check"><input type="checkbox" id="save-report"><span data-i18n="adv.save_report"></span></label>
             <div class="inline" id="report-row" hidden>
@@ -91,6 +99,7 @@
           <div class="row">
             <button class="btn" id="profile-file" data-i18n="btn.file"></button>
             <button class="btn" id="profile-tg" data-i18n="btn.telegram"></button>
+            <button class="btn" id="profile-tg-live" data-i18n="btn.telegram_live"></button>
           </div>
         </div>
       </div>
@@ -116,6 +125,30 @@
   <h2 id="senders-title" data-i18n="senders.title"></h2>
   <ul class="senders" id="senders-list"></ul>
   <div class="row end"><button class="btn" id="senders-cancel" data-i18n="btn.cancel"></button></div>
+</dialog>
+
+<dialog id="tg" aria-labelledby="tg-title">
+  <h2 id="tg-title" data-i18n="tg.title"></h2>
+  <div id="tg-body"></div>
+  <div class="row end"><button class="btn" id="tg-close" data-i18n="tg.close"></button></div>
+</dialog>
+
+<dialog id="tgsrc" aria-labelledby="tgsrc-title">
+  <h2 id="tgsrc-title" data-i18n="tgsrc.title"></h2>
+  <div class="adv">
+    <label class="field">
+      <span class="label" data-i18n="tgsrc.chat"></span>
+      <input type="text" id="tgsrc-chat" autocomplete="off" data-i18n-placeholder="tgsrc.chat_placeholder">
+    </label>
+    <label class="field">
+      <span class="label" data-i18n="tgsrc.sender"></span>
+      <input type="text" id="tgsrc-sender" autocomplete="off" data-i18n-placeholder="tgsrc.sender_placeholder">
+    </label>
+  </div>
+  <div class="row end">
+    <button class="btn" id="tgsrc-cancel" data-i18n="btn.cancel"></button>
+    <button class="btn primary" id="tgsrc-add" data-i18n="tgsrc.add"></button>
+  </div>
 </dialog>
 
 <script src="i18n.js"></script>

@@ -20,7 +20,7 @@ def test_selftest_passes_and_writes_ok(tmp_path: Path) -> None:
     if code != 0 and "WebView2" in text:
         pytest.skip("нет WebView2 для окна")
     assert code == 0, text
-    assert text.startswith("OK: сравнение 2 кандидатов, отчёт, профиль, языки, тема")
+    assert text.startswith("OK: сравнение 2 кандидатов, отчёт, профиль, языки, Telegram, тема")
 
 
 def test_selftest_failure_is_written_with_traceback(

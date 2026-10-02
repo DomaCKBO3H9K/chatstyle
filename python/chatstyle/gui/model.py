@@ -14,6 +14,7 @@ from typing import Generic, TypeVar
 
 from chatstyle.collectors import CollectOptions
 from chatstyle.collectors.impostors import load_impostor_directory
+from chatstyle.collectors.telegram import DEFAULT_LIMIT
 from chatstyle.collectors.tg_export import TgSender
 from chatstyle.errors import ChatstyleError
 from chatstyle.features import FEATURE_LABELS, word_list_lines
@@ -103,6 +104,8 @@ class CompareForm:
     impostors_dir: str = ""
     seed: int | None = DEFAULT_SEED  # None: в поле введено не число
     report_path: str = ""  # пусто: отчёт не сохранять
+    limit: int | None = DEFAULT_LIMIT  # сообщений на источник tg:; None: введено не число
+    refresh: bool = False  # для tg:: загрузить заново, не из кэша
 
 
 @dataclass(frozen=True)
@@ -129,6 +132,8 @@ def check_compare_form(form: CompareForm) -> list[FormError]:
             errors.append(FormError("same_as_unknown", {"spec": candidate}))
     if form.seed is None or form.seed < 0:
         errors.append(FormError("bad_seed"))
+    if form.limit is None or form.limit <= 0:
+        errors.append(FormError("bad_limit"))
     if form.impostors_dir and not Path(form.impostors_dir).is_dir():
         errors.append(FormError("impostors_dir_missing", {"path": form.impostors_dir}))
     if form.report_path:
@@ -145,6 +150,7 @@ _FORM_ERROR_TEXTS = {
     "duplicate_candidate": "Кандидат указан дважды: {spec}",
     "same_as_unknown": "Неизвестный автор и кандидат совпадают: {spec}",
     "bad_seed": "Seed должен быть целым неотрицательным числом.",
+    "bad_limit": "Число сообщений должно быть целым положительным числом.",
     "impostors_dir_missing": "Папка с чужими текстами не найдена: {path}",
     "report_format": "{message}",
 }
@@ -172,7 +178,7 @@ def run_compare(form: CompareForm) -> CompareOutcome:
     result = run_comparison(
         form.unknown,
         list(form.candidates),
-        CollectOptions(),
+        CollectOptions(limit=form.limit or DEFAULT_LIMIT, refresh=form.refresh),
         impostors=impostors,
         seed=form.seed if form.seed is not None else DEFAULT_SEED,
     )
@@ -273,6 +279,8 @@ class BackgroundJob(Generic[T]):
     def __init__(self, function: Callable[[], T]) -> None:
         self._function = function
         self._results: queue.Queue[tuple[bool, object]] = queue.Queue(maxsize=1)
+        self.error_code: str | None = None  # код последней ошибки с кодом (CodedError)
+        self.error_params: dict[str, str] = {}
         self._thread = threading.Thread(target=self._run, daemon=True)
 
     def start(self) -> None:
@@ -282,6 +290,8 @@ class BackgroundJob(Generic[T]):
         try:
             self._results.put((True, self._function()))
         except ChatstyleError as exc:
+            self.error_code = getattr(exc, "code", None)
+            self.error_params = dict(getattr(exc, "params", {}))
             self._results.put((False, str(exc)))
         except Exception as exc:  # noqa: BLE001 - интерфейс не должен падать молча
             self._results.put((False, f"Непредвиденная ошибка ({type(exc).__name__}): {exc}"))

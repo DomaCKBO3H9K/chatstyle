@@ -86,7 +86,10 @@ def _static_keys() -> set[str]:
         keys.update(re.findall(r't\(\s*(?:state\.\w+ === "\w+" \? )?"([\w.]+)"', _read(name)))
     page = _read("index.html")
     keys.update(re.findall(r'data-i18n(?:-placeholder|-aria)?="([\w.]+)"', page))
-    keys.update(re.findall(r'"((?:go|hint|theme)\.[a-z_]+)"', _read("app.js")))
+    for name in ("app.js", "i18n.js"):
+        # любой строковый литерал вида «раздел.ключ» (ключи передают и аргументами функций)
+        keys.update(re.findall(r'"([a-z_]+(?:\.[a-z_0-9:+]+)+)"', _read(name)))
+    keys -= {"app.js"}
     return keys
 
 
@@ -97,7 +100,17 @@ def _dynamic_keys() -> set[str]:
     pipeline = Path(str(resources.files("chatstyle").joinpath("pipeline.py"))).read_text(
         encoding="utf-8"
     )
-    error_codes = set(_FORM_ERROR_TEXTS) | set(re.findall(r'error\("(\w+)"', api)) | {"unexpected"}
+    coded = "".join(
+        Path(str(resources.files("chatstyle").joinpath(*parts))).read_text(encoding="utf-8")
+        for parts in (("collectors", "telegram.py"), ("collectors", "telegram_login.py"))
+    )
+    coded_codes = set(re.findall(r'(?:CodedError|TelegramLoginError)\(\s*"(\w+)"', coded))
+    error_codes = (
+        set(_FORM_ERROR_TEXTS)
+        | set(re.findall(r'error\("(\w+)"', api))
+        | coded_codes
+        | {"unexpected"}
+    )
     fact_codes = set(re.findall(r'"code": "(\w+)"', pipeline))
     keys = {f"error.{code}" for code in error_codes}
     keys |= {f"note.{code}" for code in fact_codes}
@@ -149,6 +162,8 @@ def test_error_placeholders_match_the_parameters_python_sends() -> None:
         "impostors_dir_missing": {"path"},
         "report_format": {"message"},
         "core": {"message"},
+        "flood_wait": {"minutes"},
+        "telegram": {"reason"},
         "unexpected": {"message"},
     }
     for code in CODES:

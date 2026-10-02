@@ -18,7 +18,7 @@ from typing import Any, Protocol
 
 from chatstyle.cache import load_cached, store_cached
 from chatstyle.config import TelegramCredentials, load_telegram_credentials
-from chatstyle.errors import ChatstyleError
+from chatstyle.errors import ChatstyleError, CodedError
 from chatstyle.paths import session_file
 
 DEFAULT_LIMIT = 3000
@@ -134,21 +134,27 @@ def _translate_error(exc: Exception) -> ChatstyleError | None:
 
     if isinstance(exc, errors.FloodWaitError):
         minutes = max(1, math.ceil(exc.seconds / 60))
-        return ChatstyleError(
-            f"Telegram просит подождать около {minutes} мин. Повторите запуск позже."
+        return CodedError(
+            "flood_wait",
+            f"Telegram просит подождать около {minutes} мин. Повторите запуск позже.",
+            minutes=minutes,
         )
     if isinstance(exc, errors.ApiIdInvalidError):
-        return ChatstyleError("Telegram отклонил TELEGRAM_API_ID/TELEGRAM_API_HASH: проверьте их.")
+        return CodedError(
+            "api_invalid", "Telegram отклонил TELEGRAM_API_ID/TELEGRAM_API_HASH: проверьте их."
+        )
     if isinstance(exc, errors.UsernameNotOccupiedError | errors.UsernameInvalidError):
-        return ChatstyleError("Пользователь или чат с таким именем не найден в Telegram.")
+        return CodedError(
+            "chat_not_found", "Пользователь или чат с таким именем не найден в Telegram."
+        )
     if isinstance(exc, errors.ChannelPrivateError | errors.ChatAdminRequiredError):
-        return ChatstyleError("Нет доступа к этому чату или его истории.")
+        return CodedError("chat_forbidden", "Нет доступа к этому чату или его истории.")
     if isinstance(exc, errors.RPCError):
         return ChatstyleError(f"Ошибка Telegram: {exc}")
     if isinstance(exc, sqlite3.OperationalError):
         return ChatstyleError("Файл сессии занят другим процессом chatstyle. Повторите позже.")
     if isinstance(exc, ConnectionError | TimeoutError | socket.gaierror):
-        return ChatstyleError(f"Нет соединения с Telegram: {exc}")
+        return CodedError("network", f"Нет соединения с Telegram: {exc}")
     return None
 
 
@@ -213,7 +219,10 @@ class TelethonFetcher:
         try:
             await client.connect()
             if not await client.is_user_authorized():
-                raise ChatstyleError("Нет входа в Telegram. Выполните один раз: chatstyle login")
+                raise CodedError(
+                    "telegram_not_logged_in",
+                    "Нет входа в Telegram. Выполните один раз: chatstyle login",
+                )
             chat = await _resolve(client, source.chat)
             same = source.sender == source.chat
             sender = chat if same else await _resolve(client, source.sender)

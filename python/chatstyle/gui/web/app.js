@@ -14,6 +14,7 @@ const state = {
   result: null,
   profileView: null,
   animate: false,
+  tg: { step: "logged_out", name: null, has_keys: true },
 };
 
 function el(tag, props = {}, children = []) {
@@ -136,6 +137,34 @@ async function chooseTelegram() {
   return source;
 }
 
+// Источник напрямую из Telegram: нужен вход, иначе открывается окно подключения.
+async function chooseTelegramLive() {
+  if (state.tg.step !== "logged_in") {
+    openTelegramDialog();
+    return null;
+  }
+  const dialog = $("tgsrc");
+  $("tgsrc-chat").value = "";
+  $("tgsrc-sender").value = "";
+  return new Promise((resolve) => {
+    let answer = null;
+    const add = () => {
+      const chat = $("tgsrc-chat").value.trim();
+      const sender = $("tgsrc-sender").value.trim();
+      if (!chat) return;
+      answer = {
+        spec: sender ? `tg:${chat}#${sender}` : `tg:${chat}`,
+        label: sender ? `${chat} › ${sender}` : chat,
+      };
+      dialog.close();
+    };
+    $("tgsrc-add").onclick = add;
+    $("tgsrc-cancel").onclick = () => dialog.close();
+    dialog.addEventListener("close", () => resolve(answer), { once: true });
+    dialog.showModal();
+  });
+}
+
 function askSender(senders) {
   const dialog = $("senders");
   const list = $("senders-list");
@@ -187,6 +216,7 @@ function refreshCompare() {
   $("go-profile-text").textContent = t(state.busy === "profile" ? "go.busy" : "go.profile");
   for (const control of document.querySelectorAll("main .btn, main input")) control.disabled = busy;
   $("theme").textContent = t(currentTheme() === "dark" ? "theme.to_light" : "theme.to_dark");
+  refreshTelegramChip();
 }
 
 // --- ошибки ---
@@ -266,6 +296,8 @@ function compareForm() {
     impostors_dir: $("impostors").value.trim(),
     seed: $("seed").value.trim(),
     report_path: $("save-report").checked ? $("report").value.trim() : "",
+    limit: $("limit").value.trim(),
+    refresh: $("refresh").checked,
   };
 }
 
@@ -382,11 +414,148 @@ function renderProfile(view, out) {
   );
 }
 
+// --- Telegram: подключение по шагам. Код и пароли нигде не сохраняются, поля очищаются сразу ---
+
+const tgUi = { busy: false, error: null, notice: null, changingKeys: false };
+
+function refreshTelegramChip() {
+  const connected = state.tg.step === "logged_in";
+  $("tg-chip").textContent = connected ? t("tg.chip.on", { name: state.tg.name || "" }) : t("tg.chip.off");
+  $("tg-chip").classList.toggle("on", connected);
+}
+
+async function loadTelegramStatus() {
+  const status = await call("telegram_status");
+  if (status) state.tg = status;
+  refreshTelegramChip();
+}
+
+function tgStep() {
+  if (state.tg.step === "logged_in") return "done";
+  if (state.tg.step === "need_code") return "code";
+  if (state.tg.step === "need_password") return "password";
+  return state.tg.has_keys && !tgUi.changingKeys ? "phone" : "keys";
+}
+
+function tgField(id, labelKey, options = {}) {
+  const input = el("input", {
+    type: options.type || "text",
+    id,
+    autocomplete: "off",
+    spellcheck: "false",
+    ...(options.inputmode ? { inputmode: options.inputmode } : {}),
+    ...(options.placeholderKey ? { placeholder: t(options.placeholderKey) } : {}),
+  });
+  input.disabled = tgUi.busy;
+  return el("label", { class: "field" }, [el("span", { class: "label", text: t(labelKey) }), input]);
+}
+
+function tgButton(textKey, handler, primary = false) {
+  const button = el("button", { class: primary ? "btn primary" : "btn", type: "button", text: t(textKey) });
+  button.disabled = tgUi.busy;
+  button.addEventListener("click", handler);
+  return button;
+}
+
+// Прочитать поле и сразу очистить его: секреты не остаются на странице.
+function takeValue(id) {
+  const input = $(id);
+  const value = input.value;
+  input.value = "";
+  return value;
+}
+
+async function tgRun(method, ...args) {
+  tgUi.busy = true;
+  tgUi.error = null;
+  tgUi.notice = null;
+  renderTelegramDialog();
+  const answer = await call(method, ...args);
+  tgUi.busy = false;
+  if (answer && answer.ok) {
+    state.tg = answer.state;
+    tgUi.changingKeys = false;
+    if (answer.state.remote_failed) tgUi.notice = "tg.logout_remote_failed";
+  } else if (answer && answer.error) {
+    tgUi.error = answer.error;
+    const status = await call("telegram_status");
+    if (status) state.tg = status;
+  }
+  refreshTelegramChip();
+  renderTelegramDialog();
+}
+
+function renderTelegramDialog() {
+  const step = tgStep();
+  const body = [];
+  if (step === "keys") {
+    body.push(
+      el("p", { class: "tg-note", text: t("tg.keys.intro") }),
+      tgButton("tg.keys.open_site", () => call("telegram_open_site")),
+      tgField("tg-api-id", "tg.keys.api_id", { inputmode: "numeric" }),
+      tgField("tg-api-hash", "tg.keys.api_hash", { type: "password" }),
+      el("p", { class: "tg-note", text: t("tg.keys.note") }),
+      tgButton("tg.keys.save", () => tgRun("telegram_save_keys", takeValue("tg-api-id"), takeValue("tg-api-hash")), true)
+    );
+  } else if (step === "phone") {
+    body.push(
+      tgField("tg-phone", "tg.phone.label", { inputmode: "tel", placeholderKey: "tg.phone.placeholder" }),
+      el("p", { class: "tg-note", text: t("tg.phone.note") }),
+      el("div", { class: "row" }, [
+        tgButton("tg.phone.send", () => tgRun("telegram_begin", $("tg-phone").value), true),
+        tgButton("tg.keys.change", () => {
+          tgUi.changingKeys = true;
+          renderTelegramDialog();
+        }),
+      ])
+    );
+  } else if (step === "code") {
+    body.push(
+      tgField("tg-code", "tg.code.label", { inputmode: "numeric" }),
+      el("p", { class: "tg-note", text: t("tg.code.note") }),
+      el("div", { class: "row" }, [
+        tgButton("tg.code.send", () => tgRun("telegram_code", takeValue("tg-code")), true),
+        tgButton("tg.cancel", () => tgRun("telegram_cancel")),
+      ])
+    );
+  } else if (step === "password") {
+    body.push(
+      tgField("tg-password", "tg.password.label", { type: "password" }),
+      el("div", { class: "row" }, [
+        tgButton("tg.password.send", () => tgRun("telegram_password", takeValue("tg-password")), true),
+        tgButton("tg.cancel", () => tgRun("telegram_cancel")),
+      ])
+    );
+  } else {
+    body.push(
+      el("p", { class: "tg-ok", text: t("tg.done", { name: state.tg.name || "" }), dir: "auto" }),
+      tgButton("tg.logout", () => tgRun("telegram_logout"))
+    );
+  }
+  if (tgUi.busy) body.push(el("p", { class: "tg-note", text: t("tg.busy") }));
+  if (tgUi.notice) body.push(el("p", { class: "warn", text: t(tgUi.notice) }));
+  if (tgUi.error) {
+    body.unshift(el("div", { class: "error", role: "alert" }, [el("div", { text: translateError(tgUi.error), dir: "auto" })]));
+  }
+  $("tg-body").replaceChildren(...body);
+  const first = $("tg-body").querySelector("input");
+  if (first && $("tg").open && !tgUi.busy) first.focus();
+}
+
+function openTelegramDialog() {
+  tgUi.error = null;
+  tgUi.notice = null;
+  tgUi.changingKeys = false;
+  renderTelegramDialog();
+  if (!$("tg").open) $("tg").showModal();
+}
+
 // --- перерисовка при смене языка ---
 
 function refreshAll() {
   refreshCompare();
   renderPanels();
+  if ($("tg").open) renderTelegramDialog();
 }
 
 // --- запуск окна ---
@@ -423,6 +592,17 @@ function bind() {
     if (path) $("report").value = path;
   });
   $("go").addEventListener("click", () => launch("compare", compareForm()));
+  $("unknown-tg-live").addEventListener("click", async () => {
+    state.unknown = (await chooseTelegramLive()) || state.unknown;
+    refreshCompare();
+  });
+  $("add-tg-live").addEventListener("click", () => addCandidate(chooseTelegramLive));
+  $("profile-tg-live").addEventListener("click", async () => {
+    state.profile = (await chooseTelegramLive()) || state.profile;
+    refreshCompare();
+  });
+  $("tg-chip").addEventListener("click", openTelegramDialog);
+  $("tg-close").addEventListener("click", () => $("tg").close());
 
   $("profile-file").addEventListener("click", async () => {
     state.profile = (await chooseFile()) || state.profile;
@@ -442,3 +622,6 @@ initLanguage();
 initTheme();
 bind();
 refreshAll();
+// Методы Python доступны после события pywebviewready; в простом браузере (макет) их может не быть.
+if (window.pywebview && window.pywebview.api) loadTelegramStatus();
+else window.addEventListener("pywebviewready", loadTelegramStatus, { once: true });
