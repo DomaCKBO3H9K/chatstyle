@@ -270,5 +270,10 @@ registerLanguage("es", {
   "chatpick.senders": "Participantes",
   "chatpick.add": "Elegir",
   "chatpick.empty": "Primero carga un chat en la pestaña «Chats».",
-  "error.chat_missing": "No se encontró el chat cargado. Cárgalo de nuevo en la pestaña «Chats»."
+  "error.chat_missing": "No se encontró el chat cargado. Cárgalo de nuevo en la pestaña «Chats».",
+  "method.ensemble": "mezcla",
+  "result.ensemble": "Mezcla",
+  "result.summary.ensemble": "Cercanía relativa de los candidatos según la mezcla de métodos (modelo de lenguaje, palabras, esqueleto de palabras funcionales, Delta): las proporciones suman 1. No es la probabilidad de autoría.",
+  "metric.ensemble": "Cercanía según la mezcla de métodos",
+  "note.ranking.ensemble": "Orden: según la mezcla de métodos (modelo de lenguaje, palabras, esqueleto de palabras funcionales, Delta)."
 });

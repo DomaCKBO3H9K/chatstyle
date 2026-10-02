@@ -179,7 +179,10 @@ def test_result_view_matches_the_terminal_texts() -> None:
         "other.txt",
     ]
     assert view.rows[0][1:] == ("79", "19", "0.643", "—", "—")
-    assert view.notes[0] == "Порядок: по косинусному сходству (итоговая оценка недоступна)."
+    assert (
+        view.notes[0]
+        == "Порядок: по смеси методов (языковая модель, слова, каркас служебных слов, Delta)."
+    )
     assert any("Burrows Delta недоступна" in note for note in view.notes)
     assert any("посторонних авторов 1 из 3" in note for note in view.notes)
     assert view.warning is not None and "меньше 1000 слов" in view.warning
@@ -197,7 +200,10 @@ def test_result_view_with_all_methods(tmp_path: Path) -> None:
         )
     )
     view = build_result_view(outcome.result)
-    assert view.notes[0] == "Порядок: по итоговой оценке (General Impostors)."
+    assert (
+        view.notes[0]
+        == "Порядок: по смеси методов (языковая модель, слова, каркас служебных слов, Delta)."
+    )
     assert "(методы согласны)" in view.notes[1]
     assert all("недоступ" not in note for note in view.notes)
     assert float(view.rows[0][5]) > float(view.rows[1][5])

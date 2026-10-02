@@ -21,6 +21,7 @@ from chatstyle.pipeline import (
     charlm_text,
     delta_text,
     emoji_text,
+    ensemble_text,
     final_score_text,
     low_volume_sides,
     morph_text,
@@ -57,6 +58,15 @@ METHOD_PARAGRAPHS: tuple[str, ...] = (
     "оценивается по кускам текста (около 200 слов) всех авторов сравнения; Delta — среднее "
     "отличие значений неизвестного автора и кандидата в единицах этого разброса. Чем меньше "
     "Delta, тем ближе стили. Нужно не меньше шести кусков на всё сравнение.",
+    "Смесь методов (при двух и более кандидатах). Четыре сигнала считаются по кандидатам "
+    "одного размера (случайные сообщения до 2500 слов у каждого, но не меньше самого короткого): "
+    "языковая модель символов (выигрыш модели кандидата над моделью остальных, бит на символ), "
+    "пословные n-граммы (косинус), «каркас» служебных слов (косинус n-грамм, где все слова вне "
+    "300 самых частых заменены пустышкой: учитывается построение фразы, а не тема) и Delta. Каждый "
+    "сигнал приводится к z-оценке среди кандидатов, смесь — их среднее с равными весами; больше — "
+    "ближе. Значение относительно набора кандидатов одного запуска; при двух кандидатах это доля "
+    "«голосов» методов (+1: все за, -1: все против). Сигнал, недоступный хотя бы одному кандидату, "
+    "в смесь не входит; нужно не меньше двух сигналов.",
     "General Impostors. В каждой из 100 итераций выбирается случайная половина n-грамм, "
     "случайный кусок неизвестного автора, случайный кусок кандидата и по куску у случайных "
     "посторонних авторов (остальные кандидаты и тексты из папки --impostors). Итерация "
@@ -90,6 +100,7 @@ LOW_VOLUME_HEADING = (
 )
 UNKNOWN_AUTHOR = "неизвестный автор"
 COLUMN_HEADERS = ("Кандидат", "Слов", "Сообщений", "Сходство (косинус)", "Delta", "Итоговая оценка")
+ENSEMBLE_HEADER = "Смесь методов (z)"
 MORPH_HEADER = "Части речи (косинус)"
 CHARLM_HEADER = "Языковая модель (бит/символ)"
 WORDGRAMS_HEADER = "Слова (косинус)"
@@ -100,6 +111,7 @@ RHYTHM_HEADER = "Ритм (по времени)"
 def _headers(result: ComparisonResult) -> tuple[str, ...]:
     return (
         *COLUMN_HEADERS,
+        *((ENSEMBLE_HEADER,) if result.ensemble else ()),
         *((MORPH_HEADER,) if result.morph else ()),
         *((CHARLM_HEADER,) if result.charlm else ()),
         *((WORDGRAMS_HEADER,) if result.wordgrams else ()),
@@ -229,6 +241,7 @@ def render_markdown(result: ComparisonResult, generated: datetime) -> str:
             f"| {_md_code(candidate.label)} | {candidate.words} | {candidate.messages} "
             f"| {candidate.similarity:.3f} | {delta_text(candidate)} "
             f"| {final_score_text(candidate)} |"
+            + (f" {ensemble_text(candidate)} |" if result.ensemble else "")
             + (f" {morph_text(candidate)} |" if result.morph else "")
             + (f" {charlm_text(candidate)} |" if result.charlm else "")
             + (f" {wordgram_text(candidate)} |" if result.wordgrams else "")
@@ -345,6 +358,7 @@ def render_html(result: ComparisonResult, generated: datetime) -> str:
             f'<td class="num">{candidate.similarity:.3f}</td>'
             f'<td class="num">{_e(delta_text(candidate))}</td>'
             f'<td class="num">{_e(final_score_text(candidate))}</td>'
+            + (f'<td class="num">{_e(ensemble_text(candidate))}</td>' if result.ensemble else "")
             + (f'<td class="num">{_e(morph_text(candidate))}</td>' if result.morph else "")
             + (f'<td class="num">{_e(charlm_text(candidate))}</td>' if result.charlm else "")
             + (f'<td class="num">{_e(wordgram_text(candidate))}</td>' if result.wordgrams else "")

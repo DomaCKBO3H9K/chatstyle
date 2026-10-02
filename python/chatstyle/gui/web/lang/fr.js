@@ -270,5 +270,10 @@ registerLanguage("fr", {
   "chatpick.senders": "Participants",
   "chatpick.add": "Choisir",
   "chatpick.empty": "Importez d'abord une conversation dans l'onglet « Conversations ».",
-  "error.chat_missing": "La conversation importée est introuvable. Importez-la de nouveau dans l'onglet « Conversations »."
+  "error.chat_missing": "La conversation importée est introuvable. Importez-la de nouveau dans l'onglet « Conversations ».",
+  "method.ensemble": "mélange",
+  "result.ensemble": "Mélange",
+  "result.summary.ensemble": "Proximité relative des candidats selon le mélange de méthodes (modèle de langage, mots, squelette des mots-outils, Delta) : les parts totalisent 1. Ce n'est pas la probabilité d'être l'auteur.",
+  "metric.ensemble": "Proximité selon le mélange de méthodes",
+  "note.ranking.ensemble": "Ordre : selon le mélange de méthodes (modèle de langage, mots, squelette des mots-outils, Delta)."
 });

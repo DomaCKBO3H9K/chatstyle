@@ -18,6 +18,7 @@ from chatstyle.delta import (
     burrows_delta,
 )
 from chatstyle.emoji import emoji_views
+from chatstyle.ensemble import DEFAULT_CAP_WORDS, balanced_candidates, mix, skeleton_cosine
 from chatstyle.errors import ChatstyleError
 from chatstyle.features import ALL_STYLE_GROUPS, FUNCTION_WORD_PREFIX, style_features
 from chatstyle.impostors import (
@@ -76,6 +77,7 @@ class CandidateResult:
     wordgram_similarity: float | None = None  # пословные n-граммы; None: не считался
     emoji_similarity: float | None = None  # n-граммы эмодзи; None: не считался
     rhythm_similarity: float | None = None  # ритм по времени сообщений; None: нет оценки
+    ensemble_score: float | None = None  # смесь методов (среднее z); None: нет оценки
 
     @property
     def final_score(self) -> float | None:
@@ -87,7 +89,12 @@ class CandidateResult:
 METHOD_COSINE = "cosine"
 METHOD_DELTA = "delta"
 METHOD_IMPOSTORS = "impostors"
+METHOD_ENSEMBLE = "ensemble"
+# Температура softmax для «доли близости» в окне (сумма долей по кандидатам равна 1);
+# доля относительная, это не вероятность авторства.
+ENSEMBLE_TEMPERATURE = 1.0
 METHOD_NAMES: dict[str, str] = {
+    METHOD_ENSEMBLE: "Смесь",
     METHOD_COSINE: "косинус",
     METHOD_DELTA: "Delta",
     METHOD_IMPOSTORS: "Impostors",
@@ -109,6 +116,7 @@ class ComparisonResult:
     wordgrams: bool = False  # считались ли пословные n-граммы
     emoji: bool = False  # считалось ли сходство по эмодзи
     rhythm: bool = False  # считался ли ритм письма по времени сообщений
+    ensemble: bool = False  # считалась ли смесь методов
 
     def best_by_method(self) -> dict[str, tuple[str, ...]]:
         """Лучшие кандидаты по каждому методу, доступному ВСЕМ кандидатам.
@@ -127,6 +135,12 @@ class ComparisonResult:
             lowest = min(deltas)
             best[METHOD_DELTA] = tuple(
                 row.label for row in rows if row.delta is not None and row.delta.delta == lowest
+            )
+        mixed = [row.ensemble_score for row in rows if row.ensemble_score is not None]
+        if len(mixed) == len(rows):
+            top_mix = max(mixed)
+            best[METHOD_ENSEMBLE] = tuple(
+                row.label for row in rows if row.ensemble_score == top_mix
             )
         scores = [row.final_score for row in rows if row.final_score is not None]
         if len(scores) == len(rows):
@@ -198,6 +212,12 @@ def morph_text(candidate: CandidateResult) -> str:
     return f"{value:.3f}" if value is not None else NOT_AVAILABLE
 
 
+def ensemble_text(candidate: CandidateResult) -> str:
+    """Смесь методов (среднее z, со знаком) для таблицы или прочерк."""
+    value = candidate.ensemble_score
+    return f"{value:+.2f}" if value is not None else NOT_AVAILABLE
+
+
 def rhythm_text(candidate: CandidateResult) -> str:
     """Сходство ритма письма для таблицы или прочерк."""
     value = candidate.rhythm_similarity
@@ -230,6 +250,8 @@ def final_score_text(candidate: CandidateResult) -> str:
 
 def ranking_text(result: ComparisonResult) -> str:
     """По какому методу отсортированы кандидаты."""
+    if result.ranked_by == METHOD_ENSEMBLE:
+        return "Порядок: по смеси методов (языковая модель, слова, каркас служебных слов, Delta)."
     if result.ranked_by == METHOD_IMPOSTORS:
         return "Порядок: по итоговой оценке (General Impostors)."
     return "Порядок: по косинусному сходству (итоговая оценка недоступна)."
@@ -363,6 +385,36 @@ def _wordgram_similarities(
     return {label: report["similarity"] for label, report in reports.items()}
 
 
+def _delta_closeness(
+    unknown_messages: Sequence[str], candidate_messages: Mapping[str, Sequence[str]]
+) -> dict[str, float]:
+    """-Delta (меньше расстояние — больше число) там, где Delta доступна."""
+    scores = burrows_delta(unknown_messages, candidate_messages, top_differences=0)
+    return {label: -score.delta for label, score in scores.items() if score.available}
+
+
+def _ensemble_scores(
+    unknown_messages: Sequence[str],
+    candidate_messages: Mapping[str, Sequence[str]],
+    cap_words: int,
+) -> dict[str, float]:
+    """Смесь методов (среднее z): языковая модель, слова, «каркас» служебных слов, Delta.
+
+    Считается по кандидатам одного размера (`cap_words` слов), нужно не меньше двух
+    кандидатов; сигнал, недоступный хоть одному кандидату, в смесь не входит.
+    """
+    if len(candidate_messages) < 2:
+        return {}
+    candidates = balanced_candidates(candidate_messages, cap_words)
+    signals = (
+        _charlm_scores(unknown_messages, candidates),
+        _wordgram_similarities(unknown_messages, candidates),
+        skeleton_cosine(unknown_messages, candidates),
+        _delta_closeness(unknown_messages, candidates),
+    )
+    return mix(signals, list(candidates))
+
+
 def _rhythm_similarities(
     unknown_messages: Sequence[str], candidate_messages: Mapping[str, Sequence[str]]
 ) -> dict[str, float]:
@@ -419,6 +471,8 @@ def compare_messages(
     wordgrams: bool = False,
     emoji: bool = False,
     rhythm: bool = False,
+    ensemble: bool = True,
+    cap_words: int = DEFAULT_CAP_WORDS,
 ) -> tuple[tuple[CandidateResult, ...], str]:
     """Три метода по готовым предобработанным сообщениям: косинус, Burrows Delta, Impostors.
 
@@ -441,6 +495,9 @@ def compare_messages(
     )
     emoji_scores = _emoji_similarities(unknown_messages, candidate_messages) if emoji else {}
     rhythm_scores = _rhythm_similarities(unknown_messages, candidate_messages) if rhythm else {}
+    ensemble_scores = (
+        _ensemble_scores(unknown_messages, candidate_messages, cap_words) if ensemble else {}
+    )
 
     results: list[CandidateResult] = []
     for label, messages in candidate_messages.items():
@@ -459,12 +516,16 @@ def compare_messages(
                 wordgram_similarity=wordgram_scores.get(label),
                 emoji_similarity=emoji_scores.get(label),
                 rhythm_similarity=rhythm_scores.get(label),
+                ensemble_score=ensemble_scores.get(label),
             )
         )
 
     # Сортировка стабильная: при равенстве остаётся порядок ввода
     ranked_by = METHOD_COSINE
-    if all(row.final_score is not None for row in results):
+    if all(row.ensemble_score is not None for row in results):
+        ranked_by = METHOD_ENSEMBLE
+        results.sort(key=lambda r: (-(r.ensemble_score or 0.0), -r.similarity))
+    elif all(row.final_score is not None for row in results):
         ranked_by = METHOD_IMPOSTORS
         results.sort(key=lambda r: (-(r.final_score or 0.0), -r.similarity))
     else:
@@ -485,6 +546,8 @@ def run_comparison(
     wordgrams: bool = False,
     emoji: bool = False,
     rhythm: bool = False,
+    ensemble: bool = True,
+    cap_words: int = DEFAULT_CAP_WORDS,
 ) -> ComparisonResult:
     """Запустить полный цикл сравнения.
 
@@ -538,6 +601,8 @@ def run_comparison(
         wordgrams=wordgrams,
         emoji=emoji,
         rhythm=rhythm,
+        ensemble=ensemble,
+        cap_words=cap_words,
     )
 
     unknown_words = count_words(unknown_messages)
@@ -558,6 +623,7 @@ def run_comparison(
         wordgrams=wordgrams,
         emoji=emoji,
         rhythm=rhythm,
+        ensemble=any(row.ensemble_score is not None for row in results),
     )
 
 

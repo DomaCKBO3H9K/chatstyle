@@ -270,5 +270,10 @@ registerLanguage("en", {
   "chatpick.senders": "Participants",
   "chatpick.add": "Select",
   "chatpick.empty": "Upload a chat on the Chats tab first.",
-  "error.chat_missing": "The uploaded chat was not found. Upload it again on the Chats tab."
+  "error.chat_missing": "The uploaded chat was not found. Upload it again on the Chats tab.",
+  "method.ensemble": "mix",
+  "result.ensemble": "Mix",
+  "result.summary.ensemble": "Relative closeness of the candidates by the mix of methods (language model, words, function-word skeleton, Delta): the shares add up to 1. This is not the probability of authorship.",
+  "metric.ensemble": "Closeness by the mix of methods",
+  "note.ranking.ensemble": "Order: by the mix of methods (language model, words, function-word skeleton, Delta)."
 });

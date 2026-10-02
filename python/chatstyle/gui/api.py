@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import subprocess
 import sys
@@ -48,13 +49,17 @@ from chatstyle.gui.settings import load_settings, save_setting
 from chatstyle.impostors import DEFAULT_SEED
 from chatstyle.pipeline import (
     DISCLAIMER,
+    ENSEMBLE_TEMPERATURE,
+    METHOD_ENSEMBLE,
     METHOD_IMPOSTORS,
     MIN_WORDS,
     AuthorProfile,
+    ComparisonResult,
     best_methods_text,
     charlm_text,
     delta_text,
     emoji_text,
+    ensemble_text,
     final_score_text,
     low_volume_sides,
     morph_text,
@@ -91,16 +96,39 @@ def _shorten_all(labels: list[str], names: dict[str, str]) -> list[str]:
     return [names.get(label, label) for label in labels]
 
 
+def _ensemble_shares(result: ComparisonResult) -> dict[str, float]:
+    """Относительная близость кандидатов: softmax по смеси методов (сумма долей 1)."""
+    scores = {
+        row.label: row.ensemble_score for row in result.candidates if row.ensemble_score is not None
+    }
+    if not scores:
+        return {}
+    best = max(scores.values())
+    weights = {
+        label: math.exp((score - best) / ENSEMBLE_TEMPERATURE) for label, score in scores.items()
+    }
+    total = sum(weights.values())
+    return {label: weight / total for label, weight in weights.items()}
+
+
 def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
     """Результат сравнения для JS: числа, подписи и коды пояснений."""
     result = outcome.result
     view = build_result_view(result)
     names = short_labels([result.unknown_label, *(c.label for c in result.candidates)])
-    metric = METHOD_IMPOSTORS if result.ranked_by == METHOD_IMPOSTORS else "cosine"
+    metric = (
+        result.ranked_by if result.ranked_by in (METHOD_IMPOSTORS, METHOD_ENSEMBLE) else "cosine"
+    )
+    shares = _ensemble_shares(result) if metric == METHOD_ENSEMBLE else {}
 
     candidates: list[dict[str, Any]] = []
     for index, candidate in enumerate(result.candidates):
-        value = candidate.final_score if metric == METHOD_IMPOSTORS else candidate.similarity
+        if metric == METHOD_ENSEMBLE:
+            value = shares.get(candidate.label)
+        elif metric == METHOD_IMPOSTORS:
+            value = candidate.final_score
+        else:
+            value = candidate.similarity
         value = max(0.0, min(1.0, 0.0 if value is None else value))
         why: list[str] = []
         if index == 0:
@@ -117,6 +145,7 @@ def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
                 "cosine": f"{candidate.similarity:.2f}",
                 "delta": delta_text(candidate),
                 "final": final_score_text(candidate),
+                "ensemble": ensemble_text(candidate),
                 "morph": morph_text(candidate),
                 "charlm": charlm_text(candidate),
                 "wordgrams": wordgram_text(candidate),
@@ -155,6 +184,7 @@ def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
     )
     return {
         "metric": metric,
+        "ensemble": bool(result.ensemble),
         "morph": bool(result.morph),
         "charlm": bool(result.charlm),
         "wordgrams": bool(result.wordgrams),

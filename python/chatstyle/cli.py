@@ -31,6 +31,7 @@ from chatstyle.pipeline import (
     charlm_text,
     delta_text,
     emoji_text,
+    ensemble_text,
     final_score_text,
     low_volume_warning,
     morph_text,
@@ -471,6 +472,8 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
     # длинная подпись источника переносится, а заголовки чисел не сокращаются
     table.add_column("Кандидат", overflow="fold")
     headers = ("Слов", "Сообщений", "Сходство", "Delta", "Impostors (итог)")
+    if result.ensemble:
+        headers += ("Смесь",)
     if result.morph:
         headers += ("Части речи",)
     if result.charlm:
@@ -493,6 +496,8 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
             delta_text(cand),
             final_score_text(cand),
         ]
+        if result.ensemble:
+            cells.append(ensemble_text(cand))
         if result.morph:
             cells.append(morph_text(cand))
         if result.charlm:

@@ -7,6 +7,7 @@ from chatstyle.impostors import ImpostorsScore
 from chatstyle.pipeline import (
     METHOD_COSINE,
     METHOD_DELTA,
+    METHOD_ENSEMBLE,
     METHOD_IMPOSTORS,
     AuthorStats,
     CandidateResult,
@@ -43,8 +44,8 @@ def test_all_three_methods_with_impostors(tmp_path: Path) -> None:
         impostors=load_impostor_directory(files["impostors"]),
     )
     same, other = result.candidates
-    assert same.label == spec(files["same"])  # сортировка по итоговой оценке
-    assert result.ranked_by == METHOD_IMPOSTORS
+    assert same.label == spec(files["same"])  # сортировка по смеси методов
+    assert result.ranked_by == METHOD_ENSEMBLE
     assert result.impostor_count == 4
     assert result.seed == 1
     assert same.final_score is not None and same.final_score > 0.9
@@ -57,6 +58,7 @@ def test_all_three_methods_with_impostors(tmp_path: Path) -> None:
         METHOD_COSINE: (same.label,),
         METHOD_DELTA: (same.label,),
         METHOD_IMPOSTORS: (same.label,),
+        METHOD_ENSEMBLE: (same.label,),
     }
     assert result.methods_agree() is True
 
@@ -64,7 +66,7 @@ def test_all_three_methods_with_impostors(tmp_path: Path) -> None:
 def test_without_impostors_only_cosine_and_delta(tmp_path: Path) -> None:
     files = write_workspace(tmp_path)
     result = run_comparison(spec(files["unknown"]), [spec(files["other"]), spec(files["same"])])
-    assert result.ranked_by == METHOD_COSINE
+    assert result.ranked_by == METHOD_ENSEMBLE
     assert result.impostor_count == 0
     for candidate in result.candidates:
         assert candidate.final_score is None
@@ -74,7 +76,7 @@ def test_without_impostors_only_cosine_and_delta(tmp_path: Path) -> None:
     (note,) = unavailable_notes(result)
     assert "посторонних авторов 1 из 3" in note
     assert "--impostors DIR" in note
-    assert set(result.best_by_method()) == {METHOD_COSINE, METHOD_DELTA}
+    assert set(result.best_by_method()) == {METHOD_COSINE, METHOD_DELTA, METHOD_ENSEMBLE}
 
 
 def test_seed_affects_only_impostors(tmp_path: Path) -> None:
@@ -91,13 +93,14 @@ def test_seed_affects_only_impostors(tmp_path: Path) -> None:
         assert one.delta == two.delta
 
 
-def test_partial_availability_ranks_by_cosine(tmp_path: Path) -> None:
+def test_partial_availability_ranks_by_cosine_without_the_mix(tmp_path: Path) -> None:
     files = write_workspace(tmp_path)
     tiny = write_lines(tmp_path / "tiny.txt", ["ну привет))", "щас приду"])
     result = run_comparison(
         spec(files["unknown"]),
         [spec(tiny), spec(files["same"])],
         impostors=load_impostor_directory(files["impostors"]),
+        ensemble=False,
     )
     by_label = {row.label: row for row in result.candidates}
     assert by_label[spec(files["same"])].final_score is not None
@@ -204,7 +207,9 @@ def test_cli_full_table_and_summary(tmp_path: Path) -> None:
     assert out.index("same.txt", out.index("Кандидат")) < out.index(
         "other.txt", out.index("Кандидат")
     )
-    assert "Порядок: по итоговой оценке (General Impostors)." in out
+    assert (
+        "Порядок: по смеси методов (языковая модель, слова, каркас служебных слов, Delta)." in out
+    )
     assert "(методы согласны)" in out
     assert "недоступ" not in out
 
@@ -224,7 +229,10 @@ def test_cli_dashes_and_hint_without_impostors(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0
     assert "—" in result.output
-    assert "Порядок: по косинусному сходству (итоговая оценка недоступна)." in result.output
+    assert (
+        "Порядок: по смеси методов (языковая модель, слова, каркас служебных слов, Delta)."
+        in result.output
+    )
     assert "посторонних авторов 1 из 3" in result.output
     assert "--impostors DIR" in result.output
 

@@ -109,8 +109,11 @@ def test_full_compare(tmp_path: Path) -> None:
     assert view["candidates"][0]["label"] == "similar.txt"
     value = view["candidates"][0]["value"]
     assert 0 <= value <= 1
-    assert view["metric"] == "cosine"
-    assert view["notes"][0] == {"code": "ranking", "method": "cosine"}
+    assert view["metric"] == "ensemble"
+    assert view["notes"][0] == {"code": "ranking", "method": "ensemble"}
+    shares = [item["value"] for item in view["candidates"]]
+    assert abs(sum(shares) - 1.0) < 1e-9  # доли близости: softmax, в сумме 1
+    assert shares == sorted(shares, reverse=True)
     assert view["warning"]["min"] == 1000
     assert {"who": None, "words": view["warning"]["sides"][0]["words"]} == view["warning"]["sides"][
         0

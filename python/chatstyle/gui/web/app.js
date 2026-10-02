@@ -470,6 +470,9 @@ function renderResult(view, out) {
         el("span", {}, [`${t("result.cosine")} `, el("b", { text: candidate.cosine })]),
         el("span", {}, [`${t("result.delta")} `, el("b", { text: candidate.delta })]),
         el("span", {}, [`${t("result.final")} `, el("b", { text: candidate.final })]),
+        ...(view.ensemble
+          ? [el("span", {}, [`${t("result.ensemble")} `, el("b", { text: candidate.ensemble })])]
+          : []),
         ...(view.morph
           ? [el("span", {}, [`${t("result.morph")} `, el("b", { text: candidate.morph })])]
           : []),
