@@ -15,6 +15,7 @@
       <button role="tab" id="tab-compare" aria-selected="true" aria-controls="view-compare">Сравнение</button>
       <button role="tab" id="tab-profile" aria-selected="false" aria-controls="view-profile">Профиль стиля</button>
     </div>
+    <button class="theme" id="theme" type="button"></button>
   </header>
 
   <main id="view-compare" role="tabpanel" aria-labelledby="tab-compare">
@@ -69,7 +70,7 @@
 
     <section class="card result" aria-live="polite" id="result">
       <div class="empty" id="empty">
-        <svg viewBox="0 0 120 70" fill="none" aria-hidden="true"><rect x="6" y="8" width="108" height="10" rx="5" fill="#E8EBF1"/><rect x="6" y="30" width="72" height="10" rx="5" fill="#D8F545"/><rect x="6" y="52" width="46" height="10" rx="5" fill="#E8EBF1"/></svg>
+        <svg class="placeholder" viewBox="0 0 120 70" aria-hidden="true"><rect class="a" x="6" y="8" width="108" height="10" rx="5"/><rect class="b" x="6" y="30" width="72" height="10" rx="5"/><rect class="a" x="6" y="52" width="46" height="10" rx="5"/></svg>
         <h3>Здесь появится результат</h3>
         <p>Слева выберите сообщения, которые нужно проверить, и тех, с кем их сравнить.</p>
       </div>
@@ -96,7 +97,7 @@
 
     <section class="card result" aria-live="polite" id="profile-result">
       <div class="empty" id="profile-empty">
-        <svg viewBox="0 0 120 70" fill="none" aria-hidden="true"><rect x="6" y="8" width="60" height="10" rx="5" fill="#D8F545"/><rect x="6" y="30" width="108" height="10" rx="5" fill="#E8EBF1"/><rect x="6" y="52" width="84" height="10" rx="5" fill="#E8EBF1"/></svg>
+        <svg class="placeholder" viewBox="0 0 120 70" aria-hidden="true"><rect class="b" x="6" y="8" width="60" height="10" rx="5"/><rect class="a" x="6" y="30" width="108" height="10" rx="5"/><rect class="a" x="6" y="52" width="84" height="10" rx="5"/></svg>
         <h3>Здесь появится профиль стиля</h3>
         <p>Выберите сообщения одного автора слева.</p>
       </div>

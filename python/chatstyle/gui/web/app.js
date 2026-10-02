@@ -19,6 +19,42 @@ function el(tag, props = {}, children = []) {
 
 const api = () => window.pywebview.api;
 
+// --- тема: по умолчанию как в системе, кнопка в шапке переключает и запоминает выбор ---
+
+const THEME_KEY = "chatstyle-theme";
+
+function systemIsDark() {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function currentTheme() {
+  return document.documentElement.dataset.theme || (systemIsDark() ? "dark" : "light");
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  $("theme").textContent = theme === "dark" ? "Светлая тема" : "Тёмная тема";
+}
+
+function initTheme() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem(THEME_KEY);
+  } catch (error) {
+    saved = null; // хранилище может быть недоступно: тогда работаем по системной теме
+  }
+  applyTheme(saved === "dark" || saved === "light" ? saved : currentTheme());
+  $("theme").addEventListener("click", () => {
+    const next = currentTheme() === "dark" ? "light" : "dark";
+    applyTheme(next);
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch (error) {
+      // выбор действует до закрытия окна
+    }
+  });
+}
+
 // --- вкладки ---
 
 function selectTab(name) {
@@ -282,5 +318,6 @@ window.addEventListener("pywebviewready", async () => {
   const info = await api().init();
   $("disclaimer").textContent = info.disclaimer;
   bind();
+  initTheme();
   refreshCompare();
 });

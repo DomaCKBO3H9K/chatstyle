@@ -105,7 +105,12 @@ def _scenario(window, folder: Path) -> str:  # noqa: ANN001
     _wait(
         window, "document.querySelectorAll('.feature').length === 15", JOB_TIMEOUT, "профиль стиля"
     )
-    return "OK: сравнение 2 кандидатов, отчёт, профиль"
+    before = window.evaluate_js("currentTheme()")
+    window.evaluate_js("document.getElementById('theme').click()")
+    after = window.evaluate_js("document.documentElement.dataset.theme")
+    if after == before or after not in ("light", "dark"):
+        raise AssertionError(f"тема не переключилась: было {before}, стало {after}")
+    return "OK: сравнение 2 кандидатов, отчёт, профиль, тема"
 
 
 def check() -> str:

@@ -10,6 +10,7 @@ from importlib import resources
 from pathlib import Path
 
 from chatstyle.gui.api import Api
+from chatstyle.paths import data_dir
 
 TITLE = "chatstyle"
 SIZE = (1180, 820)
@@ -61,7 +62,12 @@ def run() -> int:
 
     create_window()
     try:
-        webview.start(gui="edgechromium" if sys.platform == "win32" else None)
+        # постоянное хранилище нужно, чтобы окно помнило выбранную тему
+        webview.start(
+            gui="edgechromium" if sys.platform == "win32" else None,
+            private_mode=False,
+            storage_path=str(data_dir() / "webview"),
+        )
     except Exception as exc:  # noqa: BLE001 - любой отказ движка окна объясняем пользователю
         _report_problem(WEBVIEW2_HELP + f"{type(exc).__name__}: {exc}")
         return 1

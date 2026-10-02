@@ -20,7 +20,7 @@ def test_selftest_passes_and_writes_ok(tmp_path: Path) -> None:
     if code != 0 and "WebView2" in text:
         pytest.skip("нет WebView2 для окна")
     assert code == 0, text
-    assert text.startswith("OK: сравнение 2 кандидатов, отчёт, профиль")
+    assert text.startswith("OK: сравнение 2 кандидатов, отчёт, профиль, тема")
 
 
 def test_selftest_failure_is_written_with_traceback(
@@ -129,3 +129,18 @@ def test_web_script_never_inserts_markup_from_data() -> None:
     script = _web_file("app.js")
     for dangerous in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval("):
         assert dangerous not in script  # имена из файлов попадают на страницу только как текст
+
+
+def test_dark_theme_defines_every_color_token_of_the_light_theme() -> None:
+    import re
+
+    css = _web_file("style.css")
+    light = css.split(":root {")[1].split("}")[0]
+    dark = css.split(':root[data-theme="dark"] {')[1].split("}")[0]
+    system_dark = css.split("@media (prefers-color-scheme: dark)")[1].split("}")[0]
+
+    def colors(block: str) -> set[str]:
+        return set(re.findall(r"(--[a-z0-9-]+):\s*(?:#|rgba)", block))
+
+    assert colors(light) and colors(light) == colors(dark) == colors(system_dark)
+    assert 'id="theme"' in _web_file("index.html")
