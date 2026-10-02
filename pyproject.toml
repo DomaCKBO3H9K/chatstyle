@@ -9,10 +9,13 @@ description = "Верификация авторства русскоязычн�
 requires-python = ">=3.11"
 readme = "README.md"
 license = { file = "LICENSE" }
-dependencies = ["typer>=0.12", "rich>=13", "telethon>=1.36"]
+dependencies = ["typer>=0.12", "rich>=13", "telethon>=1.36", "pywebview>=5"]
 
 [project.scripts]
 chatstyle = "chatstyle.cli:app"
+
+[project.gui-scripts]
+chatstyle-gui = "chatstyle.gui:main"
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]

@@ -9,7 +9,7 @@ if core_spec is None or core_spec.origin is None:
 
 # По умолчанию один файл (--onefile) для релиза; CHATSTYLE_ONEDIR=1 даёт папку для отладки.
 onedir = os.environ.get("CHATSTYLE_ONEDIR") == "1"
-icon_path = os.path.join(root, "packaging", "chatstyle.ico")
+icon_path = os.path.join(root, "python", "chatstyle", "resources", "chatstyle.ico")
 version_path = os.path.join(root, "build", "version_info.txt")  # создаёт build_exe.ps1
 
 # rich.pretty условно импортирует IPython, а тот тянет numpy, pandas, matplotlib и всё окружение

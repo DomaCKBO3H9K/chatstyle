@@ -179,7 +179,7 @@ def wait_for_console_line(process, predicate, timeout: float = 60.0) -> list[str
 # --- проверки ---
 
 
-def check_file_properties(exe: Path) -> None:
+def check_file_properties(exe: Path, label: str = "") -> None:
     command = (
         "Add-Type -AssemblyName System.Drawing;"
         f"$p='{exe}'; $v=(Get-Item -LiteralPath $p).VersionInfo;"
@@ -193,12 +193,39 @@ def check_file_properties(exe: Path) -> None:
     try:
         info = json.loads(out)
     except json.JSONDecodeError:
-        record("свойства файла и иконка", False, f"не удалось прочитать: {out!r}")
+        record(f"{label}свойства файла и иконка", False, f"не удалось прочитать: {out!r}")
         return
-    record("версия в свойствах файла", info["v"] == __version__, f"{info['v']!r}")
-    record("описание в свойствах файла", "chatstyle" in (info["d"] or ""), repr(info["d"]))
+    record(f"{label}версия в свойствах файла", info["v"] == __version__, f"{info['v']!r}")
+    record(f"{label}описание в свойствах файла", "chatstyle" in (info["d"] or ""), repr(info["d"]))
     blue = abs(info["r"] - 42) < 30 and abs(info["g"] - 120) < 30 and abs(info["b"] - 214) < 30
-    record("иконка chatstyle (синий фон)", blue, f"пиксель {info['r']},{info['g']},{info['b']}")
+    record(
+        f"{label}иконка chatstyle (синий фон)", blue, f"пиксель {info['r']},{info['g']},{info['b']}"
+    )
+
+
+def check_gui_exe(exe: Path) -> None:
+    """chatstyle-gui.exe: свойства файла и самопроверка окна.
+
+    Окно скрыто, ввод идёт программно внутри процесса: на рабочий стол и в окна других программ
+    ничего не отправляется (никаких синтетических кликов и нажатий клавиш).
+    """
+    check_file_properties(exe, "GUI: ")
+    with tempfile.TemporaryDirectory() as tmp:
+        result = Path(tmp) / "selftest.txt"
+        process = subprocess.run(
+            [str(exe), "--selftest", str(result)],
+            env=clean_env(CHATSTYLE_HOME=str(Path(tmp) / "home")),
+            cwd=REPO,
+            timeout=240,
+        )
+        text = result.read_text(encoding="utf-8") if result.exists() else ""
+        record(
+            "GUI: самопроверка внутри exe (сравнение, отчёт, профиль)",
+            process.returncode == 0 and text.startswith("OK"),
+            text.strip().splitlines()[0]
+            if text.strip()
+            else f"нет результата, код {process.returncode}",
+        )
 
 
 def check_clean_environment(exe: Path) -> None:
@@ -295,6 +322,7 @@ def check_double_click_pause(exe: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Проверка chatstyle.exe (Windows).")
     parser.add_argument("--exe", type=Path, default=REPO / "dist" / "chatstyle.exe")
+    parser.add_argument("--gui-exe", type=Path, default=REPO / "dist" / "chatstyle-gui.exe")
     args = parser.parse_args()
     if sys.platform != "win32":
         print("Проверка выполняется только в Windows.")
@@ -309,6 +337,13 @@ def main() -> int:
     check_env_file_in_appdata(exe)
     check_real_console(exe)
     check_double_click_pause(exe)
+    gui_exe = args.gui_exe.resolve()
+    if gui_exe.exists():
+        print(f"Проверяется {gui_exe} ({gui_exe.stat().st_size / 1e6:.1f} МБ)")
+        check_gui_exe(gui_exe)
+    else:
+        hint = "powershell -File packaging\\build_exe.ps1 -Target gui"
+        print(f"Пропущено: {gui_exe} не найден ({hint})")
     failed = [name for name, ok, _ in results if not ok]
     print(f"\nИтого: {len(results) - len(failed)} из {len(results)} проверок пройдено.")
     return 1 if failed else 0

@@ -50,3 +50,33 @@ def describe_feature(key: str) -> str:
     if key.startswith(FILLER_WORD_PREFIX):
         return f"слово-паразит «{key[len(FILLER_WORD_PREFIX) :]}»"
     return key
+
+
+WORD_LIST_TITLES: tuple[tuple[str, str], ...] = (
+    (FUNCTION_WORD_PREFIX, "Частые служебные слова"),
+    (FILLER_WORD_PREFIX, "Частые слова-паразиты"),
+)
+
+
+def top_words(features: dict[str, float], prefix: str, limit: int) -> list[tuple[str, float]]:
+    """Самые частые слова словаря с данным префиксом (`fw:` или `fl:`): (слово, частота).
+
+    Слова с нулевой частотой не включаются; при равенстве порядок по алфавиту.
+    """
+    ranked = [
+        (key[len(prefix) :], value)
+        for key, value in features.items()
+        if key.startswith(prefix) and value > 0
+    ]
+    ranked.sort(key=lambda item: (-item[1], item[0]))
+    return ranked[:limit]
+
+
+def word_list_lines(features: dict[str, float], limit: int) -> list[str]:
+    """Строки «Частые служебные слова: и 0.051, там 0.038» для вывода профиля."""
+    lines = []
+    for prefix, title in WORD_LIST_TITLES:
+        ranked = top_words(features, prefix, limit)
+        text = ", ".join(f"{word} {value:.3f}" for word, value in ranked) or "нет"
+        lines.append(f"{title}: {text}")
+    return lines

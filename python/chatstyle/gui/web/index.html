@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+<title>chatstyle</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand"><i aria-hidden="true"></i>chatstyle</div>
+    <div class="tabs" role="tablist" aria-label="Режим">
+      <button role="tab" id="tab-compare" aria-selected="true" aria-controls="view-compare">Сравнение</button>
+      <button role="tab" id="tab-profile" aria-selected="false" aria-controls="view-profile">Профиль стиля</button>
+    </div>
+  </header>
+
+  <main id="view-compare" role="tabpanel" aria-labelledby="tab-compare">
+    <section class="card" aria-label="Что сравниваем">
+      <div class="step">
+        <h2><b>1</b>Чьи сообщения проверяем</h2>
+        <div class="pick" id="unknown-box">
+          <div class="file" id="unknown-name">Файл ещё не выбран</div>
+          <div class="row">
+            <button class="btn" id="unknown-file">Выбрать файл</button>
+            <button class="btn" id="unknown-tg">Из экспорта Telegram</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <h2><b>2</b>С кем сравниваем</h2>
+        <ul class="chips" id="chips"></ul>
+        <div class="row">
+          <button class="btn" id="add-file">Добавить файл</button>
+          <button class="btn" id="add-tg">Добавить из экспорта Telegram</button>
+        </div>
+      </div>
+
+      <details id="advanced">
+        <summary>Дополнительно</summary>
+        <div class="adv">
+          <div class="field">
+            <span class="label">Папка с чужими текстами для итоговой оценки</span>
+            <div class="inline">
+              <input type="text" id="impostors" placeholder="Не выбрана" aria-label="Папка с чужими текстами">
+              <button class="btn" id="impostors-pick">Выбрать</button>
+            </div>
+          </div>
+          <label class="field">
+            <span class="label">Seed (число для повторяемости расчёта)</span>
+            <input type="text" inputmode="numeric" id="seed" value="1">
+          </label>
+          <div class="field">
+            <label class="check"><input type="checkbox" id="save-report"> Сохранить отчёт после расчёта</label>
+            <div class="inline" id="report-row" hidden>
+              <input type="text" id="report" placeholder="Куда сохранить (.md или .html)" aria-label="Файл отчёта">
+              <button class="btn" id="report-pick">Выбрать</button>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <button class="go" id="go" disabled><span class="dot" aria-hidden="true"></span><span id="go-text">Сравнить</span></button>
+      <p class="hint" id="go-hint">Выберите сообщения и добавьте хотя бы одного кандидата.</p>
+    </section>
+
+    <section class="card result" aria-live="polite" id="result">
+      <div class="empty" id="empty">
+        <svg viewBox="0 0 120 70" fill="none" aria-hidden="true"><rect x="6" y="8" width="108" height="10" rx="5" fill="#E8EBF1"/><rect x="6" y="30" width="72" height="10" rx="5" fill="#D8F545"/><rect x="6" y="52" width="46" height="10" rx="5" fill="#E8EBF1"/></svg>
+        <h3>Здесь появится результат</h3>
+        <p>Слева выберите сообщения, которые нужно проверить, и тех, с кем их сравнить.</p>
+      </div>
+      <div class="error" id="error" role="alert" hidden></div>
+      <div id="out" hidden></div>
+    </section>
+  </main>
+
+  <main id="view-profile" role="tabpanel" aria-labelledby="tab-profile" hidden>
+    <section class="card" aria-label="Чей профиль строим">
+      <div class="step">
+        <h2>Чей стиль показать</h2>
+        <div class="pick" id="profile-box">
+          <div class="file" id="profile-name">Файл ещё не выбран</div>
+          <div class="row">
+            <button class="btn" id="profile-file">Выбрать файл</button>
+            <button class="btn" id="profile-tg">Из экспорта Telegram</button>
+          </div>
+        </div>
+      </div>
+      <button class="go" id="go-profile" disabled><span class="dot" aria-hidden="true"></span><span id="go-profile-text">Показать профиль</span></button>
+      <p class="hint">Профиль описывает привычки автора: длину слов и предложений, пунктуацию, любимые слова.</p>
+    </section>
+
+    <section class="card result" aria-live="polite" id="profile-result">
+      <div class="empty" id="profile-empty">
+        <svg viewBox="0 0 120 70" fill="none" aria-hidden="true"><rect x="6" y="8" width="60" height="10" rx="5" fill="#D8F545"/><rect x="6" y="30" width="108" height="10" rx="5" fill="#E8EBF1"/><rect x="6" y="52" width="84" height="10" rx="5" fill="#E8EBF1"/></svg>
+        <h3>Здесь появится профиль стиля</h3>
+        <p>Выберите сообщения одного автора слева.</p>
+      </div>
+      <div class="error" id="profile-error" role="alert" hidden></div>
+      <div id="profile-out" hidden></div>
+    </section>
+  </main>
+
+  <footer id="disclaimer"></footer>
+</div>
+
+<dialog id="senders" aria-labelledby="senders-title">
+  <h2 id="senders-title">Чьи сообщения взять из экспорта?</h2>
+  <ul class="senders" id="senders-list"></ul>
+  <div class="row end"><button class="btn" id="senders-cancel">Отмена</button></div>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>

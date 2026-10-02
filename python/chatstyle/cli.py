@@ -10,7 +10,7 @@ from chatstyle.collectors import CollectOptions
 from chatstyle.collectors.impostors import load_impostor_directory
 from chatstyle.collectors.telegram import DEFAULT_LIMIT, TelethonFetcher
 from chatstyle.errors import ChatstyleError
-from chatstyle.features import FEATURE_LABELS, FILLER_WORD_PREFIX, FUNCTION_WORD_PREFIX
+from chatstyle.features import FEATURE_LABELS, word_list_lines
 from chatstyle.impostors import DEFAULT_SEED
 from chatstyle.paths import session_file
 from chatstyle.pipeline import (
@@ -186,20 +186,25 @@ def _print_profile(profile: AuthorProfile, top: int) -> None:
         table.add_row(label, f"{profile.features[key]:.3f}")
     console.print(table)
 
-    for prefix, title in (
-        (FUNCTION_WORD_PREFIX, "Частые служебные слова"),
-        (FILLER_WORD_PREFIX, "Частые слова-паразиты"),
-    ):
-        ranked = sorted(
-            (
-                (key[len(prefix) :], value)
-                for key, value in profile.features.items()
-                if key.startswith(prefix) and value > 0
-            ),
-            key=lambda item: (-item[1], item[0]),
-        )[:top]
-        line = ", ".join(f"{word} {value:.3f}" for word, value in ranked) or "нет"
-        console.print(f"{title}: {line}", soft_wrap=True)
+    for line in word_list_lines(profile.features, top):
+        console.print(line, soft_wrap=True)
+
+
+@app.command()
+def gui() -> None:
+    """Открыть графический интерфейс (окно приложения)."""
+    try:
+        import webview  # noqa: F401
+    except ImportError as exc:
+        typer.echo(
+            "Ошибка: графический интерфейс недоступен: не найден pywebview "
+            "(pip install pywebview); в chatstyle.exe окна нет, запустите chatstyle-gui.exe.",
+            err=True,
+        )
+        raise typer.Exit(code=2) from exc
+    from chatstyle.gui import main as run_gui
+
+    raise typer.Exit(code=run_gui())
 
 
 @app.command()

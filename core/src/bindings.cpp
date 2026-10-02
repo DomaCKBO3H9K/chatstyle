@@ -48,7 +48,11 @@ PYBIND11_MODULE(_core, m) {
         [](const std::vector<std::string>& unknown, const py::dict& candidates) -> py::dict {
             const auto input = read_candidates(candidates);
 
-            const auto scores = chatstyle::compare_to_unknown(unknown, input.texts);
+            std::vector<double> scores;
+            {
+                py::gil_scoped_release release;  // расчёт не держит GIL: окно и потоки не замирают
+                scores = chatstyle::compare_to_unknown(unknown, input.texts);
+            }
 
             py::dict result;
             for (std::size_t i = 0; i < input.names.size(); ++i) {
@@ -64,7 +68,11 @@ PYBIND11_MODULE(_core, m) {
     m.def("compare_detailed",
         [](const std::vector<std::string>& unknown, const py::dict& candidates, std::size_t top_k) {
             const auto input = read_candidates(candidates);
-            const auto reports = chatstyle::compare_with_explanations(unknown, input.texts, top_k);
+            std::vector<chatstyle::CandidateReport> reports;
+            {
+                py::gil_scoped_release release;
+                reports = chatstyle::compare_with_explanations(unknown, input.texts, top_k);
+            }
 
             py::dict result;
             for (std::size_t i = 0; i < input.names.size(); ++i) {
@@ -112,8 +120,12 @@ PYBIND11_MODULE(_core, m) {
             options.chunk_words = chunk_words;
             options.min_chunks = min_chunks;
             options.top_words = top_words;
-            const auto results =
-                chatstyle::burrows_delta(to_u32(unknown), candidate_texts, lexicon, options);
+            const auto unknown_text = to_u32(unknown);
+            std::vector<chatstyle::DeltaResult> results;
+            {
+                py::gil_scoped_release release;
+                results = chatstyle::burrows_delta(unknown_text, candidate_texts, lexicon, options);
+            }
 
             py::dict output;
             for (std::size_t i = 0; i < input.names.size(); ++i) {
@@ -179,8 +191,14 @@ PYBIND11_MODULE(_core, m) {
             options.min_chunks = min_chunks;
             options.chunk_words = chunk_words;
             options.seed = seed;
-            const auto results = chatstyle::general_impostors(
-                to_u32(unknown), candidate_texts, impostor_texts, to_u32(ignored_tokens), options);
+            const auto unknown_text = to_u32(unknown);
+            const auto ignored = to_u32(ignored_tokens);
+            std::vector<chatstyle::ImpostorsResult> results;
+            {
+                py::gil_scoped_release release;
+                results = chatstyle::general_impostors(
+                    unknown_text, candidate_texts, impostor_texts, ignored, options);
+            }
 
             py::dict output;
             for (std::size_t i = 0; i < input.names.size(); ++i) {
@@ -215,7 +233,12 @@ PYBIND11_MODULE(_core, m) {
            const std::vector<std::string>& ignored_tokens) {
             const chatstyle::StyleLexicon lexicon{
                 to_u32(function_words), to_u32(filler_words), to_u32(ignored_tokens)};
-            const auto features = chatstyle::style_features(to_u32(messages), lexicon);
+            const auto message_text = to_u32(messages);
+            chatstyle::SparseVector features;
+            {
+                py::gil_scoped_release release;
+                features = chatstyle::style_features(message_text, lexicon);
+            }
             std::map<std::string, double> result;
             for (const auto& [key, value] : features) {
                 result[chatstyle::u32_to_utf8(key)] = value;

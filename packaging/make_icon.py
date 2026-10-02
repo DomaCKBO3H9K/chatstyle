@@ -1,11 +1,11 @@
 """Рисует иконку chatstyle и сохраняет её в .ico (PNG-кадры 16-256 px).
 
-    python packaging/make_icon.py [packaging/chatstyle.ico]
+    python packaging/make_icon.py [python/chatstyle/resources/chatstyle.ico]
 
-Нужен matplotlib (`pip install -e .[experiments]`). Готовый chatstyle.ico лежит в репозитории,
-поэтому для сборки exe matplotlib не требуется; скрипт нужен, чтобы иконку можно было
-воспроизвести и изменить. Знак собственный: белое облачко сообщения с тремя строчками текста на
-синем фоне (цвет из палитры проекта).
+Нужен matplotlib (`pip install -e .[experiments]`). Готовый chatstyle.ico лежит в
+python/chatstyle/resources/ (его же берёт окно приложения), поэтому для сборки exe matplotlib
+не требуется; скрипт нужен, чтобы иконку можно было воспроизвести и изменить. Знак собственный:
+белое облачко сообщения с тремя строчками текста на синем фоне (цвет из палитры проекта).
 """
 
 import struct
@@ -75,4 +75,12 @@ def main(target: Path) -> None:
 
 
 if __name__ == "__main__":
-    main(Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).with_name("chatstyle.ico"))
+    main(
+        Path(sys.argv[1])
+        if len(sys.argv) > 1
+        else Path(__file__).resolve().parent.parent
+        / "python"
+        / "chatstyle"
+        / "resources"
+        / "chatstyle.ico"
+    )

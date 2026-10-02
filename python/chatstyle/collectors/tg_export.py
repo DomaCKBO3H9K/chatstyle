@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -155,3 +156,34 @@ def read_tg_export_by_sender(path: Path) -> dict[str, list[str]]:
         if flat.strip():
             result.setdefault(key, []).append(flat)
     return result
+
+
+@dataclass(frozen=True)
+class TgSender:
+    """Участник чата в экспорте Telegram."""
+
+    key: str  # from_id (или имя, если id нет): им отправитель задаётся однозначно
+    name: str  # имя для показа; у удалённых аккаунтов совпадает с key
+    messages: int  # число текстовых сообщений (без пересланных и пустых)
+
+
+def list_tg_senders(path: Path) -> list[TgSender]:
+    """Участники чата по убыванию числа текстовых сообщений.
+
+    Имя берётся из последнего сообщения участника (имена в Telegram меняются). Правила отбора
+    сообщений те же, что у ``read_tg_export``.
+    """
+    counts: dict[str, int] = {}
+    names: dict[str, str] = {}
+    for msg in _load_messages(path):
+        if not isinstance(msg, dict) or msg.get("type") != "message" or "forwarded_from" in msg:
+            continue
+        key = msg.get("from_id") or msg.get("from")
+        if not isinstance(key, str) or not key or not _flatten_text(msg.get("text")).strip():
+            continue
+        counts[key] = counts.get(key, 0) + 1
+        name = msg.get("from")
+        names[key] = name if isinstance(name, str) and name else key
+    senders = [TgSender(key, names[key], counts[key]) for key in counts]
+    senders.sort(key=lambda sender: (-sender.messages, sender.name))
+    return senders

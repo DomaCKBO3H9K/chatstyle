@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 
 REPO = Path(__file__).resolve().parent.parent
 PACKAGING = REPO / "packaging"
+ICON = REPO / "python" / "chatstyle" / "resources" / "chatstyle.ico"
 
 
 def load_script(name: str) -> dict:
@@ -177,7 +178,7 @@ def parse_ico(data: bytes) -> list[tuple[int, int, bytes]]:
 
 
 def test_committed_icon_is_a_valid_multi_size_ico() -> None:
-    frames = parse_ico((PACKAGING / "chatstyle.ico").read_bytes())
+    frames = parse_ico(ICON.read_bytes())
     assert [w for w, _, _ in frames] == [16, 24, 32, 48, 64, 128, 256]
     for width, height, png in frames:
         assert width == height
@@ -191,7 +192,7 @@ def test_icon_generator_reproduces_the_frames(tmp_path: Path) -> None:
     target = tmp_path / "icon.ico"
     script["main"](target)
     generated = parse_ico(target.read_bytes())
-    committed = parse_ico((PACKAGING / "chatstyle.ico").read_bytes())
+    committed = parse_ico(ICON.read_bytes())
     assert [(w, h) for w, h, _ in generated] == [(w, h) for w, h, _ in committed]
 
 
@@ -199,7 +200,7 @@ def test_build_script_is_ascii_only_for_windows_powershell() -> None:
     # Windows PowerShell 5.1 читает файл без BOM как ANSI: кириллица ломает разбор строк
     raw = (PACKAGING / "build_exe.ps1").read_bytes()
     assert raw.decode("ascii")  # не бросает исключение
-    assert b"param([switch]$OneDir)" in raw
+    assert b"[switch]$OneDir" in raw
 
 
 def test_spec_supports_onedir_and_excludes_heavy_modules() -> None:
