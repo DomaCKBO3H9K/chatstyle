@@ -1,11 +1,16 @@
-"""Тесты для TelegramLogin без сети."""
+"""TelegramLogin: настройка хранилища, шаги входа, выход, замок. Telegram подменён заглушкой."""
 
+import json
+import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
+from chatstyle import paths
 from chatstyle.collectors.telegram_login import (
+    STEP_LOCKED,
     STEP_LOGGED_IN,
     STEP_LOGGED_OUT,
     STEP_NEED_CODE,
@@ -14,15 +19,32 @@ from chatstyle.collectors.telegram_login import (
     TelegramLoginError,
     account_file,
 )
-from chatstyle.config import TelegramCredentials, load_telegram_credentials
+from chatstyle.config import TelegramCredentials
 from chatstyle.errors import ChatstyleError
+from chatstyle.securestore import MODE_DPAPI, MODE_MEMORY, MODE_PASSWORD, Vault, VaultError
 from telethon import errors
 
 CREDS = TelegramCredentials(api_id=1, api_hash="a" * 32)
+HASH = "b" * 32
+PASSWORD = "master password 123"
+PHONE = "+79001234567"
+
+
+def _valid_session_string() -> str:
+    from telethon.crypto import AuthKey
+    from telethon.sessions import StringSession
+
+    session = StringSession()
+    session.set_dc(2, "149.154.167.51", 443)
+    session.auth_key = AuthKey(b"\x07" * 256)
+    return session.save()
+
+
+SAVED = _valid_session_string()
 
 
 class FakeClient:
-    """Заглушка TelegramClient для тестов."""
+    """Заглушка TelegramClient: ни сети, ни файлов."""
 
     def __init__(
         self,
@@ -31,22 +53,20 @@ class FakeClient:
         connect_error: Exception | None = None,
         send_code_error: Exception | None = None,
         sign_in_script: list | None = None,
-        me: SimpleNamespace | None = None,
     ) -> None:
         self.authorized = authorized
         self.connect_error = connect_error
         self.send_code_error = send_code_error
-        self.sign_in_script = sign_in_script or []
+        self.sign_in_script = list(sign_in_script or [])
         self.sign_in_calls: list[dict] = []
         self.calls: list[str] = []
         self.phone: str | None = None
-        self.phone_code_hash: str | None = None
         self.logged_out = False
         self.disconnected = False
-        self.me = me or SimpleNamespace(
-            first_name="Иван", last_name="Петров", username="ivan", id=7
-        )
-        self._sign_in_index = 0
+        self.sessions_seen: list[Any] = []
+        self.me = SimpleNamespace(first_name="Иван", last_name="Петров", username="ivan", id=7)
+        self.session = SimpleNamespace(save=lambda: SAVED)
+        self.has_password: bool | Exception = True
 
     async def connect(self) -> None:
         self.calls.append("connect")
@@ -65,9 +85,7 @@ class FakeClient:
         self.phone = phone
         if self.send_code_error:
             raise self.send_code_error
-        result = SimpleNamespace(phone_code_hash="HASH")
-        self.phone_code_hash = "HASH"
-        return result
+        return SimpleNamespace(phone_code_hash="HASH")
 
     async def sign_in(
         self,
@@ -77,25 +95,23 @@ class FakeClient:
         password: str | None = None,
     ) -> SimpleNamespace:
         self.calls.append("sign_in")
-        call_info = {
-            "phone": phone,
-            "code": code,
-            "phone_code_hash": phone_code_hash,
-            "password": password,
-        }
-        self.sign_in_calls.append(call_info)
-
-        if self._sign_in_index < len(self.sign_in_script):
-            item = self.sign_in_script[self._sign_in_index]
-            self._sign_in_index += 1
+        self.sign_in_calls.append(
+            {"phone": phone, "code": code, "phone_code_hash": phone_code_hash, "password": password}
+        )
+        if self.sign_in_script:
+            item = self.sign_in_script.pop(0)
             if isinstance(item, Exception):
                 raise item
-            # "ok" - успех
             self.authorized = True
         return self.me
 
+    async def __call__(self, request: object) -> SimpleNamespace:
+        self.calls.append(type(request).__name__)
+        if isinstance(self.has_password, Exception):
+            raise self.has_password
+        return SimpleNamespace(has_password=self.has_password)
+
     async def get_me(self) -> SimpleNamespace:
-        self.calls.append("get_me")
         return self.me
 
     async def log_out(self) -> None:
@@ -103,199 +119,235 @@ class FakeClient:
         self.logged_out = True
 
 
-def _create_session_file(session_path: str) -> Path:
-    """Создаёт файл сессии, имитируя Telethon."""
-    session_file = Path(session_path)
-    if not session_file.suffix:
-        session_file = session_file.with_suffix(".session")
-    session_file.parent.mkdir(parents=True, exist_ok=True)
-    if not session_file.exists():
-        session_file.write_text("x", encoding="utf-8")
-    return session_file
+def make_login(
+    tmp_path: Path,
+    client: FakeClient | None = None,
+    *,
+    mode: str | None = MODE_MEMORY,
+    keys: bool = True,
+    **kwargs: Any,
+) -> tuple[TelegramLogin, FakeClient, Vault]:
+    client = client or FakeClient()
+    vault = Vault(tmp_path / "vault.json", backoff=False)
+    if mode is not None:
+        vault.create(mode, PASSWORD if mode == MODE_PASSWORD else None)
+        if keys:
+            vault.set("api_id", "1")
+            vault.set("api_hash", "a" * 32)
 
-
-def make_factory(client: FakeClient, session_path: Path):
-    """Создаёт фабрику, которая имитирует создание файла сессии."""
-
-    def factory(session: str, api_id: int, api_hash: str, **kwargs):
-        _create_session_file(session)
+    def factory(session: Any, api_id: int, api_hash: str, **_kw: Any) -> FakeClient:
+        client.sessions_seen.append(session)
         return client
 
-    return factory
+    login = TelegramLogin(vault=vault, client_factory=factory, idle_seconds=60, **kwargs)
+    return login, client, vault
 
 
-def make_factory_with_clients(clients: list[FakeClient], session_path: Path):
-    """Фабрика, возвращающая разные клиенты по вызовам."""
-    call_count = [0]
-
-    def factory(session: str, api_id: int, api_hash: str, **kwargs):
-        idx = call_count[0]
-        call_count[0] += 1
-        client = clients[idx] if idx < len(clients) else clients[-1]
-        _create_session_file(session)
-        return client
-
-    return factory
+def code_of(call) -> str:  # noqa: ANN001
+    with pytest.raises(ChatstyleError) as info:
+        call()
+    return getattr(info.value, "code", "")
 
 
-@pytest.fixture
-def isolated(tmp_path, monkeypatch):
-    """Изолированное окружение: временная директория, без переменных API."""
-    monkeypatch.setenv("CHATSTYLE_HOME", str(tmp_path))
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("TELEGRAM_API_ID", raising=False)
-    monkeypatch.delenv("TELEGRAM_API_HASH", raising=False)
-    return tmp_path
+# --- состояние без сети ---
 
 
-# 1. status() без сессии
-def test_status_logged_out_without_session(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
-
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=lambda *a, **kw: None,
-    )
+def test_status_without_a_vault_is_offline(tmp_path: Path) -> None:
+    login, client, _ = make_login(tmp_path, mode=None)
     state = login.status()
-    assert state.step == STEP_LOGGED_OUT
-    assert state.name is None
-    assert state.has_keys is True
-
-    def bad_loader():
-        raise ChatstyleError("no keys")
-
-    login2 = TelegramLogin(
-        credentials_loader=bad_loader,
-        session=session_path,
-        client_factory=lambda *a, **kw: None,
+    assert (state.step, state.name, state.mode, state.has_keys) == (
+        STEP_LOGGED_OUT,
+        None,
+        None,
+        False,
     )
-    state2 = login2.status()
-    assert state2.step == STEP_LOGGED_OUT
-    assert state2.has_keys is False
+    assert client.calls == [] and client.sessions_seen == []
 
 
-# 2. Полный вход без 2FA
-def test_full_login_without_2fa(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
-    client = FakeClient()
-    factory = make_factory(client, session_path)
+def test_status_reports_keys_from_the_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TELEGRAM_API_ID", "5")
+    monkeypatch.setenv("TELEGRAM_API_HASH", "c" * 32)
+    login, _, _ = make_login(tmp_path, mode=None)
+    assert login.status().has_keys is True
 
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
+
+# --- настройка хранилища ---
+
+
+def test_setup_creates_the_vault_with_keys(tmp_path: Path) -> None:
+    login, _, vault = make_login(tmp_path, mode=None)
+    state = login.setup(MODE_PASSWORD, PASSWORD, "123", HASH)
+    assert state.mode == MODE_PASSWORD and state.has_keys and state.step == STEP_LOGGED_OUT
+    raw = vault.path.read_text(encoding="utf-8")
+    assert HASH not in raw and "api_hash" not in raw and PASSWORD not in raw
+    vault.lock()
+    vault.unlock(PASSWORD)
+    assert (vault.get("api_id"), vault.get("api_hash")) == ("123", HASH)
+
+
+def test_setup_in_memory_mode_writes_nothing(tmp_path: Path) -> None:
+    login, _, vault = make_login(tmp_path, mode=None)
+    login.setup(MODE_MEMORY, None, "123", HASH)
+    assert (
+        vault.mode() == MODE_MEMORY and not vault.path.exists() and list(tmp_path.iterdir()) == []
     )
 
-    state = login.begin("+79001234567")
-    assert state.step == STEP_NEED_CODE
-    assert client.calls == ["connect", "send_code_request"]
-    assert client.phone == "+79001234567"
 
-    state = login.submit_code("12 345")
-    assert state.step == STEP_LOGGED_IN
-    assert state.name == "Иван Петров"
-    assert client.sign_in_calls[-1] == {
-        "phone": "+79001234567",
+@pytest.mark.parametrize(
+    ("api_id", "api_hash"),
+    [("abc", HASH), ("0", HASH), ("-5", HASH), ("123", "short"), ("123", "z" * 32), ("", "")],
+)
+def test_setup_refuses_bad_keys_and_leaves_no_vault(
+    tmp_path: Path, api_id: str, api_hash: str
+) -> None:
+    login, _, vault = make_login(tmp_path, mode=None)
+    assert code_of(lambda: login.setup(MODE_PASSWORD, PASSWORD, api_id, api_hash)) == "keys_invalid"
+    assert not vault.path.exists() and vault.mode() is None
+
+
+def test_setup_refuses_weak_password_unknown_mode_and_second_setup(tmp_path: Path) -> None:
+    login, _, vault = make_login(tmp_path, mode=None)
+    assert code_of(lambda: login.setup(MODE_PASSWORD, "short", "1", HASH)) == "password_weak"
+    assert code_of(lambda: login.setup("plain", None, "1", HASH)) == "vault_bad_mode"
+    assert not vault.path.exists()
+    login.setup(MODE_MEMORY, None, "1", HASH)
+    assert code_of(lambda: login.setup(MODE_MEMORY, None, "2", HASH)) == "vault_exists"
+
+
+def test_setup_may_skip_keys_when_the_environment_has_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TELEGRAM_API_ID", "5")
+    monkeypatch.setenv("TELEGRAM_API_HASH", "c" * 32)
+    login, _, vault = make_login(tmp_path, mode=None)
+    state = login.setup(MODE_MEMORY, None, "", "")
+    assert state.has_keys and vault.keys() == []
+
+
+def test_save_keys_replaces_keys_only_in_an_open_vault(tmp_path: Path) -> None:
+    login, _, vault = make_login(tmp_path, mode=MODE_PASSWORD)
+    login.save_keys("77", HASH)
+    assert (vault.get("api_id"), vault.get("api_hash")) == ("77", HASH)
+    assert code_of(lambda: login.save_keys("x", HASH)) == "keys_invalid"
+    login.lock()
+    assert code_of(lambda: login.save_keys("78", HASH)) == "vault_locked"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="DPAPI есть только в Windows")
+def test_dpapi_vault_opens_itself_and_status_works(tmp_path: Path) -> None:
+    login, _, _ = make_login(tmp_path, mode=None)
+    login.setup(MODE_DPAPI, None, "1", HASH)
+    fresh = TelegramLogin(vault=Vault(tmp_path / "vault.json"), client_factory=lambda *a, **k: None)
+    state = fresh.status()
+    assert state.mode == MODE_DPAPI and state.step == STEP_LOGGED_OUT and state.has_keys
+
+
+# --- замок ---
+
+
+def test_locked_vault_hides_everything_until_the_password(tmp_path: Path) -> None:
+    login, _, vault = make_login(tmp_path, mode=MODE_PASSWORD)
+    login.lock()
+    state = login.status()
+    assert (state.step, state.mode, state.has_keys) == (STEP_LOCKED, MODE_PASSWORD, False)
+    assert code_of(lambda: login.unlock("wrong password!!")) == "wrong_password"
+    assert login.status().step == STEP_LOCKED
+    assert login.unlock(PASSWORD).step == STEP_LOGGED_OUT
+    assert vault.unlocked()
+
+
+def test_begin_needs_an_open_vault(tmp_path: Path) -> None:
+    login, client, _ = make_login(tmp_path, mode=None)
+    assert code_of(lambda: login.begin(PHONE)) == "vault_required"
+    login2, client2, _ = make_login(tmp_path / "x", mode=MODE_PASSWORD)
+    login2.lock()
+    assert code_of(lambda: login2.begin(PHONE)) == "vault_locked"
+    assert client.calls == [] and client2.calls == []
+
+
+def test_the_vault_locks_itself_after_idle_time(tmp_path: Path) -> None:
+    login, _, _ = make_login(tmp_path, mode=MODE_PASSWORD, lock_seconds=0.2)
+    login.unlock(PASSWORD)
+    deadline = time.time() + 5
+    while login.status().step != STEP_LOCKED and time.time() < deadline:
+        time.sleep(0.05)
+    assert login.status().step == STEP_LOCKED
+
+
+def test_memory_mode_is_not_auto_locked(tmp_path: Path) -> None:
+    login, _, vault = make_login(tmp_path, mode=MODE_MEMORY, lock_seconds=0.1)
+    login.save_keys("5", HASH)
+    time.sleep(0.4)
+    assert vault.unlocked()
+
+
+# --- шаги входа ---
+
+
+def test_full_login_without_2fa_stores_the_session_in_the_vault(tmp_path: Path) -> None:
+    login, client, vault = make_login(
+        tmp_path, FakeClient(sign_in_script=["ok"]), mode=MODE_PASSWORD
+    )
+    state = login.begin(PHONE)
+    assert state.step == STEP_NEED_CODE and client.phone == PHONE
+    assert login.status().step == STEP_NEED_CODE
+    done = login.submit_code("12 345")
+    assert (done.step, done.name) == (STEP_LOGGED_IN, "Иван Петров")
+    assert client.sign_in_calls[0] == {
+        "phone": PHONE,
         "code": "12345",
         "phone_code_hash": "HASH",
         "password": None,
     }
-    assert client.disconnected is True
-
-    state = login.status()
-    assert state.step == STEP_LOGGED_IN
-    assert state.name == "Иван Петров"
-
-    account_path = account_file()
-    assert account_path.exists()
-    assert account_path.read_text(encoding="utf-8") == "Иван Петров"
+    assert client.disconnected
+    assert (vault.get("session"), vault.get("account")) == (SAVED, "Иван Петров")
+    raw = vault.path.read_text(encoding="utf-8")
+    assert SAVED not in raw and "Иван" not in raw  # на диске только шифртекст
+    assert login.status().step == STEP_LOGGED_IN and login.status().name == "Иван Петров"
+    assert not list(paths.data_dir().glob("*.session*")) and not account_file().exists()
 
 
-# 3. Вход с 2FA
-def test_login_with_2fa(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
+def test_login_with_2fa(tmp_path: Path) -> None:
     client = FakeClient(sign_in_script=[errors.SessionPasswordNeededError(request=None), "ok"])
-    factory = make_factory(client, session_path)
-
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
-    )
-
-    login.begin("+79001234567")
-    state = login.submit_code("123")
-    assert state.step == STEP_NEED_PASSWORD
-
-    state_mid = login.status()
-    assert state_mid.step == STEP_NEED_PASSWORD
-
-    state = login.submit_password("secret")
-    assert state.step == STEP_LOGGED_IN
+    login, client, vault = make_login(tmp_path, client)
+    login.begin(PHONE)
+    assert login.submit_code("12345").step == STEP_NEED_PASSWORD
+    assert login.status().step == STEP_NEED_PASSWORD
+    assert login.submit_password("secret").step == STEP_LOGGED_IN
     assert client.sign_in_calls[-1]["password"] == "secret"
+    assert vault.get("session") == SAVED
 
 
-# 4. Неверный код
-def test_invalid_code(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
+def test_wrong_code_can_be_retried(tmp_path: Path) -> None:
     client = FakeClient(sign_in_script=[errors.PhoneCodeInvalidError(request=None), "ok"])
-    factory = make_factory(client, session_path)
-
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
-    )
-    login.begin("+79001234567")
-
-    with pytest.raises(TelegramLoginError) as exc_info:
-        login.submit_code("999")
-    assert exc_info.value.code == "code_invalid"
-
-    state = login.submit_code("123")
-    assert state.step == STEP_LOGGED_IN
+    login, _, _ = make_login(tmp_path, client)
+    login.begin(PHONE)
+    assert code_of(lambda: login.submit_code("999")) == "code_invalid"
+    assert login.status().step == STEP_NEED_CODE
+    assert login.submit_code("123").step == STEP_LOGGED_IN
 
 
-# 5. Устаревший код
-def test_expired_code(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
+def test_code_without_digits_is_refused_without_calling_telegram(tmp_path: Path) -> None:
+    login, client, _ = make_login(tmp_path)
+    login.begin(PHONE)
+    assert code_of(lambda: login.submit_code("abc")) == "code_invalid"
+    assert client.sign_in_calls == []
+
+
+def test_expired_code_resets_the_login_and_keeps_the_vault(tmp_path: Path) -> None:
     client = FakeClient(sign_in_script=[errors.PhoneCodeExpiredError(request=None)])
-    factory = make_factory(client, session_path)
-
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
+    login, _, vault = make_login(tmp_path, client)
+    login.begin(PHONE)
+    assert code_of(lambda: login.submit_code("123")) == "code_expired"
+    assert (
+        login.status().step == STEP_LOGGED_OUT and vault.unlocked() and vault.get("api_id") == "1"
     )
-    login.begin("+79001234567")
-
-    with pytest.raises(TelegramLoginError) as exc_info:
-        login.submit_code("123")
-    assert exc_info.value.code == "code_expired"
-
-    state = login.status()
-    assert state.step == STEP_LOGGED_OUT
-    assert not session_path.exists()
-
-    with pytest.raises(TelegramLoginError) as exc_info2:
-        login.submit_code("123")
-    assert exc_info2.value.code == "login_not_started"
+    assert code_of(lambda: login.submit_code("123")) == "login_not_started"
 
 
-# 6. Неверный пароль 2FA
-def test_invalid_2fa_password(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
+def test_wrong_2fa_password_can_be_retried(tmp_path: Path) -> None:
     client = FakeClient(
         sign_in_script=[
             errors.SessionPasswordNeededError(request=None),
@@ -303,377 +355,234 @@ def test_invalid_2fa_password(isolated):
             "ok",
         ]
     )
-    factory = make_factory(client, session_path)
-
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
-    )
-    login.begin("+79001234567")
+    login, _, _ = make_login(tmp_path, client)
+    login.begin(PHONE)
     login.submit_code("123")
-
-    with pytest.raises(TelegramLoginError) as exc_info:
-        login.submit_password("wrong")
-    assert exc_info.value.code == "password_invalid"
-
-    state = login.status()
-    assert state.step == STEP_NEED_PASSWORD
-
-    state = login.submit_password("secret")
-    assert state.step == STEP_LOGGED_IN
+    assert code_of(lambda: login.submit_password("bad")) == "password_invalid"
+    assert login.status().step == STEP_NEED_PASSWORD
+    assert login.submit_password("good").step == STEP_LOGGED_IN
 
 
-# 7. Ошибки begin
 @pytest.mark.parametrize(
-    "error, expected_code, expected_params",
+    ("error", "expected", "params"),
     [
         (errors.PhoneNumberInvalidError(request=None), "phone_invalid", {}),
         (errors.ApiIdInvalidError(request=None), "api_invalid", {}),
         (errors.FloodWaitError(request=None, capture=90), "flood_wait", {"minutes": "2"}),
         (ConnectionError("x"), "network", {}),
+        (
+            errors.RPCError(request=None, message="BOOM", code=500),
+            "telegram",
+            {"reason": "RPCError"},
+        ),
     ],
 )
-def test_begin_errors(isolated, error, expected_code, expected_params):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
-    client = FakeClient(connect_error=error)
-    factory = make_factory(client, session_path)
-
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
-    )
-
-    with pytest.raises(TelegramLoginError) as exc_info:
-        login.begin("+79001234567")
-    assert exc_info.value.code == expected_code
-    for k, v in expected_params.items():
-        assert exc_info.value.params.get(k) == v
-
-    assert not session_path.exists()
-    assert login.status().step == STEP_LOGGED_OUT
+def test_begin_errors_become_codes_and_leave_the_vault_alone(
+    tmp_path: Path, error: Exception, expected: str, params: dict
+) -> None:
+    client = FakeClient(send_code_error=error)
+    login, _, vault = make_login(tmp_path, client)
+    with pytest.raises(TelegramLoginError) as info:
+        login.begin(PHONE)
+    assert info.value.code == expected and info.value.params == params
+    assert login.status().step == STEP_LOGGED_OUT and client.disconnected
+    assert vault.get("api_id") == "1" and vault.get("session") is None
 
 
-def test_begin_empty_phone(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
-    client = FakeClient()
-    factory = make_factory(client, session_path)
-
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
-    )
-
-    with pytest.raises(TelegramLoginError) as exc_info:
-        login.begin("")
-    assert exc_info.value.code == "phone_invalid"
-    assert client.calls == []
+def test_connect_error_is_a_network_code(tmp_path: Path) -> None:
+    login, _, _ = make_login(tmp_path, FakeClient(connect_error=ConnectionError("x")))
+    assert code_of(lambda: login.begin(PHONE)) == "network"
 
 
-def test_begin_missing_keys(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
-    client = FakeClient()
-    factory = make_factory(client, session_path)
-
-    def bad_loader():
-        raise ChatstyleError("no keys")
-
-    login = TelegramLogin(
-        credentials_loader=bad_loader,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
-    )
-
-    with pytest.raises(TelegramLoginError) as exc_info:
-        login.begin("+79001234567")
-    assert exc_info.value.code == "keys_missing"
+def test_begin_without_phone_or_keys(tmp_path: Path) -> None:
+    login, client, _ = make_login(tmp_path)
+    assert code_of(lambda: login.begin("  ")) == "phone_invalid"
+    login2, client2, _ = make_login(tmp_path / "b", keys=False)
+    assert code_of(lambda: login2.begin(PHONE)) == "keys_missing"
+    assert client.calls == [] and client2.calls == []
 
 
-# 8. begin, когда сессия уже авторизована
-def test_begin_already_authorized(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
-    client = FakeClient(authorized=True)
-    factory = make_factory(client, session_path)
-
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
-    )
-
-    state = login.begin("+79001234567")
-    assert state.step == STEP_LOGGED_IN
-    assert "send_code_request" not in client.calls
+def test_begin_when_the_saved_session_is_still_valid(tmp_path: Path) -> None:
+    login, client, vault = make_login(tmp_path, FakeClient(authorized=True))
+    state = login.begin(PHONE)
+    assert state.step == STEP_LOGGED_IN and "send_code_request" not in client.calls
+    assert vault.get("account") == "Иван Петров"
 
 
-# 9. Защита существующей сессии
-def test_session_preserved_on_error(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
-    session_path.parent.mkdir(parents=True, exist_ok=True)
-    session_path.write_text("existing session", encoding="utf-8")
+def test_the_saved_session_string_is_handed_to_the_client(tmp_path: Path) -> None:
+    from telethon.crypto import AuthKey
+    from telethon.sessions import StringSession
 
-    client = FakeClient(connect_error=ConnectionError("x"))
-    factory = make_factory(client, session_path)
-
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
-    )
-
-    with pytest.raises(TelegramLoginError):
-        login.begin("+79001234567")
-
-    assert session_path.exists()
-    assert session_path.read_text() == "existing session"
+    session = StringSession()
+    session.set_dc(2, "149.154.167.51", 443)
+    session.auth_key = AuthKey(b"\x02" * 256)
+    login, client, vault = make_login(tmp_path, FakeClient(authorized=True))
+    vault.set("session", session.save())
+    login.begin(PHONE)
+    assert client.sessions_seen[0].auth_key.key == b"\x02" * 256
 
 
-# 10. cancel() после begin
-def test_cancel_after_begin(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
-    client = FakeClient()
-    factory = make_factory(client, session_path)
+def test_a_failed_new_login_keeps_the_old_session(tmp_path: Path) -> None:
+    login, _, vault = make_login(tmp_path, FakeClient(connect_error=ConnectionError("x")))
+    vault.set("session", "OLD-SESSION")
+    vault.set("account", "Старый")
+    code_of(lambda: login.begin(PHONE))
+    assert (vault.get("session"), vault.get("account")) == ("OLD-SESSION", "Старый")
 
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
-    )
-    login.begin("+79001234567")
 
+def test_cancel_closes_the_client(tmp_path: Path) -> None:
+    login, client, vault = make_login(tmp_path)
+    login.begin(PHONE)
     state = login.cancel()
-    assert state.step == STEP_LOGGED_OUT
-    assert client.disconnected is True
-    assert not session_path.exists()
+    assert state.step == STEP_LOGGED_OUT and client.disconnected and vault.get("session") is None
 
 
-# 11. Бездействие (idle timeout)
-def test_idle_timeout(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
-    client = FakeClient()
-    factory = make_factory(client, session_path)
-
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=0.2,
-    )
-    login.begin("+79001234567")
-
-    for _ in range(60):  # максимум 3 секунды при sleep(0.05)
-        state = login.status()
-        if state.step == STEP_LOGGED_OUT:
-            break
+def test_idle_login_is_cancelled(tmp_path: Path) -> None:
+    login, client, _ = make_login(tmp_path)
+    login._idle_seconds = 0.2
+    login.begin(PHONE)
+    deadline = time.time() + 5
+    while login.status().step == STEP_NEED_CODE and time.time() < deadline:
         time.sleep(0.05)
-    else:
-        pytest.fail("Idle timeout did not fire")
-
-    assert state.step == STEP_LOGGED_OUT
-    assert client.disconnected is True
+    assert login.status().step == STEP_LOGGED_OUT and client.disconnected
 
 
-# 12. logout()
-def test_logout_after_login(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
-    client = FakeClient(sign_in_script=["ok"])
-    factory = make_factory(client, session_path)
-
+def test_second_begin_resets_the_first(tmp_path: Path) -> None:
+    first, second = FakeClient(), FakeClient()
+    clients = iter([first, second])
+    vault = Vault(tmp_path / "vault.json", backoff=False)
+    vault.create(MODE_MEMORY)
+    vault.set("api_id", "1")
+    vault.set("api_hash", "a" * 32)
     login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
+        vault=vault, client_factory=lambda *a, **k: next(clients), idle_seconds=60
     )
-    login.begin("+79001234567")
-    login.submit_code("123")
+    login.begin(PHONE)
+    login.begin("+79009999999")
+    assert first.disconnected and not second.disconnected and second.phone == "+79009999999"
 
+
+# --- выход и удаление ---
+
+
+def _logged_in(tmp_path: Path, **kwargs: Any) -> tuple[TelegramLogin, FakeClient, Vault]:
+    client = FakeClient(authorized=True)
+    login, client, vault = make_login(tmp_path, client, **kwargs)
+    login.begin(PHONE)
+    return login, client, vault
+
+
+def test_logout_ends_the_remote_session_and_clears_the_vault_session(tmp_path: Path) -> None:
+    login, client, vault = _logged_in(tmp_path)
     state = login.logout()
-    assert state.step == STEP_LOGGED_OUT
-    assert state.remote_failed is False
-    assert client.logged_out is True
-    assert not session_path.exists()
+    assert state.step == STEP_LOGGED_OUT and state.remote_failed is False and client.logged_out
+    assert vault.get("session") is None and vault.get("account") is None
+    assert vault.get("api_id") == "1"  # ключи остаются
+
+
+def test_logout_removes_local_data_even_when_telegram_is_unreachable(tmp_path: Path) -> None:
+    login, client, vault = _logged_in(tmp_path)
+    client.connect_error = ConnectionError("нет сети")
+    state = login.logout()
+    assert state.step == STEP_LOGGED_OUT and state.remote_failed is True
+    assert vault.get("session") is None and vault.get("account") is None
+
+
+def test_logout_needs_an_open_vault(tmp_path: Path) -> None:
+    login, _, _ = make_login(tmp_path, mode=MODE_PASSWORD)
+    login.lock()
+    assert code_of(login.logout) == "vault_locked"
+
+
+def test_forget_destroys_the_vault_and_legacy_files(tmp_path: Path) -> None:
+    login, client, vault = _logged_in(tmp_path, mode=MODE_PASSWORD)
+    legacy = paths.session_file()
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text("old", encoding="utf-8")
+    account_file().write_text("Старый", encoding="utf-8")
+    state = login.forget()
+    assert (state.step, state.mode, state.legacy) == (STEP_LOGGED_OUT, None, False)
+    assert client.logged_out and not vault.path.exists() and not legacy.exists()
     assert not account_file().exists()
 
 
-def test_logout_with_network_error(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
-    client1 = FakeClient()
-    client2 = FakeClient(connect_error=ConnectionError("x"))
-    factory = make_factory_with_clients([client1, client2], session_path)
+# --- файлы прежней версии ---
 
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
-    )
-    login.begin("+79001234567")
+
+def test_legacy_plaintext_files_are_reported_and_can_be_removed(tmp_path: Path) -> None:
+    login, _, _ = make_login(tmp_path, mode=None)
+    legacy = paths.session_file()
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text("x", encoding="utf-8")
+    legacy.with_name(legacy.name + "-journal").write_text("j", encoding="utf-8")
+    account_file().write_text("Иван", encoding="utf-8")
+    assert login.status().legacy is True
+    assert login.remove_legacy_files().legacy is False
+    assert not legacy.exists() and not account_file().exists()
+
+
+def test_a_new_login_removes_legacy_files(tmp_path: Path) -> None:
+    login, _, _ = make_login(tmp_path, FakeClient(sign_in_script=["ok"]))
+    legacy = paths.session_file()
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text("x", encoding="utf-8")
+    login.begin(PHONE)
     login.submit_code("123")
-
-    state = login.logout()
-    assert state.step == STEP_LOGGED_OUT
-    assert state.remote_failed is True
-    assert not session_path.exists()
-    assert not account_file().exists()
+    assert not legacy.exists()
 
 
-# 13. save_keys
-def test_save_keys(isolated):
-    tmp_path = isolated
-    env_path = tmp_path / ".env"
-    env_path.write_text(
-        "FOO=bar\n# заметка\nTELEGRAM_API_ID=1\nexport TELEGRAM_API_HASH=old\n",
-        encoding="utf-8",
-    )
-
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=tmp_path / "telegram.session",
-        client_factory=lambda *a, **kw: None,
-    )
-    login.save_keys("123", "b" * 32)
-
-    content = env_path.read_text(encoding="utf-8")
-    assert "TELEGRAM_API_ID=123" in content
-    assert "TELEGRAM_API_HASH=" + "b" * 32 in content
-    assert "FOO=bar" in content
-    assert "# заметка" in content
-    assert "TELEGRAM_API_ID=1" not in content.splitlines()
-    assert "TELEGRAM_API_HASH=old" not in content
-
-    creds = load_telegram_credentials(environ={}, env_files=(env_path,))
-    assert creds.api_id == 123
-    assert creds.api_hash == "b" * 32
+# --- секреты не утекают ---
 
 
-@pytest.mark.parametrize(
-    "api_id, api_hash",
-    [
-        ("abc", "a" * 32),
-        ("0", "a" * 32),
-        ("-5", "a" * 32),
-        ("123", "short"),
-        ("123", "g" * 32),  # не hex
-    ],
-)
-def test_save_keys_invalid(isolated, api_id, api_hash):
-    tmp_path = isolated
-    env_path = tmp_path / ".env"
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=tmp_path / "telegram.session",
-        client_factory=lambda *a, **kw: None,
-    )
-
-    with pytest.raises(TelegramLoginError) as exc_info:
-        login.save_keys(api_id, api_hash)
-    assert exc_info.value.code == "keys_invalid"
-    assert not env_path.exists()
-
-
-# 14. Секреты не утекают
-def test_secrets_not_leaked(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
-
-    # Неверный код
-    client1 = FakeClient(sign_in_script=[errors.PhoneCodeInvalidError(request=None)])
-    factory1 = make_factory(client1, session_path)
-    login1 = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory1,
-        idle_seconds=60,
-    )
-    login1.begin("+79001234567")
-    try:
-        login1.submit_code("12345")
-    except TelegramLoginError as e:
-        assert "12345" not in str(e)
-        assert "a" * 32 not in str(e)
-        for v in e.params.values():
-            assert "12345" not in str(v)
-            assert "a" * 32 not in str(v)
-
-    # Неверный пароль 2FA
-    client2 = FakeClient(
+def test_secrets_never_appear_in_errors_or_states(tmp_path: Path) -> None:
+    client = FakeClient(
         sign_in_script=[
             errors.SessionPasswordNeededError(request=None),
             errors.PasswordHashInvalidError(request=None),
         ]
     )
-    factory2 = make_factory(client2, session_path)
-    login2 = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory2,
-        idle_seconds=60,
-    )
-    login2.begin("+79001234567")
-    login2.submit_code("123")
+    login, _, _ = make_login(tmp_path, client, mode=MODE_PASSWORD)
+    texts: list[str] = []
+    login.begin(PHONE)
+    for call in (
+        lambda: login.submit_code("12345"),
+        lambda: login.submit_password("very-secret-pw"),
+    ):
+        try:
+            texts.append(repr(call()))
+        except TelegramLoginError as exc:
+            texts.append(f"{exc} {exc.params} {exc.code}")
+    texts.append(repr(login.status()))
     try:
-        login2.submit_password("secret")
-    except TelegramLoginError as e:
-        assert "secret" not in str(e)
-        assert "a" * 32 not in str(e)
-        for v in e.params.values():
-            assert "secret" not in str(v)
-            assert "a" * 32 not in str(v)
-
-    # Ошибки begin
-    client3 = FakeClient(connect_error=errors.FloodWaitError(request=None, capture=90))
-    factory3 = make_factory(client3, session_path)
-    login3 = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory3,
-        idle_seconds=60,
-    )
-    try:
-        login3.begin("+79001234567")
-    except TelegramLoginError as e:
-        assert "a" * 32 not in str(e)
-        for v in e.params.values():
-            assert "a" * 32 not in str(v)
+        login.unlock("wrong password!!")
+    except VaultError as exc:
+        texts.append(f"{exc} {exc.params}")
+    joined = " ".join(texts)
+    for secret in (
+        "12345",
+        "very-secret-pw",
+        "a" * 32,
+        PASSWORD,
+        "wrong password",
+        SAVED,
+    ):
+        assert secret not in joined, secret
+    assert json.dumps(texts)  # всё сериализуется как обычный текст
 
 
-# 15. Параллельность
-def test_parallel_begin(isolated):
-    tmp_path = isolated
-    session_path = tmp_path / "telegram.session"
-    client1 = FakeClient()
-    client2 = FakeClient()
+# --- двухфакторная защита аккаунта ---
 
-    factory = make_factory_with_clients([client1, client2], session_path)
 
-    login = TelegramLogin(
-        credentials_loader=lambda: CREDS,
-        session=session_path,
-        client_factory=factory,
-        idle_seconds=60,
-    )
-
-    login.begin("+79001234567")
-    login.begin("+79001234568")
-
-    assert client1.disconnected is True
-    assert client2.calls == ["connect", "send_code_request"]
+@pytest.mark.parametrize(
+    ("has_password", "expected"), [(True, True), (False, False), (RuntimeError("нет"), None)]
+)
+def test_two_factor_state_is_checked_after_login_and_remembered(
+    tmp_path: Path, has_password: bool | Exception, expected: bool | None
+) -> None:
+    client = FakeClient(authorized=True)
+    client.has_password = has_password
+    login, _, vault = make_login(tmp_path, client)
+    assert login.begin(PHONE).two_factor is expected
+    assert login.status().two_factor is expected
+    assert login.logout().two_factor is None
+    assert vault.get("two_factor") is None

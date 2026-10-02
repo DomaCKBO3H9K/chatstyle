@@ -9,6 +9,7 @@
 """
 
 import json
+import os
 import random
 import tempfile
 import threading
@@ -36,6 +37,83 @@ def _write(path: Path, lines: list[str]) -> str:
     return str(path)
 
 
+def _listening_sockets() -> list[str]:
+    """Слушающие TCP-порты процесса и его потомков (Windows); у окна их быть не должно."""
+    import subprocess
+    import sys
+
+    from chatstyle.securestore import system_tool
+
+    if sys.platform != "win32":
+        return []
+    script = (
+        "$ids = @(" + str(os.getpid()) + "); $n = 1;"
+        " while ($n -gt 0) { $new = Get-CimInstance Win32_Process |"
+        " Where-Object { $ids -contains $_.ParentProcessId -and $ids -notcontains $_.ProcessId } |"
+        " ForEach-Object { $_.ProcessId }; $n = @($new).Count; $ids += $new };"
+        " $ids -join ','"
+    )
+    flags = subprocess.CREATE_NO_WINDOW
+    ids = subprocess.run(
+        [
+            system_tool("WindowsPowerShell", "v1.0", "powershell.exe"),
+            "-NoProfile",
+            "-Command",
+            script,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        creationflags=flags,
+    ).stdout.strip()
+    pids = {item for item in ids.split(",") if item}
+    net = subprocess.run(
+        [system_tool("netstat.exe"), "-ano", "-p", "TCP"],
+        capture_output=True,
+        text=True,
+        creationflags=flags,
+    ).stdout
+    return [
+        line.strip()
+        for line in net.splitlines()
+        if "LISTENING" in line and line.split()[-1] in pids
+    ]
+
+
+def _check_vault(folder: Path) -> None:
+    """Хранилище секретов работает в этой сборке: пароль (scrypt + AES-GCM) и DPAPI."""
+    from chatstyle.securestore import (
+        MODE_DPAPI,
+        MODE_PASSWORD,
+        Vault,
+        VaultError,
+        dpapi_available,
+    )
+
+    secret = "секрет-для-самопроверки"
+    modes = [(MODE_PASSWORD, "самопроверка пароль 1")]
+    if dpapi_available():
+        modes.append((MODE_DPAPI, None))
+    for mode, password in modes:
+        vault = Vault(folder / f"vault-{mode}.json", backoff=False)
+        vault.create(mode, password)
+        vault.set("k", secret)
+        vault.lock()
+        if mode == MODE_PASSWORD:
+            try:
+                vault.unlock("неверный пароль 12345")
+            except VaultError as exc:
+                if exc.code != "wrong_password":
+                    raise
+            else:
+                raise AssertionError("хранилище открылось неверным паролем")
+        vault.unlock(password)
+        if vault.get("k") != secret:
+            raise AssertionError(f"хранилище {mode}: значение не вернулось")
+        if secret in vault.path.read_text(encoding="utf-8"):
+            raise AssertionError(f"хранилище {mode}: секрет лежит на диске открытым текстом")
+
+
 def _wait(window, expression: str, timeout: float, what: str) -> None:  # noqa: ANN001
     """Ждать, пока выражение JavaScript в странице станет истинным."""
     deadline = time.time() + timeout
@@ -51,6 +129,7 @@ def _wait(window, expression: str, timeout: float, what: str) -> None:  # noqa: 
 
 def _scenario(window, folder: Path) -> str:  # noqa: ANN001
     """Прогнать сравнение и профиль через страницу; вернуть строку-результат."""
+    _check_vault(folder)
     unknown = _write(folder / "unknown.txt", _lines(_CASUAL, 1, False))
     same = _write(folder / "same.txt", _lines(_CASUAL, 2, False))
     other = _write(folder / "other.txt", _lines(_FORMAL, 3, True))
@@ -68,6 +147,12 @@ def _scenario(window, folder: Path) -> str:  # noqa: ANN001
 
     def source(path: str) -> str:
         return json.dumps({"spec": f"file:{path}", "label": Path(path).name})
+
+    # в настоящем окне пути выбираются в диалогах; здесь их «выбирает» самопроверка
+    api = window._chatstyle_api
+    for path in (unknown, same, other):
+        api._remember_path(path)
+    api._remember_report(str(report))
 
     window.evaluate_js(
         f"(state.unknown = {source(unknown)},"
@@ -119,20 +204,29 @@ def _scenario(window, folder: Path) -> str:  # noqa: ANN001
                 f"язык {code}: ожидали {[direction, compare, True]}, увидели {seen}"
             )
     window.evaluate_js("document.getElementById('tg-chip').click()")
-    opened = window.evaluate_js(
-        "[document.getElementById('tg').open,"
-        " document.getElementById('tg-body').children.length > 0,"
-        " document.getElementById('tg-chip').textContent.length > 0]"
+    _wait(
+        window,
+        "document.getElementById('tg').open === true"
+        " && document.getElementById('tg-body').children.length > 0"
+        " && document.getElementById('tg-chip').textContent.length > 0",
+        15.0,
+        "окно подключения Telegram",
     )
     window.evaluate_js("document.getElementById('tg-close').click()")
-    if opened != [True, True, True]:
-        raise AssertionError(f"окно подключения Telegram: {opened}")
+    window.evaluate_js("location.href = 'http://127.0.0.1:1/'")
+    time.sleep(1.0)
+    where = window.evaluate_js("location.protocol")
+    if where != "file:":
+        raise AssertionError(f"окно ушло со страницы интерфейса: {where}")
+    listening = _listening_sockets()
+    if listening:
+        raise AssertionError(f"процесс окна слушает порты: {listening}")
     before = window.evaluate_js("currentTheme()")
     window.evaluate_js("document.getElementById('theme').click()")
     after = window.evaluate_js("document.documentElement.dataset.theme")
     if after == before or after not in ("light", "dark"):
         raise AssertionError(f"тема не переключилась: было {before}, стало {after}")
-    return "OK: сравнение 2 кандидатов, отчёт, профиль, языки, Telegram, тема"
+    return "OK: сравнение 2 кандидатов, отчёт, профиль, языки, Telegram, хранилище, тема"
 
 
 def check() -> str:
@@ -152,6 +246,10 @@ def check() -> str:
         finally:
             window.destroy()
 
+    # самопроверка не трогает настоящие данные пользователя: своя временная папка данных
+    home = tempfile.TemporaryDirectory()
+    previous = os.environ.get("CHATSTYLE_HOME")
+    os.environ["CHATSTYLE_HOME"] = home.name
     window = create_window(hidden=True)
     watchdog = threading.Timer(PAGE_TIMEOUT + 2 * JOB_TIMEOUT, window.destroy)
     watchdog.daemon = True
@@ -160,6 +258,11 @@ def check() -> str:
         webview.start(work, window, gui="edgechromium")
     finally:
         watchdog.cancel()
+        if previous is None:
+            os.environ.pop("CHATSTYLE_HOME", None)
+        else:
+            os.environ["CHATSTYLE_HOME"] = previous
+        home.cleanup()
     if "error" in outcome:
         raise AssertionError(str(outcome["error"]))
     if "message" not in outcome:

@@ -7,9 +7,13 @@ from pathlib import Path
 
 from chatstyle.errors import ChatstyleError
 from chatstyle.paths import env_file
+from chatstyle.securestore import Vault
 
 API_ID_VAR = "TELEGRAM_API_ID"
 API_HASH_VAR = "TELEGRAM_API_HASH"
+# ключи записей Telegram в зашифрованном хранилище
+VAULT_API_ID, VAULT_API_HASH = "api_id", "api_hash"
+VAULT_SESSION, VAULT_ACCOUNT = "session", "account"
 
 _HELP = (
     f"Укажите {API_ID_VAR} и {API_HASH_VAR} (их выдаёт https://my.telegram.org, раздел "
@@ -76,3 +80,15 @@ def load_telegram_credentials(
     except ValueError as exc:
         raise ChatstyleError(f"{API_ID_VAR} должен быть числом. {_HELP}") from exc
     return TelegramCredentials(api_id=api_id, api_hash=api_hash)
+
+
+def load_credentials_with_vault(vault: Vault) -> TelegramCredentials:
+    """Ключи API: сначала переменные окружения и .env, затем открытое хранилище."""
+    try:
+        return load_telegram_credentials()
+    except ChatstyleError as env_error:
+        if vault.unlocked():
+            raw_id, api_hash = vault.get(VAULT_API_ID), vault.get(VAULT_API_HASH)
+            if raw_id and api_hash and raw_id.isdecimal():
+                return TelegramCredentials(api_id=int(raw_id), api_hash=api_hash)
+        raise env_error from None

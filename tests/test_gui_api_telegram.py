@@ -34,8 +34,31 @@ class FakeLogin:
             self.state = state
         return self.state
 
+    def touch(self) -> None:
+        self.calls.append(("touch",))
+
     def status(self) -> LoginState:
         return self.state
+
+    def setup(self, mode: str, password: str | None, api_id: str, api_hash: str) -> LoginState:
+        return self._answer(
+            "setup", mode, password, api_id, api_hash, state=LoginState(STEP_LOGGED_OUT, mode=mode)
+        )
+
+    def unlock(self, password: str | None) -> LoginState:
+        return self._answer("unlock", password, state=LoginState(STEP_LOGGED_OUT, mode="password"))
+
+    def lock(self) -> LoginState:
+        return self._answer("lock", state=LoginState("locked", mode="password"))
+
+    def forget(self) -> LoginState:
+        return self._answer("forget", state=LoginState(STEP_LOGGED_OUT))
+
+    def remove_legacy_files(self) -> LoginState:
+        return self._answer("remove_legacy", state=LoginState(STEP_LOGGED_OUT))
+
+    def shutdown(self) -> None:
+        self.calls.append(("shutdown",))
 
     def save_keys(self, api_id: str, api_hash: str) -> None:
         self._answer("save_keys", api_id, api_hash)
@@ -69,6 +92,10 @@ def test_status_is_a_plain_dictionary(api_and_login: tuple[gui_api.Api, FakeLogi
         "name": None,
         "has_keys": True,
         "remote_failed": False,
+        "mode": None,
+        "legacy": False,
+        "problem": None,
+        "two_factor": None,
     }
     assert login.calls == []  # статус не ходит в сеть
 
@@ -86,17 +113,22 @@ def test_login_steps_return_state_and_pass_arguments(
             "name": "Иван Петров",
             "has_keys": True,
             "remote_failed": False,
+            "mode": None,
+            "legacy": False,
+            "problem": None,
+            "two_factor": None,
         },
     }
     assert api.telegram_password("pw")["ok"] is True
-    assert login.calls == [("begin", "+7 900"), ("code", "12345"), ("password", "pw")]
+    steps = [call for call in login.calls if call != ("touch",)]
+    assert steps == [("begin", "+7 900"), ("code", "12345"), ("password", "pw")]
 
 
 def test_save_keys_returns_the_new_status(api_and_login: tuple[gui_api.Api, FakeLogin]) -> None:
     api, login = api_and_login
     answer = api.telegram_save_keys("123", "a" * 32)
     assert answer["ok"] is True and answer["state"]["has_keys"] is True
-    assert login.calls == [("save_keys", "123", "a" * 32)]
+    assert [c for c in login.calls if c != ("touch",)] == [("save_keys", "123", "a" * 32)]
 
 
 def test_logout_reports_when_the_remote_session_could_not_be_ended(
@@ -163,7 +195,7 @@ def _form(**changes: object) -> dict:
 
 
 def test_limit_and_refresh_are_validated() -> None:
-    api = gui_api.Api(telegram=FakeLogin())  # type: ignore[arg-type]
+    api = gui_api.Api(telegram=FakeLogin(), allowed_paths=["u.txt", "a.txt"])  # type: ignore[arg-type]
     for bad in ("abc", "0", "-5", "1.5"):
         errors = api.start_compare(_form(limit=bad))["errors"]
         assert errors == [{"code": "bad_limit", "params": {}}], bad
@@ -175,7 +207,7 @@ def test_limit_and_refresh_reach_the_collector(
 ) -> None:
     seen: list[CompareForm] = []
     monkeypatch.setattr(gui_api, "run_compare", lambda form: seen.append(form) or object())
-    api = gui_api.Api(telegram=FakeLogin())  # type: ignore[arg-type]
+    api = gui_api.Api(telegram=FakeLogin(), allowed_paths=["u.txt", "a.txt"])  # type: ignore[arg-type]
     assert api.start_compare(_form(limit="250", refresh=True))["ok"] is True
     deadline = time.time() + 5
     while not seen and time.time() < deadline:
@@ -209,7 +241,7 @@ def test_coded_error_of_a_background_job_reaches_the_window(
         raise CodedError("telegram_not_logged_in", "Нет входа в Telegram.")
 
     monkeypatch.setattr(gui_api, "run_compare", failing)
-    api = gui_api.Api(telegram=FakeLogin())  # type: ignore[arg-type]
+    api = gui_api.Api(telegram=FakeLogin(), allowed_paths=["u.txt", "a.txt"])  # type: ignore[arg-type]
     assert api.start_compare(_form())["ok"] is True
     state: dict = {}
     deadline = time.time() + 5
@@ -233,3 +265,43 @@ def test_background_job_keeps_the_code_only_for_coded_errors() -> None:
     while coded.poll() is None:
         time.sleep(0.01)
     assert coded.error_code == "network" and coded.error_params == {"message": "y"}
+
+
+# --- хранилище: настройка, замок, удаление ---
+
+
+def test_setup_unlock_lock_forget_pass_arguments_and_return_the_mode(
+    api_and_login: tuple[gui_api.Api, FakeLogin],
+) -> None:
+    api, login = api_and_login
+    assert (
+        api.telegram_setup("password", "pw-123456789", "5", "a" * 32)["state"]["mode"] == "password"
+    )
+    assert api.telegram_setup("memory", "", "5", "a" * 32)["ok"] is True
+    assert api.telegram_unlock("pw-123456789")["ok"] is True
+    assert api.telegram_lock()["state"]["step"] == "locked"
+    assert api.telegram_forget()["state"]["step"] == "logged_out"
+    assert api.telegram_remove_legacy()["ok"] is True
+    steps = [call for call in login.calls if call != ("touch",)]
+    assert steps[0] == ("setup", "password", "pw-123456789", "5", "a" * 32)
+    assert steps[1] == ("setup", "memory", None, "5", "a" * 32)  # пустой пароль -> None
+    assert steps[2] == ("unlock", "pw-123456789")
+
+
+def test_vault_errors_are_codes(api_and_login: tuple[gui_api.Api, FakeLogin]) -> None:
+    from chatstyle.securestore import VaultError
+
+    api, login = api_and_login
+    login.next_error = VaultError("wrong_password", "Неверный мастер-пароль.")
+    assert api.telegram_unlock("x" * 12)["error"] == {"code": "wrong_password", "params": {}}
+    login.next_error = VaultError("password_weak", "слабый", n=10)
+    assert api.telegram_setup("password", "short", "5", "a" * 32)["error"] == {
+        "code": "password_weak",
+        "params": {"n": "10"},
+    }
+
+
+def test_shutdown_reaches_the_login(api_and_login: tuple[gui_api.Api, FakeLogin]) -> None:
+    api, login = api_and_login
+    api.shutdown()
+    assert ("shutdown",) in login.calls

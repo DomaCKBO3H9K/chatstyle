@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>chatstyle</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -52,7 +52,7 @@
           <div class="field">
             <span class="label" data-i18n="adv.impostors"></span>
             <div class="inline">
-              <input type="text" id="impostors" data-i18n-placeholder="adv.impostors_placeholder" data-i18n-aria="adv.impostors_aria">
+              <input type="text" id="impostors" readonly data-i18n-placeholder="adv.impostors_placeholder" data-i18n-aria="adv.impostors_aria">
               <button class="btn" id="impostors-pick" data-i18n="btn.choose"></button>
             </div>
           </div>
@@ -68,7 +68,7 @@
           <div class="field">
             <label class="check"><input type="checkbox" id="save-report"><span data-i18n="adv.save_report"></span></label>
             <div class="inline" id="report-row" hidden>
-              <input type="text" id="report" data-i18n-placeholder="adv.report_placeholder" data-i18n-aria="adv.report_aria">
+              <input type="text" id="report" readonly data-i18n-placeholder="adv.report_placeholder" data-i18n-aria="adv.report_aria">
               <button class="btn" id="report-pick" data-i18n="btn.choose"></button>
             </div>
           </div>

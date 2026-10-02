@@ -1,4 +1,5 @@
 import socket
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,7 @@ _LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 @pytest.fixture(autouse=True)
 def isolated_environment(
     monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
-) -> None:
+) -> Iterator[None]:
     """Тесты не трогают реальные файлы пользователя, ключи и внешнюю сеть."""
     home: Path = tmp_path_factory.mktemp("chatstyle_home")
     monkeypatch.setenv("CHATSTYLE_HOME", str(home))
@@ -25,3 +26,11 @@ def isolated_environment(
         original_connect(self, address)  # type: ignore[arg-type]
 
     monkeypatch.setattr(socket.socket, "connect", guarded_connect)
+
+    from chatstyle import securestore
+
+    securestore.reset_default_vault(None)  # общее хранилище не переходит из теста в тест
+    securestore.set_password_prompt(None)
+    yield
+    securestore.reset_default_vault(None)
+    securestore.set_password_prompt(None)

@@ -52,6 +52,9 @@ a = Analysis(
         "webview.platforms.edgechromium",
         "webview.platforms.winforms",
         "clr",
+        "chatstyle.securestore",
+        "chatstyle.collectors.telegram_login",
+        "cryptography.hazmat.primitives.ciphers.aead",
     ],
     datas=[
         (os.path.join(root, "python", "chatstyle", "resources"), "chatstyle/resources"),

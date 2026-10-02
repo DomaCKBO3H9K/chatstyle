@@ -217,3 +217,13 @@ select.tool { padding-inline-end: 6px; }
 .tg-ok { margin: 0; font: 700 18px var(--display); }
 dialog .adv { margin: 0 0 16px; }
 dialog .row { margin-top: 4px; }
+
+.modes { display: grid; gap: 8px; }
+.mode-card { display: flex; gap: 12px; align-items: flex-start; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; }
+.mode-card:has(input:checked) { border-color: var(--ink); background: var(--surface-2); }
+.mode-card input { margin-top: 4px; accent-color: var(--ink); }
+.mode-card strong { display: block; }
+.mode-card small { display: block; color: var(--muted); font-size: 13px; line-height: 1.4; margin-top: 2px; }
+.tg-password { display: grid; gap: 12px; }
+.tg-forget { display: grid; gap: 8px; }
+dialog { max-height: 90vh; overflow: auto; }

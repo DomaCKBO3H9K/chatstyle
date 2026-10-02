@@ -15,7 +15,7 @@ import os
 import subprocess
 import sys
 import webbrowser
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
@@ -36,11 +36,13 @@ from chatstyle.gui.model import (
     CompareOutcome,
     build_result_view,
     check_compare_form,
+    normalize_source,
     run_compare,
     run_profile,
     short_labels,
     tgexport_spec,
 )
+from chatstyle.gui.settings import load_settings, save_setting
 from chatstyle.impostors import DEFAULT_SEED
 from chatstyle.pipeline import (
     DISCLAIMER,
@@ -55,6 +57,10 @@ from chatstyle.pipeline import (
 )
 
 TELEGRAM_SITE = "https://my.telegram.org"  # единственный адрес, который окно открывает в браузере
+MAX_TEXT = 4096  # длиннее любой путь или подпись из формы: такие данные отбрасываются
+MAX_CANDIDATES = 50
+MAX_PHONE, MAX_CODE, MAX_PASSWORD, MAX_API_ID, MAX_API_HASH = 64, 32, 256, 20, 64
+REPORT_SUFFIXES = (".html", ".md")
 WORD_LIST_PREFIXES = (("fw", FUNCTION_WORD_PREFIX), ("fl", FILLER_WORD_PREFIX))
 WORD_LIST_LIMIT = 10
 WHY_LIMIT = 6
@@ -174,7 +180,20 @@ def state_dict(state: LoginState) -> dict[str, Any]:
         "name": state.name,
         "has_keys": state.has_keys,
         "remote_failed": state.remote_failed,
+        "mode": state.mode,
+        "legacy": state.legacy,
+        "problem": state.problem,
+        "two_factor": state.two_factor,
     }
+
+
+def is_text(value: object, limit: int = MAX_TEXT) -> bool:
+    """Строка допустимой длины без нулевых символов: всё, что приходит со страницы, проверяется."""
+    return isinstance(value, str) and len(value) <= limit and "\x00" not in value
+
+
+def norm_path(path: str) -> str:
+    return os.path.normcase(os.path.abspath(path))
 
 
 def first_path(chosen: Any) -> str | None:
@@ -192,12 +211,47 @@ class Api:
         self,
         window_provider: Callable[[], Any | None] = lambda: None,
         telegram: TelegramLogin | None = None,
+        allowed_paths: Iterable[str] = (),
+        allowed_reports: Iterable[str] = (),
     ) -> None:
+        # Источники и папки принимаются только те, что выбраны в диалогах этого окна: страница не
+        # может заставить программу читать или перезаписывать произвольный файл.
+        self._allowed_paths = {norm_path(path) for path in allowed_paths}
+        self._allowed_reports = {norm_path(path) for path in allowed_reports}
+        self._written_reports: set[str] = set()
         self._window_provider = window_provider
         self._telegram = telegram if telegram is not None else TelegramLogin()
         self._job: BackgroundJob[Any] | None = None
         self._job_error_code: str | None = None
         self._job_error_params: dict[str, str] = {}
+
+    def get_settings(self) -> dict[str, str]:
+        """Сохранённые язык и тема (только значения из белого списка)."""
+        return load_settings()
+
+    def set_setting(self, name: str, value: str) -> dict[str, Any]:
+        try:
+            return {"ok": True, "settings": save_setting(name, value)}
+        except ChatstyleError as exc:
+            return {"ok": False, "error": core_error(exc)}
+
+    def _remember_path(self, path: str) -> None:
+        self._allowed_paths.add(norm_path(path))
+
+    def _remember_report(self, path: str) -> None:
+        self._allowed_reports.add(norm_path(path))
+
+    def _spec_allowed(self, spec: object) -> bool:
+        if not is_text(spec):
+            return False
+        scheme, _, value = str(spec).partition(":")
+        scheme = scheme.lower()
+        if scheme == "file":
+            return bool(value) and norm_path(value) in self._allowed_paths
+        if scheme == "tgexport":
+            path = value.rpartition("#")[0]
+            return bool(path) and norm_path(path) in self._allowed_paths
+        return scheme == "tg" and bool(value.strip())
 
     def init(self) -> dict[str, str]:
         return {"disclaimer": DISCLAIMER, "version": __version__}
@@ -219,6 +273,7 @@ class Api:
         )
         if path is None:
             return None
+        self._remember_path(path)
         return {"spec": f"file:{path}", "label": Path(path).name}
 
     def pick_tg_export(self) -> dict[str, Any] | None:
@@ -232,6 +287,7 @@ class Api:
         )
         if path is None:
             return None
+        self._remember_path(path)
         try:
             senders = list_tg_senders(Path(path))
         except ChatstyleError as exc:
@@ -245,6 +301,10 @@ class Api:
         }
 
     def tg_source(self, path: str, key: str) -> dict[str, Any]:
+        if not is_text(path) or not is_text(key):
+            return {"error": error("bad_input")}
+        if norm_path(path) not in self._allowed_paths:
+            return {"error": error("path_not_allowed")}
         try:
             senders = list_tg_senders(Path(path))
         except ChatstyleError as exc:
@@ -258,22 +318,31 @@ class Api:
     def pick_folder(self) -> str | None:
         import webview
 
-        return first_path(self._dialog(webview.FileDialog.FOLDER))
+        folder = first_path(self._dialog(webview.FileDialog.FOLDER))
+        if folder is not None:
+            self._remember_path(folder)
+        return folder
 
     def pick_report_path(self) -> str | None:
         import webview
 
-        return first_path(
+        path = first_path(
             self._dialog(
                 webview.FileDialog.SAVE,
                 save_filename="report.html",
                 file_types=("HTML files (*.html)", "Markdown files (*.md)", "All files (*.*)"),
             )
         )
+        if path is not None:
+            self._remember_report(path)
+        return path
 
     def start_compare(self, form: dict[str, Any]) -> dict[str, Any]:
         if self._job is not None:
             return {"ok": False, "errors": [error("busy")]}
+        refused = self._refuse_form(form)
+        if refused:
+            return {"ok": False, "errors": refused}
 
         seed_text = str(form.get("seed", "") or "").strip()
         seed: int | None
@@ -308,6 +377,7 @@ class Api:
         if problems:
             return {"ok": False, "errors": [error(p.code, **p.params) for p in problems]}
 
+        self._telegram.touch()
         self._job = BackgroundJob(lambda: run_compare(compare_form))
         self._job.start()
         return {"ok": True}
@@ -315,8 +385,12 @@ class Api:
     def start_profile(self, source: str) -> dict[str, Any]:
         if self._job is not None:
             return {"ok": False, "errors": [error("busy")]}
-        if not source or not source.strip():
+        if not is_text(source):
+            return {"ok": False, "errors": [error("bad_input")]}
+        if not source.strip():
             return {"ok": False, "errors": [error("source_missing")]}
+        if not self._spec_allowed(normalize_source(source)):
+            return {"ok": False, "errors": [error("path_not_allowed")]}
         self._job = BackgroundJob(lambda: run_profile(source))
         self._job.start()
         return {"ok": True}
@@ -336,6 +410,8 @@ class Api:
             known = error(code, **self._job_error_params) if code else core_error(str(payload))
             return {"state": "error", "error": known}
         if isinstance(payload, CompareOutcome):
+            if payload.report_path is not None:
+                self._written_reports.add(norm_path(str(payload.report_path)))
             return {"state": "done", "kind": "compare", "view": compare_view_dict(payload)}
         return {"state": "done", "kind": "profile", "view": profile_view_dict(payload)}
 
@@ -345,7 +421,49 @@ class Api:
         """Без сети: шаг входа, имя аккаунта, заданы ли ключи."""
         return state_dict(self._telegram.status())
 
+    @staticmethod
+    def _bad_input() -> dict[str, Any]:
+        return {"ok": False, "error": error("bad_input")}
+
+    def telegram_setup(
+        self, mode: str, password: str, api_id: str, api_hash: str
+    ) -> dict[str, Any]:
+        """Создать хранилище выбранного режима (password, dpapi, memory) и сохранить ключи API."""
+        texts = (
+            is_text(mode, 16),
+            is_text(password, MAX_PASSWORD),
+            is_text(api_id, MAX_API_ID),
+            is_text(api_hash, MAX_API_HASH),
+        )
+        if not all(texts):
+            return self._bad_input()
+        return self._telegram_step(
+            lambda: self._telegram.setup(mode, password or None, api_id, api_hash)
+        )
+
+    def telegram_unlock(self, password: str) -> dict[str, Any]:
+        if not is_text(password, MAX_PASSWORD):
+            return self._bad_input()
+        return self._telegram_step(lambda: self._telegram.unlock(password or None))
+
+    def telegram_lock(self) -> dict[str, Any]:
+        return self._telegram_step(self._telegram.lock)
+
+    def telegram_forget(self) -> dict[str, Any]:
+        """Удалить хранилище, сессию (и в Telegram, если можно) и старые открытые файлы."""
+        return self._telegram_step(self._telegram.forget)
+
+    def telegram_remove_legacy(self) -> dict[str, Any]:
+        return self._telegram_step(self._telegram.remove_legacy_files)
+
+    def shutdown(self) -> None:
+        """Вызывается при закрытии окна."""
+        self._telegram.shutdown()
+
     def telegram_save_keys(self, api_id: str, api_hash: str) -> dict[str, Any]:
+        if not (is_text(api_id, MAX_API_ID) and is_text(api_hash, MAX_API_HASH)):
+            return self._bad_input()
+
         def action() -> LoginState:
             self._telegram.save_keys(api_id, api_hash)
             return self._telegram.status()
@@ -353,12 +471,18 @@ class Api:
         return self._telegram_step(action)
 
     def telegram_begin(self, phone: str) -> dict[str, Any]:
+        if not is_text(phone, MAX_PHONE):
+            return self._bad_input()
         return self._telegram_step(lambda: self._telegram.begin(phone))
 
     def telegram_code(self, code: str) -> dict[str, Any]:
+        if not is_text(code, MAX_CODE):
+            return self._bad_input()
         return self._telegram_step(lambda: self._telegram.submit_code(code))
 
     def telegram_password(self, password: str) -> dict[str, Any]:
+        if not is_text(password, MAX_PASSWORD):
+            return self._bad_input()
         return self._telegram_step(lambda: self._telegram.submit_password(password))
 
     def telegram_cancel(self) -> dict[str, Any]:
@@ -370,8 +494,8 @@ class Api:
     def telegram_open_site(self) -> None:
         webbrowser.open(TELEGRAM_SITE)
 
-    @staticmethod
-    def _telegram_step(action: Callable[[], LoginState]) -> dict[str, Any]:
+    def _telegram_step(self, action: Callable[[], LoginState]) -> dict[str, Any]:
+        self._telegram.touch()
         try:
             return {"ok": True, "state": state_dict(action())}
         except CodedError as exc:
@@ -379,8 +503,42 @@ class Api:
         except ChatstyleError as exc:
             return {"ok": False, "error": core_error(exc)}
 
+    def _refuse_form(self, form: object) -> list[dict[str, Any]]:
+        """Отказать, если форма не того вида или ссылается на путь не из диалогов этого окна."""
+        if not isinstance(form, dict):
+            return [error("bad_input")]
+        candidates = form.get("candidates", [])
+        texts = (form.get(name, "") for name in ("unknown", "impostors_dir", "report_path", "seed"))
+        well_formed = (
+            isinstance(candidates, list)
+            and len(candidates) <= MAX_CANDIDATES
+            and all(is_text(item) for item in candidates)
+            and all(is_text(value) for value in texts)
+            and is_text(form.get("limit", ""), 32)
+            and isinstance(form.get("refresh", False), bool)
+        )
+        if not well_formed:
+            return [error("bad_input")]
+        unknown = form.get("unknown", "")
+        specs = [unknown, *candidates] if unknown else list(candidates)
+        impostors = form.get("impostors_dir", "")
+        report = form.get("report_path", "")
+        if (
+            any(not self._spec_allowed(spec) for spec in specs)
+            or (impostors and norm_path(impostors) not in self._allowed_paths)
+            or (report and norm_path(report) not in self._allowed_reports)
+        ):
+            return [error("path_not_allowed")]
+        return []
+
     def open_report(self, path: str) -> dict[str, Any] | None:
+        if not is_text(path):
+            return {"error": error("bad_input")}
         file_path = Path(path)
+        if norm_path(path) not in self._written_reports or file_path.suffix.lower() not in (
+            REPORT_SUFFIXES
+        ):
+            return {"error": error("path_not_allowed")}
         if not file_path.is_file():
             return {"error": error("report_missing")}
         if sys.platform.startswith("win"):

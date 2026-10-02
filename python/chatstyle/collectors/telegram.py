@@ -17,9 +17,16 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from chatstyle.cache import load_cached, store_cached
-from chatstyle.config import TelegramCredentials, load_telegram_credentials
+from chatstyle.config import (
+    VAULT_ACCOUNT,
+    VAULT_SESSION,
+    TelegramCredentials,
+    load_credentials_with_vault,
+    load_telegram_credentials,
+)
 from chatstyle.errors import ChatstyleError, CodedError
 from chatstyle.paths import session_file
+from chatstyle.securestore import Vault, default_vault, unlock_interactively
 
 DEFAULT_LIMIT = 3000
 FLOOD_SLEEP_THRESHOLD = 300
@@ -175,10 +182,14 @@ class TelethonFetcher:
         credentials: TelegramCredentials | None = None,
         session: Path | None = None,
         client_factory: ClientFactory | None = None,
+        vault: Vault | None = None,
     ) -> None:
         self._credentials = credentials
-        self._session = session
+        self._session = (
+            session  # явный файл сессии: только тесты и отладка, в работе сессия в хранилище
+        )
         self._client_factory = client_factory
+        self._vault = vault
 
     def fetch(self, source: TelegramSource, limit: int) -> list[str]:
         """Собрать до limit сообщений отправителя в хронологическом порядке."""
@@ -203,12 +214,29 @@ class TelethonFetcher:
         return self._session if self._session is not None else session_file()
 
     def _client(self) -> Any:
-        credentials = self._credentials or load_telegram_credentials()
-        session = self._session_path()
-        session.parent.mkdir(parents=True, exist_ok=True)
         factory = self._client_factory or _telethon_client_factory
+        if self._session is not None:
+            credentials = self._credentials or load_telegram_credentials()
+            session = self._session
+            session.parent.mkdir(parents=True, exist_ok=True)
+            return factory(
+                str(session),
+                credentials.api_id,
+                credentials.api_hash,
+                flood_sleep_threshold=FLOOD_SLEEP_THRESHOLD,
+            )
+        from telethon.sessions import StringSession
+
+        vault = self._vault if self._vault is not None else default_vault()
+        unlock_interactively(vault)
+        if not vault.unlocked():
+            raise CodedError(
+                "telegram_not_logged_in",
+                "Нет входа в Telegram. Выполните один раз: chatstyle login",
+            )
+        credentials = self._credentials or load_credentials_with_vault(vault)
         return factory(
-            str(session),
+            StringSession(vault.get(VAULT_SESSION) or None),
             credentials.api_id,
             credentials.api_hash,
             flood_sleep_threshold=FLOOD_SLEEP_THRESHOLD,
@@ -242,9 +270,16 @@ class TelethonFetcher:
         try:
             await client.start()
             me = await client.get_me()
+            saved = client.session.save() if self._session is None else None
         finally:
             await client.disconnect()
-        _restrict_permissions(self._session_path())
         parts = [getattr(me, "first_name", None), getattr(me, "last_name", None)]
         name = " ".join(part for part in parts if part)
-        return name or getattr(me, "username", None) or str(getattr(me, "id", ""))
+        name = name or getattr(me, "username", None) or str(getattr(me, "id", ""))
+        if self._session is not None:
+            _restrict_permissions(self._session_path())
+        else:
+            vault = self._vault if self._vault is not None else default_vault()
+            vault.set(VAULT_SESSION, saved)
+            vault.set(VAULT_ACCOUNT, name)
+        return name

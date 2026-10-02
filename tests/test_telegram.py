@@ -15,6 +15,7 @@ from chatstyle.collectors.telegram import (
 )
 from chatstyle.config import TelegramCredentials
 from chatstyle.errors import ChatstyleError
+from chatstyle.securestore import Vault
 from telethon import errors
 
 CREDS = TelegramCredentials(api_id=1, api_hash="hash")
@@ -61,6 +62,7 @@ class FakeClient:
         self.me = me or SimpleNamespace(first_name="Иван", last_name="Петров", username="ivan")
         self.calls: list[str] = []
         self.iter_kwargs: dict[str, Any] = {}
+        self.session = SimpleNamespace(save=lambda: "SAVED-SESSION")
 
     async def connect(self) -> None:
         self.calls.append("connect")
@@ -295,16 +297,83 @@ def test_fetch_without_credentials_explains(
     assert "my.telegram.org" in str(exc_info.value)
 
 
-def test_default_session_is_in_data_dir(monkeypatch: pytest.MonkeyPatch) -> None:
-    client = FakeClient({"@u": USER}, NEWEST_FIRST)
-    sessions: list[str] = []
+def _vault_with_session(tmp_path: Path, mode: str = "memory") -> Vault:
+    from telethon.crypto import AuthKey
+    from telethon.sessions import StringSession
 
-    def factory(session: str, *_args: Any, **_kwargs: Any) -> FakeClient:
-        sessions.append(session)
+    session = StringSession()
+    session.set_dc(2, "149.154.167.51", 443)
+    session.auth_key = AuthKey(b"\x01" * 256)
+    vault = Vault(tmp_path / "vault.json", backoff=False)
+    vault.create(mode, "x" * 12 if mode == "password" else None)
+    vault.set("session", session.save())
+    return vault
+
+
+def test_session_comes_from_the_vault_and_no_session_file_is_written(tmp_path: Path) -> None:
+    client = FakeClient({"@u": USER}, NEWEST_FIRST)
+    received: list[Any] = []
+
+    def factory(session: Any, *_args: Any, **_kwargs: Any) -> FakeClient:
+        received.append(session)
         return client
 
-    TelethonFetcher(CREDS, client_factory=factory).fetch(TelegramSource("@u", "@u"), 5)
-    assert sessions == [str(paths.session_file())]
+    vault = _vault_with_session(tmp_path)
+    TelethonFetcher(CREDS, client_factory=factory, vault=vault).fetch(TelegramSource("@u", "@u"), 5)
+    assert received[0].auth_key.key == b"\x01" * 256  # StringSession, а не путь к файлу
+    assert not list(paths.data_dir().glob("*.session*"))
+    assert not list(tmp_path.glob("*.session*"))
+
+
+def test_locked_vault_stops_the_fetch_with_a_code(tmp_path: Path) -> None:
+    from chatstyle.errors import CodedError
+
+    vault = _vault_with_session(tmp_path, "password")
+    vault.lock()
+    with pytest.raises(CodedError) as info:
+        TelethonFetcher(CREDS, client_factory=lambda *a, **k: None, vault=vault).fetch(
+            TelegramSource("@u", "@u"), 5
+        )
+    assert info.value.code == "vault_locked"
+
+
+def test_the_console_prompt_unlocks_the_vault(tmp_path: Path) -> None:
+    from chatstyle import securestore
+
+    vault = _vault_with_session(tmp_path, "password")
+    vault.lock()
+    answers = iter(["wrong password!!", "x" * 12])
+    securestore.set_password_prompt(lambda: next(answers))
+    try:
+        client = FakeClient({"@u": USER}, NEWEST_FIRST)
+        fetcher = TelethonFetcher(CREDS, client_factory=lambda *a, **k: client, vault=vault)
+        assert fetcher.fetch(TelegramSource("@u", "@u"), 5)
+    finally:
+        securestore.set_password_prompt(None)
+    assert vault.unlocked()
+
+
+def test_no_vault_means_not_logged_in(tmp_path: Path) -> None:
+    from chatstyle.errors import CodedError
+
+    vault = Vault(tmp_path / "none.json", backoff=False)
+    with pytest.raises(CodedError) as info:
+        TelethonFetcher(CREDS, client_factory=lambda *a, **k: None, vault=vault).fetch(
+            TelegramSource("@u", "@u"), 5
+        )
+    assert info.value.code == "telegram_not_logged_in"
+
+
+def test_login_stores_the_session_and_the_account_in_the_vault(tmp_path: Path) -> None:
+    vault = Vault(tmp_path / "vault.json", backoff=False)
+    vault.create("password", "x" * 12)
+    client = FakeClient({})
+    fetcher = TelethonFetcher(CREDS, client_factory=lambda *a, **k: client, vault=vault)
+    assert fetcher.login() == "Иван Петров"
+    vault.lock()
+    vault.unlock("x" * 12)
+    assert vault.get("session") == "SAVED-SESSION" and vault.get("account") == "Иван Петров"
+    assert not list(tmp_path.glob("*.session*"))
 
 
 def test_login_returns_account_name(tmp_path: Path) -> None:
@@ -339,4 +408,4 @@ def test_collect_tg_without_keys_is_clear_error(
     monkeypatch.chdir(tmp_path)
     with pytest.raises(ChatstyleError) as exc_info:
         collect("tg:@user")
-    assert "my.telegram.org" in str(exc_info.value)
+    assert "chatstyle login" in str(exc_info.value)  # входа нет: сначала нужен вход

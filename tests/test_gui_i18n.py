@@ -18,6 +18,7 @@ from chatstyle.pipeline import (
     ComparisonResult,
     unavailable_facts,
 )
+from chatstyle.securestore import MODES
 
 WEB = Path(str(resources.files("chatstyle").joinpath("gui", "web")))
 CODES = ("ru", "en", "ar", "es", "zh", "fr")
@@ -102,9 +103,15 @@ def _dynamic_keys() -> set[str]:
     )
     coded = "".join(
         Path(str(resources.files("chatstyle").joinpath(*parts))).read_text(encoding="utf-8")
-        for parts in (("collectors", "telegram.py"), ("collectors", "telegram_login.py"))
+        for parts in (
+            ("collectors", "telegram.py"),
+            ("collectors", "telegram_login.py"),
+            ("securestore.py",),
+        )
     )
-    coded_codes = set(re.findall(r'(?:CodedError|TelegramLoginError)\(\s*"(\w+)"', coded))
+    coded_codes = set(
+        re.findall(r'(?:CodedError|TelegramLoginError|VaultError)\(\s*"(\w+)"', coded)
+    )
     error_codes = (
         set(_FORM_ERROR_TEXTS)
         | set(re.findall(r'error\("(\w+)"', api))
@@ -120,6 +127,8 @@ def _dynamic_keys() -> set[str]:
     keys |= {f"result.summary.{m}" for m in ("impostors", "cosine")}
     keys |= {f"note.ranking.{m}" for m in ("impostors", "cosine")}
     keys |= {"profile.fw", "profile.fl"}
+    keys |= {f"error.{code}" for code in re.findall(r'"(vault_\w+)"', coded)}  # выбираются условием
+    keys |= {f"tg.mode.{mode}" for mode in MODES} | {f"tg.mode.{mode}.desc" for mode in MODES}
     keys |= {"note.agree", "note.disagree"}  # выбираются тернарным оператором в noteText
     return keys
 

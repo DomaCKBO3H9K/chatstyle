@@ -1,19 +1,17 @@
-"""Вход в Telegram по шагам для окна: телефон, код, пароль 2FA, выход, сохранение ключей.
+"""Вход в Telegram по шагам для окна: настройка хранилища, телефон, код, пароль 2FA, выход.
 
-Те же сессия и файл `.env`, что у `chatstyle login`, поэтому вход из окна и из терминала
-взаимозаменяемы. Код из Telegram и пароль нигде не сохраняются и не попадают в сообщения об
-ошибках; из секретов на диск уходят только ключи `api_id`/`api_hash` (в `.env`, по просьбе
-пользователя) и сама сессия Telethon. Сеть используется только при явных вызовах `begin`,
-`submit_code`, `submit_password` и `logout`; `status` работает без сети.
+Секреты (ключи API и сессия Telethon в виде строки) лежат только в зашифрованном хранилище
+``chatstyle.securestore`` (мастер-пароль, DPAPI или только память). Код из Telegram и пароль 2FA
+нигде не сохраняются и не попадают в сообщения об ошибках. Сеть используется только при явных
+вызовах ``begin``, ``submit_code``, ``submit_password`` и ``logout``; ``status`` работает без сети.
 
 Клиент Telethon живёт в отдельном потоке со своим циклом событий между шагами входа и закрывается
-при завершении, отмене или бездействии (`IDLE_SECONDS`).
+при завершении, отмене или бездействии (``IDLE_SECONDS``). Хранилище с мастер-паролем
+блокируется само после ``LOCK_SECONDS`` бездействия.
 """
 
 import asyncio
-import os
 import re
-import sys
 import threading
 from collections.abc import Callable
 from concurrent.futures import TimeoutError as FutureTimeout
@@ -23,23 +21,40 @@ from typing import Any
 
 from chatstyle.collectors.telegram import ClientFactory, _telethon_client_factory
 from chatstyle.config import (
-    API_HASH_VAR,
-    API_ID_VAR,
+    VAULT_ACCOUNT,
+    VAULT_API_HASH,
+    VAULT_API_ID,
+    VAULT_SESSION,
     TelegramCredentials,
+    load_credentials_with_vault,
     load_telegram_credentials,
 )
 from chatstyle.errors import ChatstyleError, CodedError
-from chatstyle.paths import data_dir, env_file, session_file
+from chatstyle.paths import data_dir, session_file
+from chatstyle.securestore import (
+    MODE_MEMORY,
+    MODE_PASSWORD,
+    MODES,
+    Vault,
+    VaultError,
+    default_vault,
+)
 
 IDLE_SECONDS = 300.0
+LOCK_SECONDS = 900.0
 CALL_TIMEOUT = 60.0
 API_HASH_PATTERN = re.compile(r"[0-9a-fA-F]{32}")
 ACCOUNT_FILE_NAME = "telegram.account"
 
+STEP_LOCKED = "locked"
 STEP_LOGGED_OUT = "logged_out"
 STEP_NEED_CODE = "need_code"
 STEP_NEED_PASSWORD = "need_password"
 STEP_LOGGED_IN = "logged_in"
+
+KEY_API_ID, KEY_API_HASH = VAULT_API_ID, VAULT_API_HASH
+KEY_SESSION, KEY_ACCOUNT = VAULT_SESSION, VAULT_ACCOUNT
+KEY_TWO_FACTOR = "two_factor"  # "yes" / "no": результат проверки после входа
 
 
 class TelegramLoginError(CodedError):
@@ -48,26 +63,28 @@ class TelegramLoginError(CodedError):
 
 @dataclass(frozen=True)
 class LoginState:
-    """Где находится вход: шаг, имя аккаунта и ключи ли заданы."""
+    """Где находится вход и в каком состоянии хранилище."""
 
     step: str
     name: str | None = None
     has_keys: bool = True
     remote_failed: bool = False
+    mode: str | None = None  # режим хранилища: password, dpapi, memory или None, если его нет
+    legacy: bool = False  # остались открытые файлы старой версии (сессия, имя аккаунта)
+    problem: str | None = None  # код проблемы хранилища (например, vault_corrupt)
+    two_factor: bool | None = None  # включена ли у аккаунта двухфакторная защита (None: неизвестно)
 
 
 def account_file() -> Path:
-    """Файл с именем аккаунта: по нему окно без сети показывает, что вход выполнен."""
+    """Старый открытый файл с именем аккаунта (до появления хранилища)."""
     return data_dir() / ACCOUNT_FILE_NAME
 
 
-def _restrict_permissions(path: Path) -> None:
-    """Файл с секретами только для владельца (на POSIX; в Windows права задаёт каталог)."""
-    if sys.platform != "win32":
-        try:
-            os.chmod(path, 0o600)
-        except OSError:
-            pass
+def _legacy_files() -> list[Path]:
+    """Открытые файлы прежней версии: сессия SQLite, её журнал и имя аккаунта."""
+    session = session_file()
+    base = session if session.suffix else session.with_suffix(".session")
+    return [base, base.with_name(base.name + "-journal"), account_file()]
 
 
 def _delete(path: Path) -> None:
@@ -75,12 +92,6 @@ def _delete(path: Path) -> None:
         path.unlink(missing_ok=True)
     except OSError:
         pass
-
-
-def _session_files(session: Path) -> list[Path]:
-    """Файл сессии Telethon и его sqlite-журнал."""
-    base = session if session.suffix else session.with_suffix(".session")
-    return [base, base.with_name(base.name + "-journal")]
 
 
 class _LoopThread:
@@ -144,82 +155,174 @@ def _full_name(me: Any) -> str:
     return name or getattr(me, "username", None) or str(getattr(me, "id", ""))
 
 
+async def _two_factor_enabled(client: Any) -> bool | None:
+    """Есть ли у аккаунта облачный пароль (двухфакторная защита); None, если узнать не вышло."""
+    try:
+        from telethon.tl.functions.account import GetPasswordRequest
+
+        return bool((await client(GetPasswordRequest())).has_password)
+    except Exception:  # noqa: BLE001 - предупреждение необязательно, вход от него не зависит
+        return None
+
+
+def _string_session(saved: str, *, strict: bool = False) -> Any:
+    """Сессия Telethon из сохранённой строки.
+
+    Повреждённая строка при входе означает «входа нет» (начнётся новый вход), а при выходе
+    (strict) — ошибку: удалённую сессию по такой строке завершить нельзя.
+    """
+    from telethon.sessions import StringSession
+
+    try:
+        return StringSession(saved or None)
+    except ValueError:
+        if strict:
+            raise
+        return StringSession(None)
+
+
 class TelegramLogin:
     """Пошаговый вход. Методы синхронные, их вызывают из потока окна; доступ под замком."""
 
     def __init__(
         self,
-        credentials_loader: Callable[[], TelegramCredentials] = load_telegram_credentials,
-        session: Path | None = None,
+        vault: Vault | None = None,
+        credentials_loader: Callable[[], TelegramCredentials] | None = None,
         client_factory: ClientFactory | None = None,
         idle_seconds: float = IDLE_SECONDS,
+        lock_seconds: float = LOCK_SECONDS,
     ) -> None:
-        self._load_credentials = credentials_loader
-        self._session = session
+        self._vault_override = vault
+        self._credentials_loader = credentials_loader
         self._factory = client_factory or _telethon_client_factory
         self._idle_seconds = idle_seconds
+        self._lock_seconds = lock_seconds
         self._lock = threading.RLock()
         self._loop: _LoopThread | None = None
         self._client: Any = None
         self._phone = ""
         self._phone_code_hash = ""
-        self._had_session = False  # сессия была до входа: при отмене её нельзя удалять
         self._timer: threading.Timer | None = None
+        self._lock_timer: threading.Timer | None = None
+
+    @property
+    def vault(self) -> Vault:
+        return self._vault_override if self._vault_override is not None else default_vault()
+
+    def _credentials(self) -> TelegramCredentials:
+        if self._credentials_loader is not None:
+            return self._credentials_loader()
+        return load_credentials_with_vault(self.vault)
 
     # --- состояние без сети ---
 
-    def session_path(self) -> Path:
-        return self._session if self._session is not None else session_file()
-
     def has_keys(self) -> bool:
         try:
-            self._load_credentials()
+            self._credentials()
         except ChatstyleError:
             return False
         return True
 
     def status(self) -> LoginState:
-        """Без обращения к сети: по сохранённым ключам, сессии и имени аккаунта."""
+        """Без обращения к сети: режим хранилища, шаг входа, имя аккаунта, заданы ли ключи."""
         with self._lock:
-            has_keys = self.has_keys()
+            vault = self.vault
+            legacy = any(path.exists() for path in _legacy_files())
+            mode = vault.mode()
+            problem: str | None = None
             if self._client is not None:
                 step = STEP_NEED_PASSWORD if self._phone_code_hash == "" else STEP_NEED_CODE
-                return LoginState(step, has_keys=has_keys)
-            if _session_files(self.session_path())[0].exists() and account_file().exists():
+                return LoginState(step, has_keys=self.has_keys(), mode=mode, legacy=legacy)
+            if vault.exists() and not vault.unlocked():
+                if vault.needs_password():
+                    return LoginState(STEP_LOCKED, has_keys=False, mode=mode, legacy=legacy)
                 try:
-                    name = account_file().read_text(encoding="utf-8").strip()
-                except (OSError, UnicodeDecodeError):
-                    name = ""
-                return LoginState(STEP_LOGGED_IN, name or None, has_keys)
-            return LoginState(STEP_LOGGED_OUT, None, has_keys)
+                    vault.unlock()  # DPAPI открывается без пароля
+                except VaultError as exc:
+                    problem = exc.code
+            if vault.unlocked():
+                session, account = vault.get(KEY_SESSION), vault.get(KEY_ACCOUNT)
+                if session and account:
+                    flag = vault.get(KEY_TWO_FACTOR)
+                    return LoginState(
+                        STEP_LOGGED_IN,
+                        account,
+                        self.has_keys(),
+                        mode=mode,
+                        legacy=legacy,
+                        two_factor=None if flag is None else flag == "yes",
+                    )
+            return LoginState(
+                STEP_LOGGED_OUT, None, self.has_keys(), mode=mode, legacy=legacy, problem=problem
+            )
 
-    # --- ключи ---
+    # --- хранилище и ключи ---
 
-    def save_keys(self, api_id: str, api_hash: str) -> None:
-        """Записать ключи в .env каталога данных, сохранив остальные строки файла."""
-        api_id = api_id.strip()
-        api_hash = api_hash.strip()
+    def setup(self, mode: str, password: str | None, api_id: str, api_hash: str) -> LoginState:
+        """Создать хранилище выбранного режима и сохранить в нём ключи API."""
+        with self._lock:
+            if mode not in MODES:
+                raise TelegramLoginError("vault_bad_mode", "Неизвестный режим хранения.")
+            keys = self._checked_keys(api_id, api_hash, optional=self._env_keys())
+            vault = self.vault
+            if vault.exists() or vault.unlocked():
+                raise TelegramLoginError("vault_exists", "Хранилище уже создано.")
+            vault.create(mode, password)
+            try:
+                if keys is not None:
+                    vault.set(KEY_API_ID, keys[0])
+                    vault.set(KEY_API_HASH, keys[1])
+            except BaseException:
+                vault.destroy()
+                raise
+            self._arm_lock_timer()
+            return self.status()
+
+    def save_keys(self, api_id: str, api_hash: str) -> LoginState:
+        """Заменить ключи API в открытом хранилище."""
+        with self._lock:
+            keys = self._checked_keys(api_id, api_hash, optional=False)
+            if keys is None or not self.vault.unlocked():
+                raise TelegramLoginError("vault_locked", "Хранилище заблокировано.")
+            self.vault.set(KEY_API_ID, keys[0])
+            self.vault.set(KEY_API_HASH, keys[1])
+            self._arm_lock_timer()
+            return self.status()
+
+    def unlock(self, password: str | None) -> LoginState:
+        """Открыть хранилище мастер-паролем (для режима DPAPI пароль не нужен)."""
+        with self._lock:
+            self.vault.unlock(password)
+            self._arm_lock_timer()
+            return self.status()
+
+    def lock(self) -> LoginState:
+        """Закрыть хранилище и прервать незаконченный вход."""
+        with self._lock:
+            self._reset()
+            self._cancel_lock_timer()
+            if self.vault.mode() != MODE_MEMORY:
+                self.vault.lock()
+            return self.status()
+
+    @staticmethod
+    def _env_keys() -> bool:
+        try:
+            load_telegram_credentials()
+        except ChatstyleError:
+            return False
+        return True
+
+    @staticmethod
+    def _checked_keys(api_id: str, api_hash: str, *, optional: bool) -> tuple[str, str] | None:
+        api_id, api_hash = api_id.strip(), api_hash.strip()
+        if optional and not api_id and not api_hash:
+            return None  # ключи уже заданы переменными окружения или .env
         if not api_id.isdecimal() or int(api_id) <= 0:
             raise TelegramLoginError("keys_invalid", "api_id должен быть числом.")
         if not API_HASH_PATTERN.fullmatch(api_hash):
             raise TelegramLoginError("keys_invalid", "api_hash — 32 символа 0-9 и a-f.")
-        path = env_file()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            lines = path.read_text(encoding="utf-8-sig").splitlines()
-        except (OSError, UnicodeDecodeError):
-            lines = []
-        kept = [
-            line
-            for line in lines
-            if line.strip().removeprefix("export ").partition("=")[0].strip()
-            not in (API_ID_VAR, API_HASH_VAR)
-        ]
-        kept += [f"{API_ID_VAR}={api_id}", f"{API_HASH_VAR}={api_hash}"]
-        temporary = path.with_name(path.name + ".tmp")
-        temporary.write_text("\n".join(kept) + "\n", encoding="utf-8")
-        _restrict_permissions(temporary)
-        os.replace(temporary, path)
+        return api_id, api_hash
 
     # --- шаги входа ---
 
@@ -230,11 +333,14 @@ class TelegramLogin:
             raise TelegramLoginError("phone_invalid", "Укажите номер телефона.")
         with self._lock:
             self._reset()
+            vault = self.vault
+            if not vault.unlocked():
+                code = "vault_locked" if vault.exists() else "vault_required"
+                raise TelegramLoginError(code, "Хранилище не открыто.")
             try:
-                credentials = self._load_credentials()
+                credentials = self._credentials()
             except ChatstyleError as exc:
                 raise TelegramLoginError("keys_missing", "Не заданы ключи Telegram API.") from exc
-            self._had_session = _session_files(self.session_path())[0].exists()
             self._loop = _LoopThread()
             try:
                 state = self._loop.run(self._begin(credentials, phone))
@@ -242,6 +348,7 @@ class TelegramLogin:
                 self._reset()
                 raise self._error(exc) from exc
             self._arm_timer()
+            self._arm_lock_timer()
             return state
 
     def submit_code(self, code: str) -> LoginState:
@@ -276,36 +383,102 @@ class TelegramLogin:
                 raise translated from exc
 
     def cancel(self) -> LoginState:
-        """Прервать вход: клиент закрывается, незаконченная сессия удаляется."""
+        """Прервать вход: клиент закрывается, в хранилище ничего не меняется."""
         with self._lock:
             self._reset()
             return self.status()
 
     def logout(self) -> LoginState:
-        """Выйти: завершить сессию в Telegram (если удалось) и удалить локальные файлы."""
+        """Выйти: завершить сессию в Telegram (если удалось) и стереть её из хранилища."""
         with self._lock:
             self._reset()
+            vault = self.vault
+            if not vault.unlocked():
+                raise TelegramLoginError("vault_locked", "Хранилище заблокировано.")
+            remote_failed = self._remote_logout()
+            vault.set(KEY_SESSION, None)
+            vault.set(KEY_ACCOUNT, None)
+            vault.set(KEY_TWO_FACTOR, None)
+            self._remove_legacy()
+            return self._with_remote(self.status(), remote_failed)
+
+    def forget(self) -> LoginState:
+        """Удалить всё: завершить сессию в Telegram (если можно), хранилище и старые файлы."""
+        with self._lock:
+            self._reset()
+            self._cancel_lock_timer()
             remote_failed = False
-            if _session_files(self.session_path())[0].exists():
-                try:
-                    credentials = self._load_credentials()
-                    loop = _LoopThread()
-                    try:
-                        loop.run(self._log_out(credentials))
-                    finally:
-                        loop.stop()
-                except Exception:  # noqa: BLE001 - локальный выход выполняется при любом отказе сети
-                    remote_failed = True
-            for path in _session_files(self.session_path()):
-                _delete(path)
-            _delete(account_file())
-            return LoginState(STEP_LOGGED_OUT, None, self.has_keys(), remote_failed)
+            if self.vault.unlocked() and self.vault.get(KEY_SESSION):
+                remote_failed = self._remote_logout()
+            self.vault.destroy()
+            self._remove_legacy()
+            return self._with_remote(self.status(), remote_failed)
+
+    def touch(self) -> None:
+        """Отметить активность: замок хранилища с паролем отсчитывает время заново."""
+        with self._lock:
+            if self.vault.unlocked():
+                self._arm_lock_timer()
+
+    def shutdown(self) -> None:
+        """Закрытие окна: прервать вход; в режиме «только память» завершить сессию в Telegram."""
+        with self._lock:
+            self._reset()
+            self._cancel_lock_timer()
+            vault = self.vault
+            if vault.unlocked() and vault.mode() == MODE_MEMORY and vault.get(KEY_SESSION):
+                self._remote_logout()
+            if vault.mode() is not None:
+                vault.lock()
+
+    def remove_legacy_files(self) -> LoginState:
+        """Удалить открытые файлы сессии прежней версии."""
+        with self._lock:
+            self._remove_legacy()
+            return self.status()
 
     # --- внутренности ---
 
-    def _error(self, exc: BaseException) -> TelegramLoginError:
+    @staticmethod
+    def _with_remote(state: LoginState, remote_failed: bool) -> LoginState:
+        return LoginState(
+            state.step,
+            state.name,
+            state.has_keys,
+            remote_failed,
+            state.mode,
+            state.legacy,
+            state.problem,
+            state.two_factor,
+        )
+
+    def _remote_logout(self) -> bool:
+        """Завершить сессию на стороне Telegram; True, если это не удалось."""
+        saved = self.vault.get(KEY_SESSION)
+        if not saved:
+            return False
+        try:
+            credentials = self._credentials()
+            loop = _LoopThread()
+            try:
+                loop.run(self._log_out(credentials, saved))
+            finally:
+                loop.stop()
+        except Exception:  # noqa: BLE001 - локальный выход выполняется при любом отказе сети
+            return True
+        return False
+
+    @staticmethod
+    def _remove_legacy() -> None:
+        for path in _legacy_files():
+            _delete(path)
+
+    @staticmethod
+    def _error(exc: BaseException) -> TelegramLoginError:
         if isinstance(exc, TelegramLoginError):
             return exc
+        if isinstance(exc, VaultError):
+            return TelegramLoginError(exc.code, str(exc), **exc.params)
         if isinstance(exc, Exception):
             translated = _translate(exc)
             if translated is not None:
@@ -316,13 +489,14 @@ class TelegramLogin:
         if self._client is None or self._loop is None:
             raise TelegramLoginError("login_not_started", "Сначала запросите код.")
 
-    def _new_client(self, credentials: TelegramCredentials) -> Any:
-        session = self.session_path()
-        session.parent.mkdir(parents=True, exist_ok=True)
-        return self._factory(str(session), credentials.api_id, credentials.api_hash)
+    def _new_client(
+        self, credentials: TelegramCredentials, saved: str, *, strict: bool = False
+    ) -> Any:
+        session = _string_session(saved, strict=strict)
+        return self._factory(session, credentials.api_id, credentials.api_hash)
 
     async def _begin(self, credentials: TelegramCredentials, phone: str) -> LoginState:
-        client = self._new_client(credentials)
+        client = self._new_client(credentials, self.vault.get(KEY_SESSION) or "")
         self._client = client
         await client.connect()
         if await client.is_user_authorized():
@@ -330,7 +504,7 @@ class TelegramLogin:
         sent = await client.send_code_request(phone)
         self._phone = phone
         self._phone_code_hash = sent.phone_code_hash
-        return LoginState(STEP_NEED_CODE)
+        return LoginState(STEP_NEED_CODE, mode=self.vault.mode())
 
     async def _submit_code(self, code: str) -> LoginState:
         from telethon import errors
@@ -341,7 +515,7 @@ class TelegramLogin:
             )
         except errors.SessionPasswordNeededError:
             self._phone_code_hash = ""
-            return LoginState(STEP_NEED_PASSWORD)
+            return LoginState(STEP_NEED_PASSWORD, mode=self.vault.mode())
         return await self._finish()
 
     async def _submit_password(self, password: str) -> LoginState:
@@ -349,21 +523,23 @@ class TelegramLogin:
         return await self._finish()
 
     async def _finish(self) -> LoginState:
-        me = await self._client.get_me()
+        client = self._client
+        me = await client.get_me()
         name = _full_name(me)
-        await self._client.disconnect()
+        saved = client.session.save()
+        two_factor = await _two_factor_enabled(client)
+        await client.disconnect()
         self._client = None
-        session = self.session_path()
-        _restrict_permissions(_session_files(session)[0])
-        account = account_file()
-        account.parent.mkdir(parents=True, exist_ok=True)
-        account.write_text(name, encoding="utf-8")
-        _restrict_permissions(account)
+        vault = self.vault
+        vault.set(KEY_SESSION, saved)
+        vault.set(KEY_ACCOUNT, name)
+        vault.set(KEY_TWO_FACTOR, None if two_factor is None else ("yes" if two_factor else "no"))
+        self._remove_legacy()
         self._stop_loop_later()
-        return LoginState(STEP_LOGGED_IN, name)
+        return LoginState(STEP_LOGGED_IN, name, True, mode=vault.mode(), two_factor=two_factor)
 
-    async def _log_out(self, credentials: TelegramCredentials) -> None:
-        client = self._new_client(credentials)
+    async def _log_out(self, credentials: TelegramCredentials, saved: str) -> None:
+        client = self._new_client(credentials, saved, strict=True)
         await client.connect()
         try:
             if await client.is_user_authorized():
@@ -391,10 +567,22 @@ class TelegramLogin:
             self._timer.cancel()
             self._timer = None
 
+    def _arm_lock_timer(self) -> None:
+        """Хранилище с мастер-паролем закрывается само после долгого бездействия."""
+        self._cancel_lock_timer()
+        if self.vault.mode() == MODE_PASSWORD and self._lock_seconds > 0:
+            self._lock_timer = threading.Timer(self._lock_seconds, self.lock)
+            self._lock_timer.daemon = True
+            self._lock_timer.start()
+
+    def _cancel_lock_timer(self) -> None:
+        if self._lock_timer is not None:
+            self._lock_timer.cancel()
+            self._lock_timer = None
+
     def _reset(self) -> None:
-        """Закрыть клиент и цикл; недоведённый до конца вход не оставляет файлов сессии."""
+        """Закрыть клиент и цикл; в хранилище при этом ничего не меняется."""
         self._cancel_timer()
-        unfinished = self._client is not None
         loop, client = self._loop, self._client
         self._loop = None
         self._client = None
@@ -407,6 +595,3 @@ class TelegramLogin:
                 except Exception:  # noqa: BLE001, S110 - закрытие не должно мешать отмене
                     pass
             loop.stop()
-        if unfinished and not self._had_session:
-            for path in _session_files(self.session_path()):
-                _delete(path)

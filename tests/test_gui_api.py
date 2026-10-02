@@ -67,7 +67,7 @@ def test_start_compare_invalid() -> None:
 
 
 def test_start_compare_error_params_are_strings(tmp_path: Path) -> None:
-    api = gui_api.Api()
+    api = gui_api.Api(allowed_paths=["a.txt", "b.txt", str(tmp_path / "нет")])
     resp = api.start_compare(
         {
             "unknown": "file:a.txt",
@@ -92,7 +92,7 @@ def test_full_compare(tmp_path: Path) -> None:
     different = _write_lines(tmp_path / "different.txt", _different_lines())
     unknown = _write_lines(tmp_path / "unknown.txt", _similar_lines())
 
-    api = gui_api.Api()
+    api = gui_api.Api(allowed_paths=[unknown, similar, different])
     resp = api.start_compare(
         {
             "unknown": f"file:{unknown}",
@@ -131,7 +131,7 @@ def test_second_start_while_running(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         raise AssertionError
 
     monkeypatch.setattr(gui_api, "run_compare", blocking_run_compare)
-    api = gui_api.Api()
+    api = gui_api.Api(allowed_paths=[unknown, similar])
     form = {
         "unknown": f"file:{unknown}",
         "candidates": [f"file:{similar}"],
@@ -149,7 +149,7 @@ def test_second_start_while_running(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
 def test_compare_error(tmp_path: Path) -> None:
     unknown = _write_lines(tmp_path / "unknown.txt", _similar_lines())
-    api = gui_api.Api()
+    api = gui_api.Api(allowed_paths=[unknown, tmp_path / "missing.txt"])
     resp = api.start_compare(
         {
             "unknown": f"file:{unknown}",
@@ -168,7 +168,7 @@ def test_compare_error(tmp_path: Path) -> None:
 
 def test_start_profile(tmp_path: Path) -> None:
     author = _write_lines(tmp_path / "author.txt", _similar_lines())
-    api = gui_api.Api()
+    api = gui_api.Api(allowed_paths=[author])
     resp = api.start_profile(f"file:{author}")
     assert resp["ok"] is True
     state = _wait(api)
@@ -214,7 +214,7 @@ def test_tg_source_unknown_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
     senders = [FakeSender("1", "Иван"), FakeSender("2", "Пётр")]
     monkeypatch.setattr(gui_api, "list_tg_senders", lambda path: senders)
-    api = gui_api.Api()
+    api = gui_api.Api(allowed_paths=["path.json"])
     assert api.tg_source("path.json", "unknown") == {
         "error": {"code": "sender_missing", "params": {}}
     }
@@ -223,8 +223,11 @@ def test_tg_source_unknown_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_open_report_missing_file_is_a_code(tmp_path: Path) -> None:
-    answer = gui_api.Api().open_report(str(tmp_path / "нет.html"))
-    assert answer == {"error": {"code": "report_missing", "params": {}}}
+    api = gui_api.Api()
+    missing = tmp_path / "нет.html"
+    assert api.open_report(str(missing)) == {"error": {"code": "path_not_allowed", "params": {}}}
+    api._written_reports.add(gui_api.norm_path(str(missing)))
+    assert api.open_report(str(missing)) == {"error": {"code": "report_missing", "params": {}}}
 
 
 def test_window_not_ready_raises_chatstyle_error() -> None:

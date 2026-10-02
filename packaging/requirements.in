@@ -1,0 +1,10 @@
+# Прямые зависимости сборки exe. requirements.lock получается из этого файла командой
+#   pip-compile --generate-hashes --allow-unsafe -o packaging/requirements.lock packaging/requirements.in
+# и ставится с проверкой хэшей: pip install --require-hashes -r packaging/requirements.lock
+# Сам пакет chatstyle ставится отдельно: pip install --no-deps -e .
+typer>=0.12
+rich>=13
+telethon>=1.36
+pywebview>=5
+cryptography>=42
+pyinstaller>=6

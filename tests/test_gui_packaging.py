@@ -20,7 +20,9 @@ def test_selftest_passes_and_writes_ok(tmp_path: Path) -> None:
     if code != 0 and "WebView2" in text:
         pytest.skip("нет WebView2 для окна")
     assert code == 0, text
-    assert text.startswith("OK: сравнение 2 кандидатов, отчёт, профиль, языки, Telegram, тема")
+    assert text.startswith(
+        "OK: сравнение 2 кандидатов, отчёт, профиль, языки, Telegram, хранилище, тема"
+    )
 
 
 def test_selftest_failure_is_written_with_traceback(
@@ -117,7 +119,17 @@ def _web_file(name: str) -> str:
 
 def test_web_page_is_self_contained() -> None:
     page = _web_file("index.html")
-    assert "default-src 'self'" in page  # страница не может тянуть ничего снаружи
+    for directive in (
+        "default-src 'none'",
+        "script-src 'self'",
+        "style-src 'self'",
+        "connect-src 'none'",
+        "frame-src 'none'",
+        "object-src 'none'",
+        "base-uri 'none'",
+        "form-action 'none'",
+    ):
+        assert directive in page  # страница не может тянуть ничего снаружи и никуда отправлять
     names = ["index.html", "style.css", "app.js", "i18n.js"]
     names += [f"lang/{code}.js" for code in ("ru", "en", "ar", "es", "zh", "fr")]
     for name in names:
@@ -153,3 +165,40 @@ def test_dark_theme_defines_every_color_token_of_the_light_theme() -> None:
 
     assert colors(light) and colors(light) == colors(dark) == colors(system_dark)
     assert 'id="theme"' in _web_file("index.html")
+
+
+# --- цепочка поставки ---
+
+
+def test_build_installs_tools_only_from_the_hash_pinned_lock() -> None:
+    script = (PACKAGING / "build_exe.ps1").read_text(encoding="ascii")
+    assert r"--require-hashes -r packaging\requirements.lock" in script
+    assert "pip install pyinstaller" not in script  # без закрепления версий больше нельзя
+    assert "SHA256SUMS.txt" in script and "Get-FileHash" in script
+
+
+def test_lock_file_pins_every_package_with_hashes() -> None:
+    import re
+
+    text = (PACKAGING / "requirements.lock").read_text(encoding="utf-8")
+    blocks = re.split(r"(?m)^(?=[A-Za-z0-9_.-]+==)", text)
+    pinned = {}
+    for block in blocks[1:]:
+        name, _, rest = block.partition("==")
+        version = rest.split()[0]
+        pinned[name.lower()] = version
+        assert re.search(r"--hash=sha256:[0-9a-f]{64}", block), f"у {name} нет хэшей"
+    for wanted in ("typer", "rich", "telethon", "pywebview", "cryptography", "pyinstaller"):
+        assert wanted in pinned, wanted
+    requirements = (PACKAGING / "requirements.in").read_text(encoding="utf-8")
+    for line in requirements.splitlines():
+        name = re.split(r"[<>=]", line.strip())[0]
+        if name and not line.startswith("#"):
+            assert name.lower() in pinned, f"{name} нет в requirements.lock"
+
+
+def test_cryptography_is_a_declared_dependency_and_a_hidden_import() -> None:
+    project = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert any(item.startswith("cryptography") for item in project["dependencies"])
+    spec = (PACKAGING / "chatstyle_gui.spec").read_text(encoding="utf-8")
+    assert "chatstyle.securestore" in spec and "cryptography.hazmat.primitives.ciphers.aead" in spec

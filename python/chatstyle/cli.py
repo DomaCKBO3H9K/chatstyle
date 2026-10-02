@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -9,10 +10,11 @@ from chatstyle import __version__, _core
 from chatstyle.collectors import CollectOptions
 from chatstyle.collectors.impostors import load_impostor_directory
 from chatstyle.collectors.telegram import DEFAULT_LIMIT, TelethonFetcher
+from chatstyle.collectors.telegram_login import TelegramLogin
+from chatstyle.config import load_credentials_with_vault
 from chatstyle.errors import ChatstyleError
 from chatstyle.features import FEATURE_LABELS, word_list_lines
 from chatstyle.impostors import DEFAULT_SEED
-from chatstyle.paths import session_file
 from chatstyle.pipeline import (
     DISCLAIMER,
     AuthorProfile,
@@ -27,6 +29,15 @@ from chatstyle.pipeline import (
     unavailable_notes,
 )
 from chatstyle.report import report_format, write_report
+from chatstyle.securestore import (
+    MIN_PASSWORD_LENGTH,
+    MODE_DPAPI,
+    MODE_PASSWORD,
+    Vault,
+    default_vault,
+    set_password_prompt,
+    unlock_interactively,
+)
 
 app = typer.Typer(
     add_completion=False,
@@ -43,6 +54,7 @@ def _version_callback(value: bool) -> None:
 
 @app.callback()
 def main(
+    ctx: typer.Context,
     version: Annotated[
         bool,
         typer.Option(
@@ -54,6 +66,8 @@ def main(
     ] = False,
 ) -> None:
     """chatstyle"""
+    if ctx.invoked_subcommand not in (None, "gui"):
+        _use_console_password_prompt()  # окно спрашивает мастер-пароль у себя
 
 
 @app.command()
@@ -207,19 +221,77 @@ def gui() -> None:
     raise typer.Exit(code=run_gui())
 
 
+def _secret(label: str) -> str:
+    """Секрет без эха. В терминале скрытый ввод; если ввод перенаправлен (скрипт, канал),
+    строка читается из stdin: скрытый ввод Windows читает консоль, а не канал."""
+    if sys.stdin.isatty():
+        return typer.prompt(label, hide_input=True)
+    typer.echo(f"{label}: ", nl=False, err=True)
+    return sys.stdin.readline().rstrip("\r\n")
+
+
+def _ask_master_password() -> str:
+    return _secret("Мастер-пароль Telegram")
+
+
+def _new_master_password() -> str:
+    first = _secret(f"Придумайте мастер-пароль (не короче {MIN_PASSWORD_LENGTH} символов)")
+    if _secret("Повторите пароль") != first:
+        raise ChatstyleError("Пароли не совпадают.")
+    return first
+
+
+def _use_console_password_prompt() -> None:
+    """В консоли мастер-пароль спрашивается без эха; окно спрашивает его у себя."""
+    set_password_prompt(_ask_master_password)
+
+
+def _prepare_vault(vault: Vault) -> None:
+    """Создать хранилище, если его нет (спросив способ защиты), и открыть его."""
+    if not vault.exists():
+        typer.echo(
+            "Вход в Telegram хранится в зашифрованном хранилище. Выберите защиту:\n"
+            "  1 - мастер-пароль (рекомендуется: без пароля файл бесполезен)\n"
+            "  2 - привязка к вашей учётной записи Windows (DPAPI, пароль не нужен)"
+        )
+        choice = typer.prompt("Ваш выбор", default="1")
+        if choice.strip() == "2":
+            vault.create(MODE_DPAPI)
+        else:
+            vault.create(MODE_PASSWORD, _new_master_password())
+    unlock_interactively(vault)
+
+
+def _ensure_keys(vault: Vault) -> None:
+    """Ключи API: из окружения, .env или хранилища; если их нет, спросить и сохранить."""
+    try:
+        load_credentials_with_vault(vault)
+        return
+    except ChatstyleError:
+        pass
+    typer.echo("Нужны ключи Telegram API: https://my.telegram.org, раздел API development tools.")
+    api_id = typer.prompt("api_id")
+    api_hash = _secret("api_hash")
+    TelegramLogin(vault=vault).save_keys(api_id, api_hash)
+
+
 @app.command()
 def login() -> None:
-    """Войти в Telegram и сохранить сессию (один раз, для источников tg:)."""
+    """Войти в Telegram и сохранить сессию в зашифрованном хранилище (один раз, для tg:)."""
     typer.echo(
         "Будут запрошены номер телефона, код из Telegram и пароль двухфакторной защиты "
         "(если включена). Данные вводятся только в этом окне."
     )
+    _use_console_password_prompt()
+    vault = default_vault()
     try:
-        name = TelethonFetcher().login()
+        _prepare_vault(vault)
+        _ensure_keys(vault)
+        name = TelethonFetcher(vault=vault).login()
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
         raise typer.Exit(code=2) from exc
-    typer.echo(f"Вход выполнен: {name}. Сессия сохранена в {session_file()}")
+    typer.echo(f"Вход выполнен: {name}. Сессия сохранена в {vault.path} (зашифрована).")
 
 
 def _print_result(unknown_spec: str, result: ComparisonResult) -> None:

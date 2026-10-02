@@ -99,7 +99,7 @@ def test_tg_source_without_keys(fixtures_cwd: None) -> None:
     args = ["compare", "-u", "tg:@user", "-c", "file:same.txt"]
     result = invoke(args)
     assert result.exit_code == 2
-    assert "my.telegram.org" in result.output
+    assert "chatstyle login" in result.output  # входа нет: сначала выполнить вход
 
 
 def test_not_utf8_source(fixtures_cwd: None) -> None:
@@ -183,7 +183,7 @@ class FakeTelegram:
 
     instances: list["FakeTelegram"] = []
 
-    def __init__(self) -> None:
+    def __init__(self, *args: object, **kwargs: object) -> None:
         self.fetched: list[tuple[tg.TelegramSource, int]] = []
         FakeTelegram.instances.append(self)
 
@@ -237,22 +237,92 @@ def test_limit_must_be_positive(fixtures_cwd: None) -> None:
     assert result.exit_code == 2
 
 
-def test_login_success(fake_telegram: type[FakeTelegram]) -> None:
-    result = invoke(["login"])
-    assert result.exit_code == 0
-    assert "Вход выполнен: Иван Петров" in result.output
-    assert "telegram.session" in result.output
+STRONG = "master password 1234"
+API_HASH = "a" * 32
+
+
+def _login(answers: str) -> object:
+    return runner.invoke(app, ["login"], input=answers, env={"COLUMNS": "200"})
+
+
+def test_login_creates_an_encrypted_vault_and_asks_for_the_keys(
+    fake_telegram: type[FakeTelegram],
+) -> None:
+    from chatstyle.securestore import Vault, default_vault
+
+    result = _login(f"1\n{STRONG}\n{STRONG}\n12345\n{API_HASH}\n")
+    assert result.exit_code == 0, result.output
+    assert "Вход выполнен: Иван Петров" in result.output and "зашифрована" in result.output
+    vault = default_vault()
+    raw = vault.path.read_text(encoding="utf-8")
+    assert API_HASH not in raw and "api_hash" not in raw and STRONG not in raw
+    assert STRONG not in result.output and API_HASH not in result.output  # секреты не эхом
+    fresh = Vault(vault.path, backoff=False)
+    fresh.unlock(STRONG)
+    assert (fresh.get("api_id"), fresh.get("api_hash")) == ("12345", API_HASH)
+
+
+def test_login_refuses_a_weak_master_password(fake_telegram: type[FakeTelegram]) -> None:
+    from chatstyle.securestore import default_vault
+
+    result = _login("1\nshort\nshort\n")
+    assert result.exit_code == 2
+    assert "Ошибка:" in result.output and "короче" in result.output
+    assert not default_vault().path.exists()
+
+
+def test_login_uses_an_existing_vault_and_its_password(fake_telegram: type[FakeTelegram]) -> None:
+    from chatstyle.securestore import default_vault
+
+    vault = default_vault()
+    vault.create("password", STRONG)
+    vault.set("api_id", "5")
+    vault.set("api_hash", API_HASH)
+    vault.lock()
+    result = _login(f"{STRONG}\n")
+    assert result.exit_code == 0, result.output
+    assert "Мастер-пароль Telegram" in result.output
+
+
+def test_login_stops_after_three_wrong_passwords(fake_telegram: type[FakeTelegram]) -> None:
+    from chatstyle import securestore
+    from chatstyle.securestore import Vault
+
+    vault = Vault(securestore.vault_file(), backoff=False)
+    vault.create("password", STRONG)
+    securestore.reset_default_vault(Vault(securestore.vault_file(), backoff=False))
+    result = _login("wrong password 1\nwrong password 2\nwrong password 3\n")
+    assert result.exit_code == 2
+    assert "Неверный мастер-пароль" in result.output
 
 
 def test_login_error(monkeypatch: pytest.MonkeyPatch) -> None:
     class Failing:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
         def login(self) -> str:
             raise ChatstyleError("нет ключей")
 
     monkeypatch.setattr(cli_module, "TelethonFetcher", Failing)
+    monkeypatch.setattr(cli_module, "_prepare_vault", lambda vault: None)
+    monkeypatch.setattr(cli_module, "_ensure_keys", lambda vault: None)
     result = invoke(["login"])
     assert result.exit_code == 2
     assert "Ошибка: нет ключей" in result.output
+
+
+def test_console_password_prompt_is_enabled_for_commands_but_not_for_the_window(
+    monkeypatch: pytest.MonkeyPatch, fixtures_cwd: None
+) -> None:
+    from chatstyle import securestore
+
+    invoke(["features", "file:same.txt"])
+    assert securestore._prompt is not None
+    securestore.set_password_prompt(None)
+    monkeypatch.setattr("chatstyle.gui.main", lambda: 0)
+    invoke(["gui"])
+    assert securestore._prompt is None  # окно спрашивает пароль у себя, не в консоли
 
 
 def test_features_command(fixtures_cwd: None) -> None:
@@ -332,3 +402,22 @@ def test_report_write_error_after_table(fixtures_cwd: None, tmp_path: Path) -> N
     assert result.exit_code == 2
     assert "Сходство" in result.output
     assert "Не удалось записать отчёт" in result.output
+
+
+def test_login_refuses_when_the_two_passwords_differ(fake_telegram: type[FakeTelegram]) -> None:
+    from chatstyle.securestore import default_vault
+
+    result = _login(f"1\n{STRONG}\n{STRONG}x\n")
+    assert result.exit_code == 2 and "не совпадают" in result.output
+    assert not default_vault().path.exists()
+
+
+def test_secrets_come_from_stdin_when_input_is_not_a_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import io
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("секрет\nвторой\n"))
+    assert cli_module._secret("Метка") == "секрет"
+    assert cli_module._secret("Метка") == "второй"
+    assert cli_module._secret("Метка") == ""  # конец ввода — пустая строка, не зависание

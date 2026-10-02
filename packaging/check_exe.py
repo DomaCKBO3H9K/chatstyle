@@ -246,17 +246,38 @@ def check_clean_environment(exe: Path) -> None:
         )
 
 
-def check_env_file_in_appdata(exe: Path) -> None:
+def check_vault_in_appdata(exe: Path) -> None:
+    """`chatstyle login` создаёт зашифрованное хранилище в %APPDATA%\\chatstyle (без сети).
+
+    Ответы подаются на стандартный ввод процесса: выбор мастер-пароля, пароль дважды и заведомо
+    неверные ключи. Вход обрывается ошибкой до обращения к Telegram, а хранилище к этому моменту
+    уже создано: это проверяет путь данных, scrypt и AES-GCM внутри exe.
+    """
     with tempfile.TemporaryDirectory() as tmp:
-        folder = Path(tmp) / "chatstyle"
-        folder.mkdir()
-        (folder / ".env").write_text("TELEGRAM_API_ID=abc\nTELEGRAM_API_HASH=x\n", encoding="utf-8")
         env = clean_env(CHATSTYLE_NO_PAUSE="1", APPDATA=tmp)
         env.pop("CHATSTYLE_HOME")
-        args = ["compare", "-u", "tg:@nobody", "-c", "file:tests/fixtures/same.txt"]
-        code, out = run_exe(exe, *args, env=env)
-        ok = code == 2 and "должен быть числом" in out
-        record(".env читается из %APPDATA%\\chatstyle (без сети)", ok, out.strip()[:120])
+        password = "check password 12345"
+        answers = f"1\n{password}\n{password}\nabc\nnot-a-hash\n"
+        completed = subprocess.run(
+            [str(exe), "login"],
+            input=answers.encode("utf-8"),
+            capture_output=True,
+            env=env,
+            cwd=REPO,
+            timeout=180,
+        )
+        out = (completed.stdout + completed.stderr).decode("utf-8", "replace")
+        vault = Path(tmp) / "chatstyle" / "vault.json"
+        raw = vault.read_text(encoding="utf-8") if vault.exists() else ""
+        ok = (
+            completed.returncode == 2
+            and '"mode": "password"' in raw
+            and "scrypt" in raw
+            and password not in raw
+            and password not in out
+            and "должен быть числом" in out
+        )
+        record("хранилище в %APPDATA%\\chatstyle зашифровано (без сети)", ok, out.strip()[:120])
 
 
 def check_real_console(exe: Path) -> None:
@@ -319,6 +340,28 @@ def check_double_click_pause(exe: Path) -> None:
             kill_tree(process)
 
 
+def check_checksums(dist: Path) -> None:
+    """dist/SHA256SUMS.txt (его пишет build_exe.ps1) совпадает с настоящими файлами."""
+    import hashlib
+
+    sums = dist / "SHA256SUMS.txt"
+    if not sums.exists():
+        print("Пропущено: dist/SHA256SUMS.txt не найден (его создаёт build_exe.ps1)")
+        return
+    listed = {}
+    for line in sums.read_text(encoding="ascii").splitlines():
+        digest, _, name = line.partition("  ")
+        if digest and name:
+            listed[name.strip()] = digest.strip().lower()
+    record("контрольные суммы: файл не пуст", bool(listed))
+    for name, digest in sorted(listed.items()):
+        target = dist / name
+        actual = hashlib.sha256(target.read_bytes()).hexdigest() if target.exists() else "нет файла"
+        record(
+            f"SHA-256 {name}", actual == digest, "" if actual == digest else f"получено {actual}"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Проверка chatstyle.exe (Windows).")
     parser.add_argument("--exe", type=Path, default=REPO / "dist" / "chatstyle.exe")
@@ -334,7 +377,7 @@ def main() -> int:
     print(f"Проверяется {exe} ({exe.stat().st_size / 1e6:.1f} МБ)")
     check_file_properties(exe)
     check_clean_environment(exe)
-    check_env_file_in_appdata(exe)
+    check_vault_in_appdata(exe)
     check_real_console(exe)
     check_double_click_pause(exe)
     gui_exe = args.gui_exe.resolve()
@@ -344,6 +387,7 @@ def main() -> int:
     else:
         hint = "powershell -File packaging\\build_exe.ps1 -Target gui"
         print(f"Пропущено: {gui_exe} не найден ({hint})")
+    check_checksums(exe.parent)
     failed = [name for name, ok, _ in results if not ok]
     print(f"\nИтого: {len(results) - len(failed)} из {len(results)} проверок пройдено.")
     return 1 if failed else 0

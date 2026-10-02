@@ -14,7 +14,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 
-python -m pip install pyinstaller
+# Build tools come from the hash-pinned lock file (pip refuses any file whose hash differs).
+python -m pip install --require-hashes -r packaging\requirements.lock
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # The version resource is generated from chatstyle.__version__ (single source of the version).
@@ -37,3 +38,13 @@ function Build-Exe([string]$Spec, [string]$Name) {
 
 if ($Target -eq 'cli' -or $Target -eq 'all') { Build-Exe 'packaging\chatstyle.spec' 'chatstyle' }
 if ($Target -eq 'gui' -or $Target -eq 'all') { Build-Exe 'packaging\chatstyle_gui.spec' 'chatstyle-gui' }
+
+# SHA-256 of every built exe: dist\SHA256SUMS.txt (check_exe.py verifies it).
+if (-not $OneDir) {
+    $lines = Get-ChildItem dist -Filter *.exe | Sort-Object Name | ForEach-Object {
+        $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+        "$hash  $($_.Name)"
+    }
+    Set-Content -Path dist\SHA256SUMS.txt -Value $lines -Encoding ascii
+    Write-Host 'Wrote dist\SHA256SUMS.txt'
+}

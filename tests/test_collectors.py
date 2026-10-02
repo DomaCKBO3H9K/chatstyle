@@ -89,7 +89,7 @@ def test_collect_tg_without_keys_explains(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.chdir(tmp_path)
     with pytest.raises(ChatstyleError) as exc_info:
         collect("tg:@user")
-    assert "my.telegram.org" in str(exc_info.value)
+    assert "chatstyle login" in str(exc_info.value)  # входа нет: сначала вход
 
 
 def test_collect_tgexport() -> None:

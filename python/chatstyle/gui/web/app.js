@@ -42,22 +42,20 @@ async function call(method, ...args) {
 
 // --- тема и язык: по умолчанию как в системе, выбор запоминается ---
 
-const THEME_KEY = "chatstyle-theme";
-const LANGUAGE_KEY = "chatstyle-language";
-
-function readSaved(key) {
-  try {
-    return localStorage.getItem(key);
-  } catch (error) {
-    return null; // хранилище может быть недоступно: тогда работаем по системным настройкам
-  }
+// Выбор хранит Python (gui/settings.py, белый список значений): окно работает в приватном
+// режиме, браузерному хранилищу ничего не доверяем и не пишем.
+function saveSetting(name, value) {
+  if (window.pywebview && window.pywebview.api) call("set_setting", name, value);
 }
 
-function writeSaved(key, value) {
-  try {
-    localStorage.setItem(key, value);
-  } catch (error) {
-    // выбор действует до закрытия окна
+async function loadSettings() {
+  const saved = await call("get_settings");
+  if (!saved) return;
+  if (saved.theme === "dark" || saved.theme === "light") applyTheme(saved.theme);
+  if (languageByCode(saved.language)) {
+    $("lang").value = saved.language;
+    setLanguage(saved.language);
+    refreshAll();
   }
 }
 
@@ -75,25 +73,23 @@ function applyTheme(theme) {
 }
 
 function initTheme() {
-  const saved = readSaved(THEME_KEY);
-  applyTheme(saved === "dark" || saved === "light" ? saved : currentTheme());
+  applyTheme(currentTheme());
   $("theme").addEventListener("click", () => {
     const next = currentTheme() === "dark" ? "light" : "dark";
     applyTheme(next);
-    writeSaved(THEME_KEY, next);
+    saveSetting("theme", next);
   });
 }
 
 function initLanguage() {
   const select = $("lang");
   select.replaceChildren(...LANGUAGES.map((language) => el("option", { value: language.code, text: language.name })));
-  const saved = readSaved(LANGUAGE_KEY);
-  const code = languageByCode(saved) ? saved : detectLanguage();
+  const code = detectLanguage();
   select.value = code;
   setLanguage(code);
   select.addEventListener("change", () => {
     setLanguage(select.value);
-    writeSaved(LANGUAGE_KEY, select.value);
+    saveSetting("language", select.value);
     refreshAll();
   });
 }
@@ -414,14 +410,28 @@ function renderProfile(view, out) {
   );
 }
 
-// --- Telegram: подключение по шагам. Код и пароли нигде не сохраняются, поля очищаются сразу ---
+// --- Telegram: хранилище и вход по шагам. Код, пароли и ключи нигде не сохраняются в странице:
+// поля очищаются сразу после отправки, а хранит их только Python (зашифрованно) ---
 
-const tgUi = { busy: false, error: null, notice: null, changingKeys: false };
+const TG_MODES = ["password", "dpapi", "memory"];
+const MIN_PASSWORD = 10;
+const tgUi = {
+  busy: false,
+  error: null, // ошибка из Python: {code, params}
+  errorText: null, // ошибка самой страницы (например, пароли не совпали)
+  notice: null,
+  changingKeys: false,
+  confirmForget: false,
+  mode: "password",
+};
 
 function refreshTelegramChip() {
-  const connected = state.tg.step === "logged_in";
-  $("tg-chip").textContent = connected ? t("tg.chip.on", { name: state.tg.name || "" }) : t("tg.chip.off");
-  $("tg-chip").classList.toggle("on", connected);
+  const step = state.tg.step;
+  let text = t("tg.chip.off");
+  if (step === "logged_in") text = t("tg.chip.on", { name: state.tg.name || "" });
+  else if (step === "locked") text = t("tg.chip.locked");
+  $("tg-chip").textContent = text;
+  $("tg-chip").classList.toggle("on", step === "logged_in");
 }
 
 async function loadTelegramStatus() {
@@ -431,10 +441,14 @@ async function loadTelegramStatus() {
 }
 
 function tgStep() {
-  if (state.tg.step === "logged_in") return "done";
-  if (state.tg.step === "need_code") return "code";
-  if (state.tg.step === "need_password") return "password";
-  return state.tg.has_keys && !tgUi.changingKeys ? "phone" : "keys";
+  const s = state.tg;
+  if (s.step === "locked") return "unlock";
+  if (s.step === "logged_in") return "done";
+  if (s.step === "need_code") return "code";
+  if (s.step === "need_password") return "password";
+  if (s.problem) return "problem";
+  if (s.mode === null) return "setup";
+  return s.has_keys && !tgUi.changingKeys ? "phone" : "keys";
 }
 
 function tgField(id, labelKey, options = {}) {
@@ -460,14 +474,15 @@ function tgButton(textKey, handler, primary = false) {
 // Прочитать поле и сразу очистить его: секреты не остаются на странице.
 function takeValue(id) {
   const input = $(id);
-  const value = input.value;
-  input.value = "";
+  const value = input ? input.value : "";
+  if (input) input.value = "";
   return value;
 }
 
 async function tgRun(method, ...args) {
   tgUi.busy = true;
   tgUi.error = null;
+  tgUi.errorText = null;
   tgUi.notice = null;
   renderTelegramDialog();
   const answer = await call(method, ...args);
@@ -475,6 +490,7 @@ async function tgRun(method, ...args) {
   if (answer && answer.ok) {
     state.tg = answer.state;
     tgUi.changingKeys = false;
+    tgUi.confirmForget = false;
     if (answer.state.remote_failed) tgUi.notice = "tg.logout_remote_failed";
   } else if (answer && answer.error) {
     tgUi.error = answer.error;
@@ -485,17 +501,113 @@ async function tgRun(method, ...args) {
   renderTelegramDialog();
 }
 
+function modeCard(mode) {
+  const radio = el("input", { type: "radio", name: "tg-mode", value: mode });
+  radio.checked = tgUi.mode === mode;
+  radio.disabled = tgUi.busy;
+  radio.addEventListener("change", () => {
+    tgUi.mode = mode;
+    $("tg-password-box").hidden = mode !== "password";
+  });
+  return el("label", { class: "mode-card" }, [
+    radio,
+    el("span", {}, [
+      el("strong", { text: t(`tg.mode.${mode}`) }),
+      el("small", { text: t(`tg.mode.${mode}.desc`) }),
+    ]),
+  ]);
+}
+
+function setupStep() {
+  const needKeys = !state.tg.has_keys;
+  const body = [
+    el("p", { class: "tg-note", text: t("tg.setup.intro") }),
+    el("div", { class: "modes" }, TG_MODES.map(modeCard)),
+    el("div", { class: "tg-password", id: "tg-password-box" }, [
+      tgField("tg-new-password", "tg.setup.password", { type: "password" }),
+      tgField("tg-new-password2", "tg.setup.password_confirm", { type: "password" }),
+      el("p", { class: "tg-note", text: t("tg.setup.password_note", { n: MIN_PASSWORD }) }),
+    ]),
+  ];
+  body[2].hidden = tgUi.mode !== "password";
+  if (needKeys) {
+    body.push(
+      el("p", { class: "tg-note", text: t("tg.keys.intro") }),
+      tgButton("tg.keys.open_site", () => call("telegram_open_site")),
+      tgField("tg-api-id", "tg.keys.api_id", { inputmode: "numeric" }),
+      tgField("tg-api-hash", "tg.keys.api_hash", { type: "password" })
+    );
+  }
+  body.push(
+    tgButton(
+      "tg.setup.create",
+      () => {
+        const password = takeValue("tg-new-password");
+        const repeated = takeValue("tg-new-password2");
+        if (tgUi.mode === "password" && password !== repeated) {
+          tgUi.error = null;
+          tgUi.errorText = t("tg.setup.mismatch");
+          renderTelegramDialog();
+          return;
+        }
+        tgRun("telegram_setup", tgUi.mode, tgUi.mode === "password" ? password : "", takeValue("tg-api-id"), takeValue("tg-api-hash"));
+      },
+      true
+    )
+  );
+  return body;
+}
+
+function forgetButton() {
+  if (!tgUi.confirmForget) {
+    return tgButton("tg.forget", () => {
+      tgUi.confirmForget = true;
+      renderTelegramDialog();
+    });
+  }
+  return el("div", { class: "tg-forget" }, [
+    el("p", { class: "tg-note", text: t("tg.forget.note") }),
+    tgButton("tg.forget.confirm", () => tgRun("telegram_forget"), true),
+  ]);
+}
+
+// Общий низ окна: режим хранилища, старые открытые файлы, удаление всех данных.
+function storageFooter() {
+  const parts = [];
+  if (state.tg.mode) {
+    parts.push(el("p", { class: "tg-note", text: t("tg.mode.label", { mode: t(`tg.mode.${state.tg.mode}`) }) }));
+  }
+  if (state.tg.legacy) {
+    parts.push(
+      el("div", { class: "warn" }, t("tg.legacy.note")),
+      tgButton("tg.legacy.remove", () => tgRun("telegram_remove_legacy"))
+    );
+  }
+  if (state.tg.mode) parts.push(forgetButton());
+  return parts;
+}
+
 function renderTelegramDialog() {
   const step = tgStep();
   const body = [];
-  if (step === "keys") {
+  if (step === "setup") {
+    body.push(...setupStep());
+  } else if (step === "unlock") {
+    body.push(
+      el("p", { class: "tg-note", text: t("tg.unlock.note") }),
+      tgField("tg-unlock", "tg.unlock.label", { type: "password" }),
+      tgButton("tg.unlock.send", () => tgRun("telegram_unlock", takeValue("tg-unlock")), true),
+      ...storageFooter()
+    );
+  } else if (step === "keys") {
     body.push(
       el("p", { class: "tg-note", text: t("tg.keys.intro") }),
       tgButton("tg.keys.open_site", () => call("telegram_open_site")),
       tgField("tg-api-id", "tg.keys.api_id", { inputmode: "numeric" }),
       tgField("tg-api-hash", "tg.keys.api_hash", { type: "password" }),
       el("p", { class: "tg-note", text: t("tg.keys.note") }),
-      tgButton("tg.keys.save", () => tgRun("telegram_save_keys", takeValue("tg-api-id"), takeValue("tg-api-hash")), true)
+      tgButton("tg.keys.save", () => tgRun("telegram_save_keys", takeValue("tg-api-id"), takeValue("tg-api-hash")), true),
+      ...storageFooter()
     );
   } else if (step === "phone") {
     body.push(
@@ -507,7 +619,8 @@ function renderTelegramDialog() {
           tgUi.changingKeys = true;
           renderTelegramDialog();
         }),
-      ])
+      ]),
+      ...storageFooter()
     );
   } else if (step === "code") {
     body.push(
@@ -526,28 +639,37 @@ function renderTelegramDialog() {
         tgButton("tg.cancel", () => tgRun("telegram_cancel")),
       ])
     );
+  } else if (step === "problem") {
+    body.push(el("div", { class: "error", role: "alert" }, t(`error.${state.tg.problem}`)), ...storageFooter());
   } else {
+    const actions = [tgButton("tg.logout", () => tgRun("telegram_logout"))];
+    if (state.tg.mode === "password") actions.push(tgButton("tg.lock", () => tgRun("telegram_lock")));
     body.push(
       el("p", { class: "tg-ok", text: t("tg.done", { name: state.tg.name || "" }), dir: "auto" }),
-      tgButton("tg.logout", () => tgRun("telegram_logout"))
+      ...(state.tg.two_factor === false ? [el("div", { class: "warn", text: t("tg.no2fa") })] : []),
+      el("div", { class: "row" }, actions),
+      ...storageFooter()
     );
   }
   if (tgUi.busy) body.push(el("p", { class: "tg-note", text: t("tg.busy") }));
   if (tgUi.notice) body.push(el("p", { class: "warn", text: t(tgUi.notice) }));
-  if (tgUi.error) {
-    body.unshift(el("div", { class: "error", role: "alert" }, [el("div", { text: translateError(tgUi.error), dir: "auto" })]));
-  }
+  const errorText = tgUi.errorText || (tgUi.error ? translateError(tgUi.error) : null);
+  if (errorText) body.unshift(el("div", { class: "error", role: "alert" }, [el("div", { text: errorText, dir: "auto" })]));
   $("tg-body").replaceChildren(...body);
-  const first = $("tg-body").querySelector("input");
+  const first = $("tg-body").querySelector("input:not([type=radio])");
   if (first && $("tg").open && !tgUi.busy) first.focus();
 }
 
 function openTelegramDialog() {
   tgUi.error = null;
+  tgUi.errorText = null;
   tgUi.notice = null;
   tgUi.changingKeys = false;
-  renderTelegramDialog();
-  if (!$("tg").open) $("tg").showModal();
+  tgUi.confirmForget = false;
+  loadTelegramStatus().then(() => {
+    renderTelegramDialog();
+    if (!$("tg").open) $("tg").showModal();
+  });
 }
 
 // --- перерисовка при смене языка ---
@@ -623,5 +745,9 @@ initTheme();
 bind();
 refreshAll();
 // Методы Python доступны после события pywebviewready; в простом браузере (макет) их может не быть.
-if (window.pywebview && window.pywebview.api) loadTelegramStatus();
-else window.addEventListener("pywebviewready", loadTelegramStatus, { once: true });
+async function onReady() {
+  await loadSettings();
+  await loadTelegramStatus();
+}
+if (window.pywebview && window.pywebview.api) onReady();
+else window.addEventListener("pywebviewready", onReady, { once: true });
