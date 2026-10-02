@@ -74,7 +74,7 @@ def test_markdown_table_and_summary_with_all_methods() -> None:
 def test_markdown_delta_section_uses_readable_names() -> None:
     text = render_markdown(make_result(delta=AVAILABLE_DELTA, impostors=AVAILABLE_SCORE), GENERATED)
     assert "## Чем различаются стили (Burrows Delta)" in text
-    assert "### `file:friend.txt` — среднее отличие 0.46" in text
+    assert "### `file:friend.txt` — Delta 0.46" in text
     assert "| доля сообщений с заглавной буквы | 0.1 | 0.9 | -2.50 |" in text
     assert "| служебное слово «и» | 0.05 | 0.02 | +1.25 |" in text
     assert "| слово-паразит «ну» | 0.03 | 0 | +0.90 |" in text

@@ -87,9 +87,6 @@ class CandidateResult:
 METHOD_COSINE = "cosine"
 METHOD_DELTA = "delta"
 METHOD_IMPOSTORS = "impostors"
-# Температура softmax для «доли близости» в окне: расстояние до косинусной Delta умножается на
-# 1/DELTA_TEMPERATURE. Доля относительная (сумма по кандидатам 1), это не вероятность авторства.
-DELTA_TEMPERATURE = 0.1
 METHOD_NAMES: dict[str, str] = {
     METHOD_COSINE: "косинус",
     METHOD_DELTA: "Delta",
@@ -125,20 +122,12 @@ class ComparisonResult:
             return best
         top_cosine = max(row.similarity for row in rows)
         best[METHOD_COSINE] = tuple(row.label for row in rows if row.similarity == top_cosine)
-        deltas = [row.delta for row in rows if row.delta is not None and row.delta.available]
+        deltas = [row.delta.delta for row in rows if row.delta is not None and row.delta.available]
         if len(deltas) == len(rows):
-            if all(score.cosine is not None for score in deltas):
-                highest_cosine = max(score.cosine or 0.0 for score in deltas)
-                best[METHOD_DELTA] = tuple(
-                    row.label
-                    for row in rows
-                    if row.delta is not None and row.delta.cosine == highest_cosine
-                )
-            else:
-                lowest = min(score.delta for score in deltas)
-                best[METHOD_DELTA] = tuple(
-                    row.label for row in rows if row.delta is not None and row.delta.delta == lowest
-                )
+            lowest = min(deltas)
+            best[METHOD_DELTA] = tuple(
+                row.label for row in rows if row.delta is not None and row.delta.delta == lowest
+            )
         scores = [row.final_score for row in rows if row.final_score is not None]
         if len(scores) == len(rows):
             highest = max(scores)
@@ -200,11 +189,7 @@ NOT_AVAILABLE = "—"
 def delta_text(candidate: CandidateResult) -> str:
     """Delta кандидата для таблицы или прочерк."""
     delta = candidate.delta
-    if delta is None or not delta.available:
-        return NOT_AVAILABLE
-    # при двух и более кандидатах — косинусное расстояние (1 - косинус), иначе среднее |z|;
-    # в обоих случаях чем меньше, тем ближе
-    return f"{delta.delta if delta.cosine is None else 1.0 - delta.cosine:.2f}"
+    return f"{delta.delta:.2f}" if delta is not None and delta.available else NOT_AVAILABLE
 
 
 def morph_text(candidate: CandidateResult) -> str:
@@ -245,8 +230,6 @@ def final_score_text(candidate: CandidateResult) -> str:
 
 def ranking_text(result: ComparisonResult) -> str:
     """По какому методу отсортированы кандидаты."""
-    if result.ranked_by == METHOD_DELTA:
-        return "Порядок: по Delta (косинус профилей стиля); General Impostors показан отдельно."
     if result.ranked_by == METHOD_IMPOSTORS:
         return "Порядок: по итоговой оценке (General Impostors)."
     return "Порядок: по косинусному сходству (итоговая оценка недоступна)."
@@ -481,11 +464,7 @@ def compare_messages(
 
     # Сортировка стабильная: при равенстве остаётся порядок ввода
     ranked_by = METHOD_COSINE
-    if all(row.delta is not None and row.delta.cosine is not None for row in results):
-        # косинусная Delta: на разметке из реальных чатов заметно точнее Impostors и косинуса
-        ranked_by = METHOD_DELTA
-        results.sort(key=lambda r: (-(r.delta.cosine or 0.0) if r.delta else 0.0, -r.similarity))
-    elif all(row.final_score is not None for row in results):
+    if all(row.final_score is not None for row in results):
         ranked_by = METHOD_IMPOSTORS
         results.sort(key=lambda r: (-(r.final_score or 0.0), -r.similarity))
     else:

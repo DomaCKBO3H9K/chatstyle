@@ -270,8 +270,5 @@ registerLanguage("zh", {
   "chatpick.senders": "参与者",
   "chatpick.add": "选择",
   "chatpick.empty": "请先在“聊天”标签页上传聊天。",
-  "error.chat_missing": "未找到已上传的聊天。请在“聊天”标签页重新上传。",
-  "result.summary.delta": "候选人按 Delta（风格画像的余弦）的相对接近程度：各份额之和为 1。这不是作者身份的概率。",
-  "metric.delta": "Delta 接近度（风格画像的余弦）",
-  "note.ranking.delta": "排序：按 Delta（风格画像的余弦）；General Impostors 单独显示。"
+  "error.chat_missing": "未找到已上传的聊天。请在“聊天”标签页重新上传。"
 });

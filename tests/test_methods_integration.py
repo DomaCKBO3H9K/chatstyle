@@ -43,8 +43,8 @@ def test_all_three_methods_with_impostors(tmp_path: Path) -> None:
         impostors=load_impostor_directory(files["impostors"]),
     )
     same, other = result.candidates
-    assert same.label == spec(files["same"])  # сортировка по косинусной Delta
-    assert result.ranked_by == METHOD_DELTA
+    assert same.label == spec(files["same"])  # сортировка по итоговой оценке
+    assert result.ranked_by == METHOD_IMPOSTORS
     assert result.impostor_count == 4
     assert result.seed == 1
     assert same.final_score is not None and same.final_score > 0.9
@@ -64,7 +64,7 @@ def test_all_three_methods_with_impostors(tmp_path: Path) -> None:
 def test_without_impostors_only_cosine_and_delta(tmp_path: Path) -> None:
     files = write_workspace(tmp_path)
     result = run_comparison(spec(files["unknown"]), [spec(files["other"]), spec(files["same"])])
-    assert result.ranked_by == METHOD_DELTA
+    assert result.ranked_by == METHOD_COSINE
     assert result.impostor_count == 0
     for candidate in result.candidates:
         assert candidate.final_score is None
@@ -91,7 +91,7 @@ def test_seed_affects_only_impostors(tmp_path: Path) -> None:
         assert one.delta == two.delta
 
 
-def test_partial_availability_still_ranks_by_delta(tmp_path: Path) -> None:
+def test_partial_availability_ranks_by_cosine(tmp_path: Path) -> None:
     files = write_workspace(tmp_path)
     tiny = write_lines(tmp_path / "tiny.txt", ["ну привет))", "щас приду"])
     result = run_comparison(
@@ -102,35 +102,9 @@ def test_partial_availability_still_ranks_by_delta(tmp_path: Path) -> None:
     by_label = {row.label: row for row in result.candidates}
     assert by_label[spec(files["same"])].final_score is not None
     assert by_label[spec(tiny)].final_score is None
-    assert result.ranked_by == METHOD_DELTA  # Delta есть у всех, Impostors нет
+    assert result.ranked_by == METHOD_COSINE
     assert METHOD_IMPOSTORS not in result.best_by_method()  # не у всех кандидатов
     assert any("слишком мало текста" in note for note in unavailable_notes(result))
-
-
-def test_single_candidate_has_no_cosine_delta_and_falls_back(tmp_path: Path) -> None:
-    files = write_workspace(tmp_path)
-    result = run_comparison(
-        spec(files["unknown"]),
-        [spec(files["same"])],
-        impostors=load_impostor_directory(files["impostors"]),
-    )
-    (row,) = result.candidates
-    assert row.delta is not None and row.delta.available
-    assert row.delta.cosine is None  # среднего профиля при одном кандидате нет
-    assert result.ranked_by == METHOD_IMPOSTORS
-    assert delta_text(row) == f"{row.delta.delta:.2f}"
-
-
-def test_cosine_delta_shows_the_distance_and_picks_the_same_author(tmp_path: Path) -> None:
-    files = write_workspace(tmp_path)
-    result = run_comparison(spec(files["unknown"]), [spec(files["other"]), spec(files["same"])])
-    same, other = result.candidates
-    assert same.delta is not None and other.delta is not None
-    assert same.delta.cosine is not None and other.delta.cosine is not None
-    assert same.delta.cosine > other.delta.cosine
-    assert delta_text(same) == f"{1.0 - same.delta.cosine:.2f}"
-    assert float(delta_text(same)) < float(delta_text(other))
-    assert result.best_by_method()[METHOD_DELTA] == (same.label,)
 
 
 # --- текстовые помощники ---
@@ -230,7 +204,7 @@ def test_cli_full_table_and_summary(tmp_path: Path) -> None:
     assert out.index("same.txt", out.index("Кандидат")) < out.index(
         "other.txt", out.index("Кандидат")
     )
-    assert "Порядок: по Delta (косинус профилей стиля); General Impostors показан отдельно." in out
+    assert "Порядок: по итоговой оценке (General Impostors)." in out
     assert "(методы согласны)" in out
     assert "недоступ" not in out
 
@@ -250,10 +224,7 @@ def test_cli_dashes_and_hint_without_impostors(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0
     assert "—" in result.output
-    assert (
-        "Порядок: по Delta (косинус профилей стиля); General Impostors показан отдельно."
-        in result.output
-    )
+    assert "Порядок: по косинусному сходству (итоговая оценка недоступна)." in result.output
     assert "посторонних авторов 1 из 3" in result.output
     assert "--impostors DIR" in result.output
 
