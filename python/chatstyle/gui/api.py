@@ -3,6 +3,10 @@
 Окно (JS) обращается к ``window.pywebview.api.<метод>``. Здесь только сериализуемые
 результаты: словари, списки, строки, числа, ``None``. Вычислительная логика живёт
 в ``chatstyle.gui.model``, здесь она только оборачивается в нужные формы.
+
+Готовых фраз здесь нет: пояснения, предупреждения и ошибки приходят в окно кодами с параметрами
+(``{"code": ..., "params": {...}}``), а переводит их страница на выбранный язык. Исключение —
+``core``: русский текст ошибки из ядра и сборщиков показывается как подробность.
 """
 
 from __future__ import annotations
@@ -17,101 +21,145 @@ from typing import Any
 from chatstyle import __version__
 from chatstyle.collectors.tg_export import list_tg_senders
 from chatstyle.errors import ChatstyleError
+from chatstyle.features import (
+    FEATURE_LABELS,
+    FILLER_WORD_PREFIX,
+    FUNCTION_WORD_PREFIX,
+    top_words,
+)
 from chatstyle.gui.model import (
     BackgroundJob,
     CompareForm,
     CompareOutcome,
-    build_profile_view,
     build_result_view,
+    check_compare_form,
     run_compare,
     run_profile,
     short_labels,
     tgexport_spec,
-    validate_compare_form,
 )
 from chatstyle.impostors import DEFAULT_SEED
 from chatstyle.pipeline import (
     DISCLAIMER,
     METHOD_IMPOSTORS,
+    MIN_WORDS,
+    AuthorProfile,
+    best_methods_text,
     delta_text,
     final_score_text,
+    low_volume_sides,
+    unavailable_facts,
 )
+
+WORD_LIST_PREFIXES = (("fw", FUNCTION_WORD_PREFIX), ("fl", FILLER_WORD_PREFIX))
+WORD_LIST_LIMIT = 10
+WHY_LIMIT = 6
+
+
+def error(code: str, **params: object) -> dict[str, Any]:
+    """Ошибка для окна: код и строковые параметры."""
+    return {"code": code, "params": {key: str(value) for key, value in params.items()}}
+
+
+def core_error(exc: Exception | str) -> dict[str, Any]:
+    """Ошибка ядра или сборщика: её русский текст показывается подробностью."""
+    return error("core", message=str(exc))
+
+
+def _shorten_all(labels: list[str], names: dict[str, str]) -> list[str]:
+    return [names.get(label, label) for label in labels]
 
 
 def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
-    """Сериализованное представление результата сравнения для JS."""
+    """Результат сравнения для JS: числа, подписи и коды пояснений."""
     result = outcome.result
     view = build_result_view(result)
-
+    names = short_labels([result.unknown_label, *(c.label for c in result.candidates)])
     metric = METHOD_IMPOSTORS if result.ranked_by == METHOD_IMPOSTORS else "cosine"
-    if metric == METHOD_IMPOSTORS:
-        metric_name = "Итоговая оценка (General Impostors)"
-        summary = (
-            "Доля повторов, в которых кандидат оказался ближе к тексту, чем посторонние авторы. "
-            "Это не вероятность авторства."
-        )
-    else:
-        metric_name = "Косинусное сходство"
-        summary = (
-            "Итоговая оценка недоступна, кандидаты упорядочены по косинусному сходству. "
-            "Это не вероятность авторства."
-        )
 
     candidates: list[dict[str, Any]] = []
-    for i, candidate in enumerate(result.candidates):
-        label = view.rows[i][0]
-        if metric == METHOD_IMPOSTORS:
-            value = candidate.final_score
-        else:
-            value = candidate.similarity
-        if value is None:
-            value = 0.0
-        value = max(0.0, min(1.0, value))
-        value_text = f"{value:.2f}"
-        cosine = f"{candidate.similarity:.2f}"
-        delta = delta_text(candidate)
-        final = final_score_text(candidate)
-
+    for index, candidate in enumerate(result.candidates):
+        value = candidate.final_score if metric == METHOD_IMPOSTORS else candidate.similarity
+        value = max(0.0, min(1.0, 0.0 if value is None else value))
         why: list[str] = []
-        if i == 0:
-            for feature in candidate.top_features[:6]:
-                text = feature.feature
-                if text not in why:
-                    why.append(text)
-
+        if index == 0:
+            for feature in candidate.top_features[:WHY_LIMIT]:
+                if feature.feature not in why:
+                    why.append(feature.feature)
         candidates.append(
             {
-                "label": label,
+                "label": view.rows[index][0],
                 "words": candidate.words,
                 "messages": candidate.messages,
                 "value": value,
-                "value_text": value_text,
-                "cosine": cosine,
-                "delta": delta,
-                "final": final,
+                "value_text": f"{value:.2f}",
+                "cosine": f"{candidate.similarity:.2f}",
+                "delta": delta_text(candidate),
+                "final": final_score_text(candidate),
                 "why": why,
             }
         )
 
+    notes: list[dict[str, Any]] = [{"code": "ranking", "method": metric}]
+    if best_methods_text(result):
+        notes.append(
+            {
+                "code": "best_methods",
+                "agree": bool(result.methods_agree()),
+                "parts": [
+                    {"method": method, "labels": _shorten_all(list(labels), names)}
+                    for method, labels in result.best_by_method().items()
+                ],
+            }
+        )
+    for fact in unavailable_facts(result):
+        notes.append({**fact, "labels": _shorten_all(list(fact["labels"]), names)})  # type: ignore[call-overload]
+
+    sides = low_volume_sides(result)
+    warning = (
+        {
+            "min": MIN_WORDS,
+            "sides": [
+                {"who": None if label is None else names.get(label, label), "words": words}
+                for label, words in sides
+            ],
+        }
+        if sides
+        else None
+    )
     return {
         "metric": metric,
-        "metric_name": metric_name,
-        "summary": summary,
+        "unknown": {
+            "label": names[result.unknown_label],
+            "words": result.unknown.words,
+            "messages": result.unknown.messages,
+        },
         "candidates": candidates,
-        "notes": list(view.notes),
-        "warning": view.warning,
+        "notes": notes,
+        "warning": warning,
         "report_path": str(outcome.report_path) if outcome.report_path else None,
     }
 
 
-def profile_view_dict(profile: Any) -> dict[str, Any]:
-    """Сериализованное представление профиля стиля для JS."""
-    view = build_profile_view(profile)
-    features = [{"name": row[0], "value": row[1]} for row in view.rows]
+def profile_view_dict(profile: AuthorProfile) -> dict[str, Any]:
+    """Профиль стиля для JS: ключи признаков и списки слов, подписи переводит окно."""
     return {
-        "header": view.header,
-        "features": features,
-        "word_lines": list(view.word_lines),
+        "label": short_labels([profile.label])[profile.label],
+        "words": profile.stats.words,
+        "messages": profile.stats.messages,
+        "features": [
+            {"key": key, "value": f"{profile.features[key]:.3f}"} for key in FEATURE_LABELS
+        ],
+        "word_lists": [
+            {
+                "kind": kind,
+                "items": [
+                    {"word": word, "value": f"{value:.3f}"}
+                    for word, value in top_words(profile.features, prefix, WORD_LIST_LIMIT)
+                ],
+            }
+            for kind, prefix in WORD_LIST_PREFIXES
+        ],
     }
 
 
@@ -166,7 +214,7 @@ class Api:
         try:
             senders = list_tg_senders(Path(path))
         except ChatstyleError as exc:
-            return {"error": str(exc)}
+            return {"error": core_error(exc)}
         return {
             "path": path,
             "senders": [
@@ -175,14 +223,16 @@ class Api:
             ],
         }
 
-    def tg_source(self, path: str, key: str) -> dict[str, str]:
-        senders = list_tg_senders(Path(path))
+    def tg_source(self, path: str, key: str) -> dict[str, Any]:
+        try:
+            senders = list_tg_senders(Path(path))
+        except ChatstyleError as exc:
+            return {"error": core_error(exc)}
         sender = next((s for s in senders if s.key == key), None)
         if sender is None:
-            raise ChatstyleError("Отправитель не найден в экспорте.")
+            return {"error": error("sender_missing")}
         spec = tgexport_spec(path, sender, senders)
-        label = short_labels([spec])[spec]
-        return {"spec": spec, "label": label}
+        return {"spec": spec, "label": short_labels([spec])[spec]}
 
     def pick_folder(self) -> str | None:
         import webview
@@ -202,33 +252,28 @@ class Api:
 
     def start_compare(self, form: dict[str, Any]) -> dict[str, Any]:
         if self._job is not None:
-            return {"ok": False, "errors": ["Расчёт уже идёт. Дождитесь результата."]}
+            return {"ok": False, "errors": [error("busy")]}
 
-        unknown = form.get("unknown", "")
-        candidates = list(form.get("candidates", []) or [])
-        impostors_dir = form.get("impostors_dir", "")
-        seed_str = form.get("seed", "")
-        report_path = form.get("report_path", "")
-
-        if seed_str == "":
+        seed_text = str(form.get("seed", "") or "").strip()
+        seed: int | None
+        if seed_text == "":
             seed = DEFAULT_SEED
         else:
             try:
-                seed = int(seed_str)
+                seed = int(seed_text)
             except ValueError:
                 seed = None
 
         compare_form = CompareForm(
-            unknown=unknown,
-            candidates=tuple(candidates),
-            impostors_dir=impostors_dir,
+            unknown=form.get("unknown", ""),
+            candidates=tuple(form.get("candidates", []) or []),
+            impostors_dir=form.get("impostors_dir", ""),
             seed=seed,
-            report_path=report_path,
+            report_path=form.get("report_path", ""),
         )
-
-        errors = validate_compare_form(compare_form)
-        if errors:
-            return {"ok": False, "errors": errors}
+        problems = check_compare_form(compare_form)
+        if problems:
+            return {"ok": False, "errors": [error(p.code, **p.params) for p in problems]}
 
         self._job = BackgroundJob(lambda: run_compare(compare_form))
         self._job.start()
@@ -236,9 +281,9 @@ class Api:
 
     def start_profile(self, source: str) -> dict[str, Any]:
         if self._job is not None:
-            return {"ok": False, "errors": ["Расчёт уже идёт. Дождитесь результата."]}
+            return {"ok": False, "errors": [error("busy")]}
         if not source or not source.strip():
-            return {"ok": False, "errors": ["Укажите источник автора."]}
+            return {"ok": False, "errors": [error("source_missing")]}
         self._job = BackgroundJob(lambda: run_profile(source))
         self._job.start()
         return {"ok": True}
@@ -246,24 +291,25 @@ class Api:
     def poll(self) -> dict[str, Any]:
         if self._job is None:
             return {"state": "idle"}
-        result = self._job.poll()
-        if result is None:
+        polled = self._job.poll()
+        if polled is None:
             return {"state": "running"}
-        ok, payload = result
         self._job = None
-        if ok:
-            if isinstance(payload, CompareOutcome):
-                return {"state": "done", "kind": "compare", "view": compare_view_dict(payload)}
-            return {"state": "done", "kind": "profile", "view": profile_view_dict(payload)}
-        return {"state": "error", "message": payload}
+        ok, payload = polled
+        if not ok:
+            return {"state": "error", "error": core_error(str(payload))}
+        if isinstance(payload, CompareOutcome):
+            return {"state": "done", "kind": "compare", "view": compare_view_dict(payload)}
+        return {"state": "done", "kind": "profile", "view": profile_view_dict(payload)}
 
-    def open_report(self, path: str) -> None:
+    def open_report(self, path: str) -> dict[str, Any] | None:
         file_path = Path(path)
         if not file_path.is_file():
-            raise ChatstyleError("Отчёт не найден.")
+            return {"error": error("report_missing")}
         if sys.platform.startswith("win"):
             os.startfile(str(file_path))
         elif sys.platform == "darwin":
             subprocess.Popen(["open", str(file_path)])
         else:
             subprocess.Popen(["xdg-open", str(file_path)])
+        return None

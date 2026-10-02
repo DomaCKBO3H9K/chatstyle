@@ -105,12 +105,25 @@ def _scenario(window, folder: Path) -> str:  # noqa: ANN001
     _wait(
         window, "document.querySelectorAll('.feature').length === 15", JOB_TIMEOUT, "профиль стиля"
     )
+    for code, direction, compare in (("ar", "rtl", "قارن"), ("en", "ltr", "Compare")):
+        window.evaluate_js(
+            f"(document.getElementById('lang').value = '{code}',"
+            " document.getElementById('lang').dispatchEvent(new Event('change')), true)"
+        )
+        seen = window.evaluate_js(
+            "[document.documentElement.dir, document.getElementById('go-text').textContent,"
+            " document.querySelector('.verdict') !== null]"
+        )
+        if seen != [direction, compare, True]:
+            raise AssertionError(
+                f"язык {code}: ожидали {[direction, compare, True]}, увидели {seen}"
+            )
     before = window.evaluate_js("currentTheme()")
     window.evaluate_js("document.getElementById('theme').click()")
     after = window.evaluate_js("document.documentElement.dataset.theme")
     if after == before or after not in ("light", "dark"):
         raise AssertionError(f"тема не переключилась: было {before}, стало {after}")
-    return "OK: сравнение 2 кандидатов, отчёт, профиль, тема"
+    return "OK: сравнение 2 кандидатов, отчёт, профиль, языки, тема"
 
 
 def check() -> str:

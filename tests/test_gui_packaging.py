@@ -20,7 +20,7 @@ def test_selftest_passes_and_writes_ok(tmp_path: Path) -> None:
     if code != 0 and "WebView2" in text:
         pytest.skip("нет WebView2 для окна")
     assert code == 0, text
-    assert text.startswith("OK: сравнение 2 кандидатов, отчёт, профиль, тема")
+    assert text.startswith("OK: сравнение 2 кандидатов, отчёт, профиль, языки, тема")
 
 
 def test_selftest_failure_is_written_with_traceback(
@@ -118,7 +118,9 @@ def _web_file(name: str) -> str:
 def test_web_page_is_self_contained() -> None:
     page = _web_file("index.html")
     assert "default-src 'self'" in page  # страница не может тянуть ничего снаружи
-    for name in ("index.html", "style.css", "app.js"):
+    names = ["index.html", "style.css", "app.js", "i18n.js"]
+    names += [f"lang/{code}.js" for code in ("ru", "en", "ar", "es", "zh", "fr")]
+    for name in names:
         text = _web_file(name)
         assert "http://" not in text.replace("http://www.w3.org", "")
         assert "https://" not in text
@@ -126,9 +128,16 @@ def test_web_page_is_self_contained() -> None:
 
 
 def test_web_script_never_inserts_markup_from_data() -> None:
-    script = _web_file("app.js")
-    for dangerous in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval("):
-        assert dangerous not in script  # имена из файлов попадают на страницу только как текст
+    for name in ("app.js", "i18n.js"):
+        script = _web_file(name)
+        for dangerous in (
+            "innerHTML",
+            "outerHTML",
+            "insertAdjacentHTML",
+            "document.write",
+            "eval(",
+        ):
+            assert dangerous not in script, (name, dangerous)  # чужие имена — только как текст
 
 
 def test_dark_theme_defines_every_color_token_of_the_light_theme() -> None:

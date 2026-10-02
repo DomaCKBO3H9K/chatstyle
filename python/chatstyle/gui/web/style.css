@@ -23,8 +23,8 @@
   --focus: #2F6BFF;
   --hl: linear-gradient(transparent 52%, var(--mark) 52%, var(--mark) 92%, transparent 92%);
   --hl-ink: var(--ink);
-  --display: "Bahnschrift", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
-  --body: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --display: "Bahnschrift", "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+  --body: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -96,7 +96,7 @@ header { display: flex; align-items: center; gap: 24px; padding-bottom: 20px; }
 .brand { display: flex; align-items: center; gap: 10px; font: 700 20px/1 var(--display); letter-spacing: -.01em; }
 .brand i { width: 30px; height: 30px; border-radius: 9px; background: #12161D; box-shadow: 0 0 0 1px var(--line); display: grid; place-items: center; }
 .brand i::before { content: ""; width: 14px; height: 6px; background: var(--mark); border-radius: 2px; transform: rotate(-8deg); }
-.tabs { margin-left: auto; display: flex; background: var(--tabs); border-radius: 12px; padding: 4px; }
+.tabs { margin-inline-start: auto; display: flex; background: var(--tabs); border-radius: 12px; padding: 4px; }
 .tabs button { border: 0; background: none; padding: 8px 18px; border-radius: 9px; cursor: pointer; color: var(--muted); font-weight: 600; }
 .tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(18, 22, 29, .12); }
 
@@ -130,12 +130,14 @@ summary { cursor: pointer; font-weight: 600; color: var(--muted); list-style: no
 summary::-webkit-details-marker { display: none; }
 summary::before { content: "▸"; display: inline-block; width: 18px; transition: transform .15s; }
 details[open] summary::before { transform: rotate(90deg); }
+[dir="rtl"] summary::before { content: "◂"; }
+[dir="rtl"] details[open] summary::before { transform: rotate(-90deg); }
 .adv { display: grid; gap: 16px; margin-top: 14px; }
 .field { display: grid; gap: 6px; }
 .field .label { font-size: 13px; color: var(--muted); }
 .inline { display: flex; gap: 8px; }
 .inline input { flex: 1; min-width: 0; }
-input[type=text] { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--surface); color: var(--ink); width: 100%; }
+input[type=text] { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--surface); color: var(--ink); width: 100%; unicode-bidi: plaintext; text-align: start; }
 input[type=text]:focus-visible { outline-offset: 0; }
 .check { display: flex; gap: 8px; align-items: center; cursor: pointer; }
 
@@ -163,7 +165,7 @@ input[type=text]:focus-visible { outline-offset: 0; }
 .cand-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
 .cand-head .name { font-weight: 700; overflow-wrap: anywhere; }
 .cand-head .size { color: var(--muted); font-size: 13px; }
-.cand-head .score { margin-left: auto; font: 700 22px var(--display); font-variant-numeric: tabular-nums; }
+.cand-head .score { margin-inline-start: auto; font: 700 22px var(--display); font-variant-numeric: tabular-nums; }
 .track { height: 14px; border-radius: 8px; background: var(--ground); overflow: hidden; }
 .fill { height: 100%; width: 0; border-radius: 8px; background: var(--bar); transition: width .9s cubic-bezier(.2, .8, .2, 1); }
 .cand.top .fill { background: var(--mark); box-shadow: inset 0 0 0 1.5px var(--mark-deep); }
@@ -187,7 +189,7 @@ dialog { background: var(--surface); border: 0; border-radius: 20px; padding: 24
 dialog::backdrop { background: rgba(18, 22, 29, .38); }
 dialog h2 { margin: 0 0 14px; font: 700 18px/1.25 var(--display); }
 .senders { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 6px; max-height: 50vh; overflow: auto; }
-.senders button { width: 100%; text-align: left; border: 1.5px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 14px; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; }
+.senders button { width: 100%; text-align: start; border: 1.5px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 14px; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; }
 .senders button:hover { border-color: var(--ink); background: var(--surface-2); }
 .senders small { color: var(--muted); white-space: nowrap; }
 
@@ -199,5 +201,8 @@ dialog h2 { margin: 0 0 14px; font: 700 18px/1.25 var(--display); }
 .placeholder .a { fill: var(--line); }
 .placeholder .b { fill: var(--mark); }
 
-.theme { margin-left: 8px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 8px 14px; cursor: pointer; font-weight: 600; }
-.theme:hover { border-color: var(--ink); }
+.tools { display: flex; gap: 8px; margin-inline-start: 8px; }
+.tool { border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 8px 14px; cursor: pointer; font-weight: 600; }
+.tool:hover { border-color: var(--ink); }
+select.tool { padding-inline-end: 6px; }
+.path { direction: ltr; unicode-bidi: plaintext; overflow-wrap: anywhere; }

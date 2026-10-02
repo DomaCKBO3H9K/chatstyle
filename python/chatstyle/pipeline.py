@@ -202,20 +202,24 @@ def best_methods_text(result: ComparisonResult) -> str | None:
     return f"Лучший по методам: {'; '.join(parts)} ({verdict})."
 
 
-def unavailable_notes(result: ComparisonResult) -> list[str]:
-    """Почему Delta и Impostors недоступны (пустой список, если доступны всем кандидатам).
+def unavailable_facts(result: ComparisonResult) -> list[dict[str, object]]:
+    """Почему Delta и Impostors недоступны, в виде кодов с параметрами (для перевода в окне).
 
-    Кандидаты с одной и той же причиной объединяются в одну строку.
+    Кандидаты с одной и той же причиной объединяются в один словарь; порядок: Delta, затем
+    Impostors с нехваткой посторонних (по числу посторонних), затем Impostors с нехваткой текста.
     """
-    notes: list[str] = []
+    facts: list[dict[str, object]] = []
     short_delta = [
         row.label for row in result.candidates if row.delta is not None and not row.delta.available
     ]
     if short_delta:
-        notes.append(
-            f"Burrows Delta недоступна ({', '.join(short_delta)}): слишком мало текста для "
-            f"оценки разброса признаков (нужно не меньше {DEFAULT_MIN_CHUNKS} кусков по "
-            f"{DEFAULT_CHUNK_WORDS} слов на всё сравнение)."
+        facts.append(
+            {
+                "code": "delta_short",
+                "labels": short_delta,
+                "min_chunks": DEFAULT_MIN_CHUNKS,
+                "chunk_words": DEFAULT_CHUNK_WORDS,
+            }
         )
 
     few_impostors: dict[int, list[str]] = {}
@@ -229,16 +233,48 @@ def unavailable_notes(result: ComparisonResult) -> list[str]:
         else:
             short_text.append(row.label)
     for count, labels in few_impostors.items():
-        notes.append(
-            f"General Impostors недоступен ({', '.join(labels)}): посторонних авторов {count} "
-            f"из {DEFAULT_MIN_IMPOSTORS}; добавьте папку с чужими текстами: --impostors DIR."
+        facts.append(
+            {
+                "code": "impostors_few",
+                "labels": labels,
+                "count": count,
+                "need": DEFAULT_MIN_IMPOSTORS,
+            }
         )
     if short_text:
-        notes.append(
-            f"General Impostors недоступен ({', '.join(short_text)}): слишком мало текста "
-            f"(нужно не меньше {IMPOSTORS_MIN_CHUNKS} кусков по {IMPOSTORS_CHUNK_WORDS} слов "
-            "у неизвестного автора и у кандидата)."
+        facts.append(
+            {
+                "code": "impostors_short",
+                "labels": short_text,
+                "min_chunks": IMPOSTORS_MIN_CHUNKS,
+                "chunk_words": IMPOSTORS_CHUNK_WORDS,
+            }
         )
+    return facts
+
+
+def unavailable_notes(result: ComparisonResult) -> list[str]:
+    """Почему Delta и Impostors недоступны (пустой список, если доступны всем кандидатам)."""
+    notes: list[str] = []
+    for fact in unavailable_facts(result):
+        labels = ", ".join(fact["labels"])  # type: ignore[arg-type]
+        if fact["code"] == "delta_short":
+            notes.append(
+                f"Burrows Delta недоступна ({labels}): слишком мало текста для "
+                f"оценки разброса признаков (нужно не меньше {fact['min_chunks']} кусков по "
+                f"{fact['chunk_words']} слов на всё сравнение)."
+            )
+        elif fact["code"] == "impostors_few":
+            notes.append(
+                f"General Impostors недоступен ({labels}): посторонних авторов {fact['count']} "
+                f"из {fact['need']}; добавьте папку с чужими текстами: --impostors DIR."
+            )
+        else:
+            notes.append(
+                f"General Impostors недоступен ({labels}): слишком мало текста "
+                f"(нужно не меньше {fact['min_chunks']} кусков по {fact['chunk_words']} слов "
+                "у неизвестного автора и у кандидата)."
+            )
     return notes
 
 

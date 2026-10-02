@@ -8,7 +8,7 @@
 import queue
 import threading
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Generic, TypeVar
 
@@ -105,30 +105,56 @@ class CompareForm:
     report_path: str = ""  # пусто: отчёт не сохранять
 
 
-def validate_compare_form(form: CompareForm) -> list[str]:
-    """Сообщения об ошибках в форме (пустой список, если всё в порядке)."""
-    errors: list[str] = []
+@dataclass(frozen=True)
+class FormError:
+    """Ошибка формы: код для перевода в окне и параметры (строки)."""
+
+    code: str
+    params: dict[str, str] = field(default_factory=dict)
+
+
+def check_compare_form(form: CompareForm) -> list[FormError]:
+    """Ошибки в форме в виде кодов (пустой список, если всё в порядке)."""
+    errors: list[FormError] = []
     if not form.unknown:
-        errors.append("Укажите неизвестного автора.")
+        errors.append(FormError("unknown_missing"))
     if not form.candidates:
-        errors.append("Добавьте хотя бы одного кандидата.")
+        errors.append(FormError("no_candidates"))
     seen: set[str] = set()
     for candidate in form.candidates:
         if candidate in seen:
-            errors.append(f"Кандидат указан дважды: {candidate}")
+            errors.append(FormError("duplicate_candidate", {"spec": candidate}))
         seen.add(candidate)
         if form.unknown and candidate == form.unknown:
-            errors.append(f"Неизвестный автор и кандидат совпадают: {candidate}")
+            errors.append(FormError("same_as_unknown", {"spec": candidate}))
     if form.seed is None or form.seed < 0:
-        errors.append("Seed должен быть целым неотрицательным числом.")
+        errors.append(FormError("bad_seed"))
     if form.impostors_dir and not Path(form.impostors_dir).is_dir():
-        errors.append(f"Папка с чужими текстами не найдена: {form.impostors_dir}")
+        errors.append(FormError("impostors_dir_missing", {"path": form.impostors_dir}))
     if form.report_path:
         try:
             report_format(Path(form.report_path))
         except ChatstyleError as exc:
-            errors.append(str(exc))
+            errors.append(FormError("report_format", {"message": str(exc)}))
     return errors
+
+
+_FORM_ERROR_TEXTS = {
+    "unknown_missing": "Укажите неизвестного автора.",
+    "no_candidates": "Добавьте хотя бы одного кандидата.",
+    "duplicate_candidate": "Кандидат указан дважды: {spec}",
+    "same_as_unknown": "Неизвестный автор и кандидат совпадают: {spec}",
+    "bad_seed": "Seed должен быть целым неотрицательным числом.",
+    "impostors_dir_missing": "Папка с чужими текстами не найдена: {path}",
+    "report_format": "{message}",
+}
+
+
+def validate_compare_form(form: CompareForm) -> list[str]:
+    """Сообщения об ошибках в форме (пустой список, если всё в порядке)."""
+    return [
+        _FORM_ERROR_TEXTS[error.code].format(**error.params) for error in check_compare_form(form)
+    ]
 
 
 @dataclass(frozen=True)

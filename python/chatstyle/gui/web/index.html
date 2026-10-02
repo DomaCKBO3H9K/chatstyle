@@ -11,68 +11,71 @@
 <div class="app">
   <header>
     <div class="brand"><i aria-hidden="true"></i>chatstyle</div>
-    <div class="tabs" role="tablist" aria-label="Режим">
-      <button role="tab" id="tab-compare" aria-selected="true" aria-controls="view-compare">Сравнение</button>
-      <button role="tab" id="tab-profile" aria-selected="false" aria-controls="view-profile">Профиль стиля</button>
+    <div class="tabs" role="tablist" data-i18n-aria="tab.aria">
+      <button role="tab" id="tab-compare" aria-selected="true" aria-controls="view-compare" data-i18n="tab.compare"></button>
+      <button role="tab" id="tab-profile" aria-selected="false" aria-controls="view-profile" data-i18n="tab.profile"></button>
     </div>
-    <button class="theme" id="theme" type="button"></button>
+    <div class="tools">
+      <select id="lang" class="tool" data-i18n-aria="lang.aria"></select>
+      <button class="tool" id="theme" type="button"></button>
+    </div>
   </header>
 
   <main id="view-compare" role="tabpanel" aria-labelledby="tab-compare">
-    <section class="card" aria-label="Что сравниваем">
+    <section class="card">
       <div class="step">
-        <h2><b>1</b>Чьи сообщения проверяем</h2>
+        <h2><b>1</b><span data-i18n="step.unknown"></span></h2>
         <div class="pick" id="unknown-box">
-          <div class="file" id="unknown-name">Файл ещё не выбран</div>
+          <div class="file" id="unknown-name" dir="auto"></div>
           <div class="row">
-            <button class="btn" id="unknown-file">Выбрать файл</button>
-            <button class="btn" id="unknown-tg">Из экспорта Telegram</button>
+            <button class="btn" id="unknown-file" data-i18n="btn.file"></button>
+            <button class="btn" id="unknown-tg" data-i18n="btn.telegram"></button>
           </div>
         </div>
       </div>
 
       <div class="step">
-        <h2><b>2</b>С кем сравниваем</h2>
+        <h2><b>2</b><span data-i18n="step.candidates"></span></h2>
         <ul class="chips" id="chips"></ul>
         <div class="row">
-          <button class="btn" id="add-file">Добавить файл</button>
-          <button class="btn" id="add-tg">Добавить из экспорта Telegram</button>
+          <button class="btn" id="add-file" data-i18n="btn.add_file"></button>
+          <button class="btn" id="add-tg" data-i18n="btn.add_telegram"></button>
         </div>
       </div>
 
       <details id="advanced">
-        <summary>Дополнительно</summary>
+        <summary data-i18n="adv.summary"></summary>
         <div class="adv">
           <div class="field">
-            <span class="label">Папка с чужими текстами для итоговой оценки</span>
+            <span class="label" data-i18n="adv.impostors"></span>
             <div class="inline">
-              <input type="text" id="impostors" placeholder="Не выбрана" aria-label="Папка с чужими текстами">
-              <button class="btn" id="impostors-pick">Выбрать</button>
+              <input type="text" id="impostors" data-i18n-placeholder="adv.impostors_placeholder" data-i18n-aria="adv.impostors_aria">
+              <button class="btn" id="impostors-pick" data-i18n="btn.choose"></button>
             </div>
           </div>
           <label class="field">
-            <span class="label">Seed (число для повторяемости расчёта)</span>
+            <span class="label" data-i18n="adv.seed"></span>
             <input type="text" inputmode="numeric" id="seed" value="1">
           </label>
           <div class="field">
-            <label class="check"><input type="checkbox" id="save-report"> Сохранить отчёт после расчёта</label>
+            <label class="check"><input type="checkbox" id="save-report"><span data-i18n="adv.save_report"></span></label>
             <div class="inline" id="report-row" hidden>
-              <input type="text" id="report" placeholder="Куда сохранить (.md или .html)" aria-label="Файл отчёта">
-              <button class="btn" id="report-pick">Выбрать</button>
+              <input type="text" id="report" data-i18n-placeholder="adv.report_placeholder" data-i18n-aria="adv.report_aria">
+              <button class="btn" id="report-pick" data-i18n="btn.choose"></button>
             </div>
           </div>
         </div>
       </details>
 
-      <button class="go" id="go" disabled><span class="dot" aria-hidden="true"></span><span id="go-text">Сравнить</span></button>
-      <p class="hint" id="go-hint">Выберите сообщения и добавьте хотя бы одного кандидата.</p>
+      <button class="go" id="go" disabled><span class="dot" aria-hidden="true"></span><span id="go-text"></span></button>
+      <p class="hint" id="go-hint"></p>
     </section>
 
     <section class="card result" aria-live="polite" id="result">
       <div class="empty" id="empty">
         <svg class="placeholder" viewBox="0 0 120 70" aria-hidden="true"><rect class="a" x="6" y="8" width="108" height="10" rx="5"/><rect class="b" x="6" y="30" width="72" height="10" rx="5"/><rect class="a" x="6" y="52" width="46" height="10" rx="5"/></svg>
-        <h3>Здесь появится результат</h3>
-        <p>Слева выберите сообщения, которые нужно проверить, и тех, с кем их сравнить.</p>
+        <h3 data-i18n="empty.title"></h3>
+        <p data-i18n="empty.body"></p>
       </div>
       <div class="error" id="error" role="alert" hidden></div>
       <div id="out" hidden></div>
@@ -80,41 +83,48 @@
   </main>
 
   <main id="view-profile" role="tabpanel" aria-labelledby="tab-profile" hidden>
-    <section class="card" aria-label="Чей профиль строим">
+    <section class="card">
       <div class="step">
-        <h2>Чей стиль показать</h2>
+        <h2><span data-i18n="step.profile"></span></h2>
         <div class="pick" id="profile-box">
-          <div class="file" id="profile-name">Файл ещё не выбран</div>
+          <div class="file" id="profile-name" dir="auto"></div>
           <div class="row">
-            <button class="btn" id="profile-file">Выбрать файл</button>
-            <button class="btn" id="profile-tg">Из экспорта Telegram</button>
+            <button class="btn" id="profile-file" data-i18n="btn.file"></button>
+            <button class="btn" id="profile-tg" data-i18n="btn.telegram"></button>
           </div>
         </div>
       </div>
-      <button class="go" id="go-profile" disabled><span class="dot" aria-hidden="true"></span><span id="go-profile-text">Показать профиль</span></button>
-      <p class="hint">Профиль описывает привычки автора: длину слов и предложений, пунктуацию, любимые слова.</p>
+      <button class="go" id="go-profile" disabled><span class="dot" aria-hidden="true"></span><span id="go-profile-text"></span></button>
+      <p class="hint" data-i18n="hint.profile"></p>
     </section>
 
     <section class="card result" aria-live="polite" id="profile-result">
       <div class="empty" id="profile-empty">
         <svg class="placeholder" viewBox="0 0 120 70" aria-hidden="true"><rect class="b" x="6" y="8" width="60" height="10" rx="5"/><rect class="a" x="6" y="30" width="108" height="10" rx="5"/><rect class="a" x="6" y="52" width="84" height="10" rx="5"/></svg>
-        <h3>Здесь появится профиль стиля</h3>
-        <p>Выберите сообщения одного автора слева.</p>
+        <h3 data-i18n="empty_profile.title"></h3>
+        <p data-i18n="empty_profile.body"></p>
       </div>
       <div class="error" id="profile-error" role="alert" hidden></div>
       <div id="profile-out" hidden></div>
     </section>
   </main>
 
-  <footer id="disclaimer"></footer>
+  <footer id="disclaimer" data-i18n="disclaimer"></footer>
 </div>
 
 <dialog id="senders" aria-labelledby="senders-title">
-  <h2 id="senders-title">Чьи сообщения взять из экспорта?</h2>
+  <h2 id="senders-title" data-i18n="senders.title"></h2>
   <ul class="senders" id="senders-list"></ul>
-  <div class="row end"><button class="btn" id="senders-cancel">Отмена</button></div>
+  <div class="row end"><button class="btn" id="senders-cancel" data-i18n="btn.cancel"></button></div>
 </dialog>
 
+<script src="i18n.js"></script>
+<script src="lang/ru.js"></script>
+<script src="lang/en.js"></script>
+<script src="lang/ar.js"></script>
+<script src="lang/es.js"></script>
+<script src="lang/zh.js"></script>
+<script src="lang/fr.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
