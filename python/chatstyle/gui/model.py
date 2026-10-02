@@ -109,6 +109,7 @@ class CompareForm:
     morph: bool = False  # добавить сходство по частям речи (нужно chatstyle[morph])
     charlm: bool = False  # добавить языковую модель символов
     wordgrams: bool = False  # добавить пословные n-граммы
+    emoji: bool = False  # добавить сходство по эмодзи
 
 
 @dataclass(frozen=True)
@@ -185,6 +186,7 @@ def run_compare(form: CompareForm) -> CompareOutcome:
         morph=form.morph,
         charlm=form.charlm,
         wordgrams=form.wordgrams,
+        emoji=form.emoji,
         impostors=impostors,
         seed=form.seed if form.seed is not None else DEFAULT_SEED,
     )

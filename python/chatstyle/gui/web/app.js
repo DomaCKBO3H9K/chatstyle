@@ -306,6 +306,7 @@ function compareForm() {
     morph: state.morphAvailable && $("morph").checked,
     charlm: $("charlm").checked,
     wordgrams: $("wordgrams").checked,
+    emoji: $("emoji").checked,
   };
 }
 
@@ -376,6 +377,9 @@ function renderResult(view, out) {
           : []),
         ...(view.wordgrams
           ? [el("span", {}, [`${t("result.wordgrams")} `, el("b", { text: candidate.wordgrams })])]
+          : []),
+        ...(view.emoji
+          ? [el("span", {}, [`${t("result.emoji")} `, el("b", { text: candidate.emoji })])]
           : []),
       ])
     );

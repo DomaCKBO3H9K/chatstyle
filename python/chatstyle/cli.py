@@ -29,6 +29,7 @@ from chatstyle.pipeline import (
     best_methods_text,
     charlm_text,
     delta_text,
+    emoji_text,
     final_score_text,
     low_volume_warning,
     morph_text,
@@ -161,6 +162,10 @@ def compare(
         bool,
         typer.Option("--wordgrams", help="Добавить сходство по пословным n-граммам (1-4 слова)"),
     ] = False,
+    emoji: Annotated[
+        bool,
+        typer.Option("--emoji", help="Добавить сходство по эмодзи (какие и в каком порядке)"),
+    ] = False,
 ) -> None:
     """Сравнить неизвестного автора с каждым кандидатом."""
     try:
@@ -188,6 +193,7 @@ def compare(
             morph=morph,
             charlm=charlm,
             wordgrams=wordgrams,
+            emoji=emoji,
         )
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
@@ -378,6 +384,8 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
         headers += ("Яз. модель",)
     if result.wordgrams:
         headers += ("Слова",)
+    if result.emoji:
+        headers += ("Эмодзи",)
     for header in headers:
         table.add_column(header, justify="right", no_wrap=True, min_width=len(header))
 
@@ -396,6 +404,8 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
             cells.append(charlm_text(cand))
         if result.wordgrams:
             cells.append(wordgram_text(cand))
+        if result.emoji:
+            cells.append(emoji_text(cand))
         table.add_row(*cells)
 
     console.print(table)

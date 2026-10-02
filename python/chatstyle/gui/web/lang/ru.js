@@ -241,5 +241,7 @@ registerLanguage("ru", {
   "charlm.label": "Добавить языковую модель символов",
   "result.charlm": "Яз. модель",
   "wordgrams.label": "Добавить пословные n-граммы",
-  "result.wordgrams": "Слова"
+  "result.wordgrams": "Слова",
+  "emoji.label": "Добавить сходство по эмодзи",
+  "result.emoji": "Эмодзи"
 });

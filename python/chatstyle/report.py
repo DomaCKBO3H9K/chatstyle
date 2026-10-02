@@ -20,6 +20,7 @@ from chatstyle.pipeline import (
     best_methods_text,
     charlm_text,
     delta_text,
+    emoji_text,
     final_score_text,
     low_volume_sides,
     morph_text,
@@ -91,6 +92,7 @@ COLUMN_HEADERS = ("Кандидат", "Слов", "Сообщений", "Схо�
 MORPH_HEADER = "Части речи (косинус)"
 CHARLM_HEADER = "Языковая модель (бит/символ)"
 WORDGRAMS_HEADER = "Слова (косинус)"
+EMOJI_HEADER = "Эмодзи (косинус)"
 
 
 def _headers(result: ComparisonResult) -> tuple[str, ...]:
@@ -99,6 +101,7 @@ def _headers(result: ComparisonResult) -> tuple[str, ...]:
         *((MORPH_HEADER,) if result.morph else ()),
         *((CHARLM_HEADER,) if result.charlm else ()),
         *((WORDGRAMS_HEADER,) if result.wordgrams else ()),
+        *((EMOJI_HEADER,) if result.emoji else ()),
     )
 
 
@@ -226,6 +229,7 @@ def render_markdown(result: ComparisonResult, generated: datetime) -> str:
             + (f" {morph_text(candidate)} |" if result.morph else "")
             + (f" {charlm_text(candidate)} |" if result.charlm else "")
             + (f" {wordgram_text(candidate)} |" if result.wordgrams else "")
+            + (f" {emoji_text(candidate)} |" if result.emoji else "")
         )
     lines += ["", ranking_text(result)]
     best_line = best_methods_text(result)
@@ -340,6 +344,7 @@ def render_html(result: ComparisonResult, generated: datetime) -> str:
             + (f'<td class="num">{_e(morph_text(candidate))}</td>' if result.morph else "")
             + (f'<td class="num">{_e(charlm_text(candidate))}</td>' if result.charlm else "")
             + (f'<td class="num">{_e(wordgram_text(candidate))}</td>' if result.wordgrams else "")
+            + (f'<td class="num">{_e(emoji_text(candidate))}</td>' if result.emoji else "")
             + "</tr>"
         )
     out.append("</table>")

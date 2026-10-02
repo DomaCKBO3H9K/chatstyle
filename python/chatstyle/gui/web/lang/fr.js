@@ -241,5 +241,7 @@ registerLanguage("fr", {
   "charlm.label": "Ajouter le modèle de langage des caractères",
   "result.charlm": "Modèle de langage",
   "wordgrams.label": "Ajouter les n-grammes de mots",
-  "result.wordgrams": "Mots"
+  "result.wordgrams": "Mots",
+  "emoji.label": "Ajouter la similarité des émojis",
+  "result.emoji": "Émojis"
 });

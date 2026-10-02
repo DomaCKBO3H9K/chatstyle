@@ -241,5 +241,7 @@ registerLanguage("ar", {
   "charlm.label": "إضافة نموذج لغة الأحرف",
   "result.charlm": "نموذج اللغة",
   "wordgrams.label": "إضافة n-غرامات الكلمات",
-  "result.wordgrams": "الكلمات"
+  "result.wordgrams": "الكلمات",
+  "emoji.label": "إضافة تشابه الرموز التعبيرية",
+  "result.emoji": "الرموز التعبيرية"
 });

@@ -54,6 +54,7 @@ from chatstyle.pipeline import (
     best_methods_text,
     charlm_text,
     delta_text,
+    emoji_text,
     final_score_text,
     low_volume_sides,
     morph_text,
@@ -118,6 +119,7 @@ def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
                 "morph": morph_text(candidate),
                 "charlm": charlm_text(candidate),
                 "wordgrams": wordgram_text(candidate),
+                "emoji": emoji_text(candidate),
                 "why": why,
             }
         )
@@ -154,6 +156,7 @@ def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
         "morph": bool(result.morph),
         "charlm": bool(result.charlm),
         "wordgrams": bool(result.wordgrams),
+        "emoji": bool(result.emoji),
         "unknown": {
             "label": names[result.unknown_label],
             "words": result.unknown.words,
@@ -406,6 +409,7 @@ class Api:
             morph=bool(form.get("morph", False)),
             charlm=bool(form.get("charlm", False)),
             wordgrams=bool(form.get("wordgrams", False)),
+            emoji=bool(form.get("emoji", False)),
         )
         problems = check_compare_form(compare_form)
         if problems:
@@ -553,6 +557,7 @@ class Api:
             and isinstance(form.get("morph", False), bool)
             and isinstance(form.get("charlm", False), bool)
             and isinstance(form.get("wordgrams", False), bool)
+            and isinstance(form.get("emoji", False), bool)
         )
         if not well_formed:
             return [error("bad_input")]

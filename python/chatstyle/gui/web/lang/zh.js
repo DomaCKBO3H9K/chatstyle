@@ -241,5 +241,7 @@ registerLanguage("zh", {
   "charlm.label": "添加字符语言模型",
   "result.charlm": "语言模型",
   "wordgrams.label": "添加词语 n 元组",
-  "result.wordgrams": "词语"
+  "result.wordgrams": "词语",
+  "emoji.label": "添加表情符号相似度",
+  "result.emoji": "表情符号"
 });

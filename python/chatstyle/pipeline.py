@@ -17,6 +17,7 @@ from chatstyle.delta import (
     DeltaScore,
     burrows_delta,
 )
+from chatstyle.emoji import emoji_views
 from chatstyle.errors import ChatstyleError
 from chatstyle.features import ALL_STYLE_GROUPS, FUNCTION_WORD_PREFIX, style_features
 from chatstyle.impostors import (
@@ -71,9 +72,8 @@ class CandidateResult:
     impostors_score: ImpostorsScore | None = None  # None: метод не запускался
     morph_similarity: float | None = None  # косинус по n-граммам частей речи; None: не считался
     charlm_llr: float | None = None  # языковая модель символов, бит/символ; None: нет оценки
-    wordgram_similarity: float | None = (
-        None  # косинус по пословным n-граммам 1-4; None: не считался
-    )
+    wordgram_similarity: float | None = None  # пословные n-граммы; None: не считался
+    emoji_similarity: float | None = None  # n-граммы эмодзи; None: не считался
 
     @property
     def final_score(self) -> float | None:
@@ -105,6 +105,7 @@ class ComparisonResult:
     morph: bool = False  # считалось ли сходство по частям речи
     charlm: bool = False  # считалась ли языковая модель символов
     wordgrams: bool = False  # считались ли пословные n-граммы
+    emoji: bool = False  # считалось ли сходство по эмодзи
 
     def best_by_method(self) -> dict[str, tuple[str, ...]]:
         """Лучшие кандидаты по каждому методу, доступному ВСЕМ кандидатам.
@@ -191,6 +192,12 @@ def delta_text(candidate: CandidateResult) -> str:
 def morph_text(candidate: CandidateResult) -> str:
     """Сходство по частям речи для таблицы или прочерк."""
     value = candidate.morph_similarity
+    return f"{value:.3f}" if value is not None else NOT_AVAILABLE
+
+
+def emoji_text(candidate: CandidateResult) -> str:
+    """Сходство по эмодзи для таблицы или прочерк."""
+    value = candidate.emoji_similarity
     return f"{value:.3f}" if value is not None else NOT_AVAILABLE
 
 
@@ -347,6 +354,21 @@ def _wordgram_similarities(
     return {label: report["similarity"] for label, report in reports.items()}
 
 
+def _emoji_similarities(
+    unknown_messages: Sequence[str], candidate_messages: Mapping[str, Sequence[str]]
+) -> dict[str, float]:
+    """Косинус по n-граммам эмодзи 1-4: эмодзи заменяются символами, дальше считает ядро.
+
+    У кого нет ни одного эмодзи, оценки нет: такого кандидата в словаре нет.
+    """
+    unknown_view, views = emoji_views(unknown_messages, candidate_messages)
+    views = {label: view for label, view in views.items() if view}
+    if not unknown_view or not views:
+        return {}
+    reports = _core.compare_detailed(unknown_view, views, 0)
+    return {label: report["similarity"] for label, report in reports.items()}
+
+
 def _charlm_scores(
     unknown_messages: Sequence[str], candidate_messages: Mapping[str, Sequence[str]]
 ) -> dict[str, float]:
@@ -371,6 +393,7 @@ def compare_messages(
     morph: bool = False,
     charlm: bool = False,
     wordgrams: bool = False,
+    emoji: bool = False,
 ) -> tuple[tuple[CandidateResult, ...], str]:
     """Три метода по готовым предобработанным сообщениям: косинус, Burrows Delta, Impostors.
 
@@ -391,6 +414,7 @@ def compare_messages(
     wordgram_scores = (
         _wordgram_similarities(unknown_messages, candidate_messages) if wordgrams else {}
     )
+    emoji_scores = _emoji_similarities(unknown_messages, candidate_messages) if emoji else {}
 
     results: list[CandidateResult] = []
     for label, messages in candidate_messages.items():
@@ -407,6 +431,7 @@ def compare_messages(
                 morph_similarity=morph_scores.get(label),
                 charlm_llr=charlm_scores.get(label),
                 wordgram_similarity=wordgram_scores.get(label),
+                emoji_similarity=emoji_scores.get(label),
             )
         )
 
@@ -431,6 +456,7 @@ def run_comparison(
     morph: bool = False,
     charlm: bool = False,
     wordgrams: bool = False,
+    emoji: bool = False,
 ) -> ComparisonResult:
     """Запустить полный цикл сравнения.
 
@@ -482,6 +508,7 @@ def run_comparison(
         morph=morph,
         charlm=charlm,
         wordgrams=wordgrams,
+        emoji=emoji,
     )
 
     unknown_words = count_words(unknown_messages)
@@ -500,6 +527,7 @@ def run_comparison(
         morph=morph,
         charlm=charlm,
         wordgrams=wordgrams,
+        emoji=emoji,
     )
 
 
