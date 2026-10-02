@@ -13,6 +13,7 @@ import sqlite3
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -27,6 +28,7 @@ from chatstyle.config import (
 from chatstyle.errors import ChatstyleError, CodedError
 from chatstyle.paths import session_file
 from chatstyle.securestore import Vault, default_vault, unlock_interactively
+from chatstyle.timeline import Messages, local_seconds
 
 DEFAULT_LIMIT = 3000
 FLOOD_SLEEP_THRESHOLD = 300
@@ -48,7 +50,8 @@ class TelegramSource:
 class Fetcher(Protocol):
     """Всё, что умеет достать сообщения отправителя из Telegram."""
 
-    def fetch(self, source: TelegramSource, limit: int) -> list[str]: ...
+    def fetch(self, source: TelegramSource, limit: int) -> list[str]:
+        """Сообщения по порядку; `Messages` с `times` добавляет моменты отправки."""
 
 
 def parse_telegram_spec(value: str) -> TelegramSource:
@@ -135,6 +138,12 @@ def _message_text(message: Any, sender_id: int | None) -> str | None:
     return text
 
 
+def _message_time(message: Any) -> int | None:
+    """Момент отправки в «настенном» локальном времени или None, если даты нет."""
+    moment = getattr(message, "date", None)
+    return local_seconds(moment) if isinstance(moment, datetime) else None
+
+
 def _translate_error(exc: Exception) -> ChatstyleError | None:
     """Превратить ошибку Telethon или сети в понятное сообщение; None — не наша ошибка."""
     from telethon import errors
@@ -191,7 +200,7 @@ class TelethonFetcher:
         self._client_factory = client_factory
         self._vault = vault
 
-    def fetch(self, source: TelegramSource, limit: int) -> list[str]:
+    def fetch(self, source: TelegramSource, limit: int) -> Messages:
         """Собрать до limit сообщений отправителя в хронологическом порядке."""
         return self._run(self._fetch(source, limit))
 
@@ -242,7 +251,7 @@ class TelethonFetcher:
             flood_sleep_threshold=FLOOD_SLEEP_THRESHOLD,
         )
 
-    async def _fetch(self, source: TelegramSource, limit: int) -> list[str]:
+    async def _fetch(self, source: TelegramSource, limit: int) -> Messages:
         client = self._client()
         try:
             await client.connect()
@@ -256,14 +265,17 @@ class TelethonFetcher:
             sender = chat if same else await _resolve(client, source.sender)
             sender_id = getattr(sender, "id", None)
             collected: list[str] = []
+            moments: list[int | None] = []
             async for message in client.iter_messages(chat, limit=limit, from_user=sender):
                 text = _message_text(message, sender_id)
                 if text is not None:
                     collected.append(text)
+                    moments.append(_message_time(message))
         finally:
             await client.disconnect()
         collected.reverse()
-        return collected
+        moments.reverse()
+        return Messages(collected, moments)
 
     async def _login(self) -> str:
         client = self._client()

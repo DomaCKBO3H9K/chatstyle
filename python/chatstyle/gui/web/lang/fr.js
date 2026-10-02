@@ -243,5 +243,16 @@ registerLanguage("fr", {
   "wordgrams.label": "Ajouter les n-grammes de mots",
   "result.wordgrams": "Mots",
   "emoji.label": "Ajouter la similarité des émojis",
-  "result.emoji": "Émojis"
+  "result.emoji": "Émojis",
+  "rhythm.label": "Ajouter le rythme d'écriture (dates requises)",
+  "result.rhythm": "Rythme",
+  "section.rhythm": "Rythme d'écriture",
+  "rhythm.burst_share": "pauses de moins d'une minute, part",
+  "rhythm.series_len": "longueur des séries de messages (0-1)",
+  "rhythm.gap_median": "pause typique dans une conversation (0-1)",
+  "rhythm.night": "la nuit (0-6 h)",
+  "rhythm.morning": "le matin (6-12 h)",
+  "rhythm.day": "l'après-midi (12-18 h)",
+  "rhythm.evening": "le soir (18-24 h)",
+  "rhythm.weekend": "le week-end"
 });

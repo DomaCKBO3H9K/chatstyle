@@ -32,7 +32,8 @@ from chatstyle.impostors import (
     ImpostorsScore,
     general_impostors,
 )
-from chatstyle.preprocess import MENTION_TOKEN, URL_TOKEN, preprocess
+from chatstyle.preprocess import MENTION_TOKEN, URL_TOKEN, preprocess_timed
+from chatstyle.timeline import known_times
 from chatstyle.wordgrams import word_views
 
 MIN_WORDS: int = 1000
@@ -74,6 +75,7 @@ class CandidateResult:
     charlm_llr: float | None = None  # языковая модель символов, бит/символ; None: нет оценки
     wordgram_similarity: float | None = None  # пословные n-граммы; None: не считался
     emoji_similarity: float | None = None  # n-граммы эмодзи; None: не считался
+    rhythm_similarity: float | None = None  # ритм по времени сообщений; None: нет оценки
 
     @property
     def final_score(self) -> float | None:
@@ -106,6 +108,7 @@ class ComparisonResult:
     charlm: bool = False  # считалась ли языковая модель символов
     wordgrams: bool = False  # считались ли пословные n-граммы
     emoji: bool = False  # считалось ли сходство по эмодзи
+    rhythm: bool = False  # считался ли ритм письма по времени сообщений
 
     def best_by_method(self) -> dict[str, tuple[str, ...]]:
         """Лучшие кандидаты по каждому методу, доступному ВСЕМ кандидатам.
@@ -192,6 +195,12 @@ def delta_text(candidate: CandidateResult) -> str:
 def morph_text(candidate: CandidateResult) -> str:
     """Сходство по частям речи для таблицы или прочерк."""
     value = candidate.morph_similarity
+    return f"{value:.3f}" if value is not None else NOT_AVAILABLE
+
+
+def rhythm_text(candidate: CandidateResult) -> str:
+    """Сходство ритма письма для таблицы или прочерк."""
+    value = candidate.rhythm_similarity
     return f"{value:.3f}" if value is not None else NOT_AVAILABLE
 
 
@@ -314,7 +323,7 @@ def unavailable_notes(result: ComparisonResult) -> list[str]:
 
 def _load_messages(spec: str, options: CollectOptions | None) -> list[str]:
     """Собрать и предобработать сообщения источника; пустой результат — ошибка."""
-    messages = preprocess(collect(spec, options))
+    messages = preprocess_timed(collect(spec, options))
     if not messages:
         raise ChatstyleError(f"В источнике {spec} не осталось сообщений после предобработки.")
     return messages
@@ -352,6 +361,21 @@ def _wordgram_similarities(
         return {}
     reports = _core.compare_detailed(unknown_view, views, 0)
     return {label: report["similarity"] for label, report in reports.items()}
+
+
+def _rhythm_similarities(
+    unknown_messages: Sequence[str], candidate_messages: Mapping[str, Sequence[str]]
+) -> dict[str, float]:
+    """Сходство ритма письма (серии, паузы, время суток, выходные), считает ядро.
+
+    Нужны моменты сообщений (экспорт Telegram, `tg:`) и не меньше 30 сообщений с датой у обоих
+    авторов; у остальных оценки нет.
+    """
+    reports = _core.rhythm_compare(
+        known_times(unknown_messages),
+        {label: known_times(messages) for label, messages in candidate_messages.items()},
+    )
+    return {label: r["similarity"] for label, r in reports.items() if r["available"]}
 
 
 def _emoji_similarities(
@@ -394,6 +418,7 @@ def compare_messages(
     charlm: bool = False,
     wordgrams: bool = False,
     emoji: bool = False,
+    rhythm: bool = False,
 ) -> tuple[tuple[CandidateResult, ...], str]:
     """Три метода по готовым предобработанным сообщениям: косинус, Burrows Delta, Impostors.
 
@@ -415,6 +440,7 @@ def compare_messages(
         _wordgram_similarities(unknown_messages, candidate_messages) if wordgrams else {}
     )
     emoji_scores = _emoji_similarities(unknown_messages, candidate_messages) if emoji else {}
+    rhythm_scores = _rhythm_similarities(unknown_messages, candidate_messages) if rhythm else {}
 
     results: list[CandidateResult] = []
     for label, messages in candidate_messages.items():
@@ -432,6 +458,7 @@ def compare_messages(
                 charlm_llr=charlm_scores.get(label),
                 wordgram_similarity=wordgram_scores.get(label),
                 emoji_similarity=emoji_scores.get(label),
+                rhythm_similarity=rhythm_scores.get(label),
             )
         )
 
@@ -457,6 +484,7 @@ def run_comparison(
     charlm: bool = False,
     wordgrams: bool = False,
     emoji: bool = False,
+    rhythm: bool = False,
 ) -> ComparisonResult:
     """Запустить полный цикл сравнения.
 
@@ -509,6 +537,7 @@ def run_comparison(
         charlm=charlm,
         wordgrams=wordgrams,
         emoji=emoji,
+        rhythm=rhythm,
     )
 
     unknown_words = count_words(unknown_messages)
@@ -528,6 +557,7 @@ def run_comparison(
         charlm=charlm,
         wordgrams=wordgrams,
         emoji=emoji,
+        rhythm=rhythm,
     )
 
 
@@ -539,6 +569,7 @@ class AuthorProfile:
     stats: AuthorStats
     features: dict[str, float]
     morph_features: dict[str, float] | None = None  # m:<код части речи>; None: не считались
+    rhythm_features: dict[str, float] | None = None  # ритм по времени; None: нет дат или мало
 
 
 def morph_profile(messages: Sequence[str]) -> dict[str, float]:
@@ -559,6 +590,12 @@ def morph_profile(messages: Sequence[str]) -> dict[str, float]:
     }
 
 
+def rhythm_profile(messages: Sequence[str]) -> dict[str, float] | None:
+    """Признаки ритма письма автора или None, если дат нет или сообщений с датой меньше 30."""
+    report = _core.rhythm_profile(known_times(messages))
+    return dict(report["features"]) if report["available"] else None
+
+
 def profile_author(
     spec: str, options: CollectOptions | None = None, morph: bool = False
 ) -> AuthorProfile:
@@ -569,4 +606,5 @@ def profile_author(
         stats=AuthorStats(words=count_words(messages), messages=len(messages)),
         features=style_features(messages),
         morph_features=morph_profile(messages) if morph else None,
+        rhythm_features=rhythm_profile(messages),
     )

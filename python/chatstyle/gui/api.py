@@ -58,6 +58,7 @@ from chatstyle.pipeline import (
     final_score_text,
     low_volume_sides,
     morph_text,
+    rhythm_text,
     unavailable_facts,
     wordgram_text,
 )
@@ -120,6 +121,7 @@ def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
                 "charlm": charlm_text(candidate),
                 "wordgrams": wordgram_text(candidate),
                 "emoji": emoji_text(candidate),
+                "rhythm": rhythm_text(candidate),
                 "why": why,
             }
         )
@@ -157,6 +159,7 @@ def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
         "charlm": bool(result.charlm),
         "wordgrams": bool(result.wordgrams),
         "emoji": bool(result.emoji),
+        "rhythm": bool(result.rhythm),
         "unknown": {
             "label": names[result.unknown_label],
             "words": result.unknown.words,
@@ -188,6 +191,14 @@ def profile_view_dict(profile: AuthorProfile) -> dict[str, Any]:
                     profile.morph_features.items(), key=lambda item: (-item[1], item[0])
                 )
                 if value > 0
+            ]
+        ),
+        "rhythm": (
+            None
+            if profile.rhythm_features is None
+            else [
+                {"key": key, "value": f"{value:.3f}"}
+                for key, value in profile.rhythm_features.items()
             ]
         ),
         "word_lists": [
@@ -410,6 +421,7 @@ class Api:
             charlm=bool(form.get("charlm", False)),
             wordgrams=bool(form.get("wordgrams", False)),
             emoji=bool(form.get("emoji", False)),
+            rhythm=bool(form.get("rhythm", False)),
         )
         problems = check_compare_form(compare_form)
         if problems:
@@ -558,6 +570,7 @@ class Api:
             and isinstance(form.get("charlm", False), bool)
             and isinstance(form.get("wordgrams", False), bool)
             and isinstance(form.get("emoji", False), bool)
+            and isinstance(form.get("rhythm", False), bool)
         )
         if not well_formed:
             return [error("bad_input")]

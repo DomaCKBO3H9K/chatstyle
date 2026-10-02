@@ -19,6 +19,7 @@ from chatstyle.features import (
     feature_section,
     morph_summary,
     parse_style_groups,
+    rhythm_summary,
     word_list_lines,
 )
 from chatstyle.impostors import DEFAULT_SEED
@@ -35,6 +36,7 @@ from chatstyle.pipeline import (
     morph_text,
     profile_author,
     ranking_text,
+    rhythm_text,
     run_comparison,
     unavailable_notes,
     wordgram_text,
@@ -166,6 +168,13 @@ def compare(
         bool,
         typer.Option("--emoji", help="Добавить сходство по эмодзи (какие и в каком порядке)"),
     ] = False,
+    rhythm: Annotated[
+        bool,
+        typer.Option(
+            "--rhythm",
+            help="Добавить сходство ритма письма по времени (нужны даты: tgexport:, tg:)",
+        ),
+    ] = False,
 ) -> None:
     """Сравнить неизвестного автора с каждым кандидатом."""
     try:
@@ -194,12 +203,19 @@ def compare(
             charlm=charlm,
             wordgrams=wordgrams,
             emoji=emoji,
+            rhythm=rhythm,
         )
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
         raise typer.Exit(code=2) from exc
 
     _print_result(unknown, result)
+    if result.rhythm and all(row.rhythm_similarity is None for row in result.candidates):
+        typer.echo(
+            "Ритм недоступен: нужны даты сообщений (источники tgexport: и tg:) "
+            "и не меньше 30 сообщений с датой у каждого автора.",
+            err=True,
+        )
 
     if report is not None:
         try:
@@ -271,6 +287,8 @@ def _print_profile(profile: AuthorProfile, top: int) -> None:
         console.print(line, soft_wrap=True)
     if profile.morph_features is not None:
         console.print(morph_summary(profile.morph_features), soft_wrap=True)
+    if profile.rhythm_features is not None:
+        console.print(rhythm_summary(profile.rhythm_features), soft_wrap=True)
 
 
 @app.command()
@@ -386,6 +404,8 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
         headers += ("Слова",)
     if result.emoji:
         headers += ("Эмодзи",)
+    if result.rhythm:
+        headers += ("Ритм",)
     for header in headers:
         table.add_column(header, justify="right", no_wrap=True, min_width=len(header))
 
@@ -406,6 +426,8 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
             cells.append(wordgram_text(cand))
         if result.emoji:
             cells.append(emoji_text(cand))
+        if result.rhythm:
+            cells.append(rhythm_text(cand))
         table.add_row(*cells)
 
     console.print(table)

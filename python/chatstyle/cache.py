@@ -10,8 +10,9 @@ import os
 from pathlib import Path
 
 from chatstyle.paths import cache_dir
+from chatstyle.timeline import Messages
 
-_VERSION = 1
+_VERSION = 2  # версия 1 (без времени) не читается: сообщения загружаются заново
 
 
 def _cache_path(chat: str, sender: str, limit: int, directory: Path | None) -> Path:
@@ -22,7 +23,7 @@ def _cache_path(chat: str, sender: str, limit: int, directory: Path | None) -> P
 
 def load_cached(
     chat: str, sender: str, limit: int, directory: Path | None = None
-) -> list[str] | None:
+) -> Messages | None:
     """Вернуть сохранённые сообщения или None, если кэша нет или он повреждён."""
     path = _cache_path(chat, sender, limit, directory)
     try:
@@ -34,7 +35,14 @@ def load_cached(
     messages = data.get("messages")
     if not isinstance(messages, list) or not all(isinstance(m, str) for m in messages):
         return None
-    return messages
+    times = data.get("times")
+    if times is not None and (
+        not isinstance(times, list)
+        or len(times) != len(messages)
+        or not all(m is None or (isinstance(m, int) and not isinstance(m, bool)) for m in times)
+    ):
+        return None
+    return Messages(messages, times)
 
 
 def store_cached(
@@ -51,7 +59,8 @@ def store_cached(
         "chat": chat,
         "sender": sender,
         "limit": limit,
-        "messages": messages,
+        "messages": list(messages),
+        "times": getattr(messages, "times", None),
     }
     temp = path.with_suffix(".tmp")
     try:

@@ -25,6 +25,7 @@ from chatstyle.pipeline import (
     low_volume_sides,
     morph_text,
     ranking_text,
+    rhythm_text,
     unavailable_notes,
     wordgram_text,
 )
@@ -93,6 +94,7 @@ MORPH_HEADER = "Части речи (косинус)"
 CHARLM_HEADER = "Языковая модель (бит/символ)"
 WORDGRAMS_HEADER = "Слова (косинус)"
 EMOJI_HEADER = "Эмодзи (косинус)"
+RHYTHM_HEADER = "Ритм (по времени)"
 
 
 def _headers(result: ComparisonResult) -> tuple[str, ...]:
@@ -102,6 +104,7 @@ def _headers(result: ComparisonResult) -> tuple[str, ...]:
         *((CHARLM_HEADER,) if result.charlm else ()),
         *((WORDGRAMS_HEADER,) if result.wordgrams else ()),
         *((EMOJI_HEADER,) if result.emoji else ()),
+        *((RHYTHM_HEADER,) if result.rhythm else ()),
     )
 
 
@@ -230,6 +233,7 @@ def render_markdown(result: ComparisonResult, generated: datetime) -> str:
             + (f" {charlm_text(candidate)} |" if result.charlm else "")
             + (f" {wordgram_text(candidate)} |" if result.wordgrams else "")
             + (f" {emoji_text(candidate)} |" if result.emoji else "")
+            + (f" {rhythm_text(candidate)} |" if result.rhythm else "")
         )
     lines += ["", ranking_text(result)]
     best_line = best_methods_text(result)
@@ -345,6 +349,7 @@ def render_html(result: ComparisonResult, generated: datetime) -> str:
             + (f'<td class="num">{_e(charlm_text(candidate))}</td>' if result.charlm else "")
             + (f'<td class="num">{_e(wordgram_text(candidate))}</td>' if result.wordgrams else "")
             + (f'<td class="num">{_e(emoji_text(candidate))}</td>' if result.emoji else "")
+            + (f'<td class="num">{_e(rhythm_text(candidate))}</td>' if result.rhythm else "")
             + "</tr>"
         )
     out.append("</table>")

@@ -4,9 +4,11 @@
 #include <chatstyle/compare.hpp>
 #include <chatstyle/delta.hpp>
 #include <chatstyle/impostors.hpp>
+#include <chatstyle/rhythm.hpp>
 #include <chatstyle/style_features.hpp>
 #include <chatstyle/text.hpp>
 #include <chatstyle/version.hpp>
+#include <cstdint>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -215,6 +217,59 @@ PYBIND11_MODULE(_core, m) {
         py::arg("order") = 4,
         py::arg("balance") = true,
         "Character language model: {name: {available, bits_candidate, bits_rest, llr, chars_scored}}"
+    );
+
+    m.def("rhythm_profile",
+        [](const std::vector<std::int64_t>& times) {
+            chatstyle::RhythmProfile profile;
+            {
+                py::gil_scoped_release release;
+                profile = chatstyle::rhythm_profile(times);
+            }
+            py::dict features;
+            for (const auto& item : profile.features) {
+                features[py::str(chatstyle::u32_to_utf8(item.first))] = item.second;
+            }
+            py::dict report;
+            report["available"] = profile.available;
+            report["messages"] = profile.messages;
+            report["features"] = features;
+            return report;
+        },
+        py::arg("times"),
+        "Rhythm profile from local message times (seconds): {available, messages, features}"
+    );
+
+    m.def("rhythm_compare",
+        [](const std::vector<std::int64_t>& unknown, const py::dict& candidates) {
+            std::vector<std::string> names;
+            std::vector<std::vector<std::int64_t>> times;
+            for (auto item : candidates) {
+                names.push_back(item.first.cast<std::string>());
+                times.push_back(item.second.cast<std::vector<std::int64_t>>());
+            }
+            std::vector<chatstyle::RhythmProfile> profiles;
+            chatstyle::RhythmProfile known;
+            {
+                py::gil_scoped_release release;
+                known = chatstyle::rhythm_profile(unknown);
+                for (const auto& list : times) {
+                    profiles.push_back(chatstyle::rhythm_profile(list));
+                }
+            }
+            py::dict output;
+            for (std::size_t i = 0; i < names.size(); ++i) {
+                py::dict report;
+                const bool available = known.available && profiles[i].available;
+                report["available"] = available;
+                report["similarity"] = available ? chatstyle::rhythm_similarity(known, profiles[i]) : 0.0;
+                output[py::str(names[i])] = report;
+            }
+            return output;
+        },
+        py::arg("unknown"),
+        py::arg("candidates"),
+        "Rhythm similarity of an unknown author with each candidate: {name: {available, similarity}}"
     );
 
     m.def("general_impostors",

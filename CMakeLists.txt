@@ -8,7 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(CHATSTYLE_BUILD_PYTHON "Build Python bindings" ON)
 
 # Static library for core functionality
-add_library(chatstyle_core STATIC core/src/version.cpp core/src/text.cpp core/src/ngrams.cpp core/src/similarity.cpp core/src/compare.cpp core/src/style_features.cpp core/src/delta.cpp core/src/impostors.cpp core/src/charlm.cpp)
+add_library(chatstyle_core STATIC core/src/version.cpp core/src/text.cpp core/src/ngrams.cpp core/src/similarity.cpp core/src/compare.cpp core/src/style_features.cpp core/src/delta.cpp core/src/impostors.cpp core/src/charlm.cpp core/src/rhythm.cpp)
 target_include_directories(chatstyle_core PUBLIC core/include)
 set_target_properties(chatstyle_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -56,7 +56,7 @@ if(CHATSTYLE_BUILD_TESTS)
     )
     FetchContent_MakeAvailable(Catch2)
 
-    add_executable(core_tests core/tests/test_smoke.cpp core/tests/test_text.cpp core/tests/test_ngrams.cpp core/tests/test_similarity.cpp core/tests/test_compare.cpp core/tests/test_style_features.cpp core/tests/test_style_habits.cpp core/tests/test_delta.cpp core/tests/test_impostors.cpp core/tests/test_charlm.cpp)
+    add_executable(core_tests core/tests/test_smoke.cpp core/tests/test_text.cpp core/tests/test_ngrams.cpp core/tests/test_similarity.cpp core/tests/test_compare.cpp core/tests/test_style_features.cpp core/tests/test_style_habits.cpp core/tests/test_delta.cpp core/tests/test_impostors.cpp core/tests/test_charlm.cpp core/tests/test_rhythm.cpp)
     target_link_libraries(core_tests PRIVATE chatstyle_core Catch2::Catch2WithMain)
 
     if(MSVC)

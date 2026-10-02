@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from chatstyle.delta import DeltaScore
-from chatstyle.features import FEATURE_LABELS, FEATURE_SECTIONS
+from chatstyle.features import FEATURE_LABELS, FEATURE_SECTIONS, RHYTHM_LABELS
 from chatstyle.gui.model import _FORM_ERROR_TEXTS
 from chatstyle.impostors import DEFAULT_MIN_IMPOSTORS, ImpostorsScore
 from chatstyle.morph import ALL_CODES
@@ -139,6 +139,7 @@ def _dynamic_keys() -> set[str]:
     keys |= {f"error.{code}" for code in re.findall(r'"(vault_\w+)"', coded)}  # выбираются условием
     keys |= {f"tg.mode.{mode}" for mode in MODES} | {f"tg.mode.{mode}.desc" for mode in MODES}
     keys |= {f"pos.{code}" for code in ALL_CODES}
+    keys |= {f"rhythm.{key}" for key in RHYTHM_LABELS}
     keys |= {"note.agree", "note.disagree"}  # выбираются тернарным оператором в noteText
     return keys
 

@@ -243,5 +243,16 @@ registerLanguage("ru", {
   "wordgrams.label": "Добавить пословные n-граммы",
   "result.wordgrams": "Слова",
   "emoji.label": "Добавить сходство по эмодзи",
-  "result.emoji": "Эмодзи"
+  "result.emoji": "Эмодзи",
+  "rhythm.label": "Добавить ритм письма (нужны даты сообщений)",
+  "result.rhythm": "Ритм",
+  "section.rhythm": "Ритм письма",
+  "rhythm.burst_share": "паузы до минуты, доля",
+  "rhythm.series_len": "длина серий сообщений (0-1)",
+  "rhythm.gap_median": "типичная пауза в разговоре (0-1)",
+  "rhythm.night": "ночью (0-6 ч)",
+  "rhythm.morning": "утром (6-12 ч)",
+  "rhythm.day": "днём (12-18 ч)",
+  "rhythm.evening": "вечером (18-24 ч)",
+  "rhythm.weekend": "в выходные"
 });

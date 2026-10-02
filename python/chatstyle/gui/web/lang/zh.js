@@ -243,5 +243,16 @@ registerLanguage("zh", {
   "wordgrams.label": "添加词语 n 元组",
   "result.wordgrams": "词语",
   "emoji.label": "添加表情符号相似度",
-  "result.emoji": "表情符号"
+  "result.emoji": "表情符号",
+  "rhythm.label": "添加书写节奏（需要消息日期）",
+  "result.rhythm": "节奏",
+  "section.rhythm": "书写节奏",
+  "rhythm.burst_share": "一分钟内的间隔占比",
+  "rhythm.series_len": "连续消息的长度 (0-1)",
+  "rhythm.gap_median": "对话中的典型间隔 (0-1)",
+  "rhythm.night": "夜间 (0-6 时)",
+  "rhythm.morning": "上午 (6-12 时)",
+  "rhythm.day": "下午 (12-18 时)",
+  "rhythm.evening": "晚上 (18-24 时)",
+  "rhythm.weekend": "周末"
 });

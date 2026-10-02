@@ -243,5 +243,16 @@ registerLanguage("ar", {
   "wordgrams.label": "إضافة n-غرامات الكلمات",
   "result.wordgrams": "الكلمات",
   "emoji.label": "إضافة تشابه الرموز التعبيرية",
-  "result.emoji": "الرموز التعبيرية"
+  "result.emoji": "الرموز التعبيرية",
+  "rhythm.label": "إضافة إيقاع الكتابة (يتطلب تواريخ الرسائل)",
+  "result.rhythm": "الإيقاع",
+  "section.rhythm": "إيقاع الكتابة",
+  "rhythm.burst_share": "فواصل أقل من دقيقة، النسبة",
+  "rhythm.series_len": "طول سلاسل الرسائل (0-1)",
+  "rhythm.gap_median": "الفاصل المعتاد في المحادثة (0-1)",
+  "rhythm.night": "ليلاً (0-6 ساعات)",
+  "rhythm.morning": "صباحاً (6-12 ساعة)",
+  "rhythm.day": "بعد الظهر (12-18 ساعة)",
+  "rhythm.evening": "مساءً (18-24 ساعة)",
+  "rhythm.weekend": "في عطلات نهاية الأسبوع"
 });

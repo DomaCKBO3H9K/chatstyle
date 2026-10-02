@@ -2,7 +2,9 @@
 
 import re
 import unicodedata
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
+
+from chatstyle.timeline import Messages
 
 URL_TOKEN: str = "<URL>"
 MENTION_TOKEN: str = "<MENTION>"
@@ -53,3 +55,16 @@ def clean_message(text: str) -> str:
 def preprocess(messages: Iterable[str]) -> list[str]:
     """Применяет clean_message ко всем сообщениям и возвращает непустые результаты."""
     return [cleaned for m in messages if (cleaned := clean_message(m))]
+
+
+def preprocess_timed(messages: Sequence[str]) -> Messages:
+    """То же, что `preprocess`, но сохраняет моменты отправки (`times`) у оставшихся сообщений."""
+    times = getattr(messages, "times", None)
+    kept: list[str] = []
+    kept_times: list[int | None] = []
+    for index, message in enumerate(messages):
+        cleaned = clean_message(message)
+        if cleaned:
+            kept.append(cleaned)
+            kept_times.append(times[index] if times is not None else None)
+    return Messages(kept, kept_times if times is not None else None)

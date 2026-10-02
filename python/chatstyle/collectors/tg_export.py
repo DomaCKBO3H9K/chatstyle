@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from chatstyle.errors import ChatstyleError
+from chatstyle.timeline import Messages, parse_export_date
 
 
 def _matches(msg: dict[str, Any], sender: str) -> bool:
@@ -83,7 +84,7 @@ def _load_messages(path: Path) -> list[object]:
     return messages
 
 
-def read_tg_export(path: Path, sender: str) -> list[str]:
+def read_tg_export(path: Path, sender: str) -> Messages:
     """Вернуть тексты сообщений ``sender`` из JSON‑экспорта Telegram Desktop.
 
     Параметры
@@ -95,8 +96,8 @@ def read_tg_export(path: Path, sender: str) -> list[str]:
 
     Возвращаемое значение
     ----------------------
-    list[str]
-        Список сообщений в порядке их появления. Пустые сообщения
+    Messages
+        Список сообщений (с моментами отправки в `times`) в порядке их появления. Пустые сообщения
         (после ``strip``) отбрасываются. Если отправитель найден, но
         текстовых сообщений нет, возвращается пустой список.
 
@@ -110,6 +111,7 @@ def read_tg_export(path: Path, sender: str) -> list[str]:
 
     author_counter: Counter[str] = Counter()
     result: list[str] = []
+    times: list[int | None] = []
     sender_seen = False
 
     for msg in messages:
@@ -131,12 +133,13 @@ def read_tg_export(path: Path, sender: str) -> list[str]:
             flat = _flatten_text(msg.get("text"))
             if flat.strip():
                 result.append(flat)
+                times.append(parse_export_date(msg.get("date")))
 
     if not sender_seen:
         most_common = ", ".join(f"{name} ({cnt})" for name, cnt in author_counter.most_common(10))
         raise ChatstyleError(f"Отправитель «{sender}» не найден в {path}. Есть: {most_common}.")
 
-    return result
+    return Messages(result, times)
 
 
 def read_tg_export_by_sender(path: Path) -> dict[str, list[str]]:

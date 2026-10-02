@@ -307,6 +307,7 @@ function compareForm() {
     charlm: $("charlm").checked,
     wordgrams: $("wordgrams").checked,
     emoji: $("emoji").checked,
+    rhythm: $("rhythm").checked,
   };
 }
 
@@ -381,6 +382,9 @@ function renderResult(view, out) {
         ...(view.emoji
           ? [el("span", {}, [`${t("result.emoji")} `, el("b", { text: candidate.emoji })])]
           : []),
+        ...(view.rhythm
+          ? [el("span", {}, [`${t("result.rhythm")} `, el("b", { text: candidate.rhythm })])]
+          : []),
       ])
     );
     children.push(block);
@@ -435,6 +439,22 @@ function morphSection(shares) {
   ]);
 }
 
+function rhythmSection(items) {
+  return el("section", { class: "feature-section" }, [
+    el("h3", { text: t("section.rhythm") }),
+    el(
+      "div",
+      { class: "features" },
+      items.map((item) =>
+        el("div", { class: "feature" }, [
+          el("div", { class: "value", text: item.value }),
+          el("div", { class: "name", text: t(`rhythm.${item.key}`) }),
+        ])
+      )
+    ),
+  ]);
+}
+
 function renderProfile(view, out) {
   out.replaceChildren(
     el("h1", { class: "verdict compact", text: t("profile.header", view), dir: "auto" }),
@@ -454,6 +474,7 @@ function renderProfile(view, out) {
       ])
     ),
     ...(view.morph ? [morphSection(view.morph)] : []),
+    ...(view.rhythm ? [rhythmSection(view.rhythm)] : []),
     el(
       "div",
       { class: "words" },

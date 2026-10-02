@@ -115,6 +115,25 @@ def morph_summary(shares: dict[str, float]) -> str:
     return f"Части речи: {text or 'нет'}"
 
 
+# Подписи признаков ритма письма (ядро `rhythm_profile`, ключи как в `_core.rhythm_profile`)
+RHYTHM_LABELS: dict[str, str] = {
+    "burst_share": "паузы до минуты, доля",
+    "series_len": "длина серий сообщений (0-1)",
+    "gap_median": "типичная пауза в разговоре (0-1)",
+    "night": "ночью (0-6 ч)",
+    "morning": "утром (6-12 ч)",
+    "day": "днём (12-18 ч)",
+    "evening": "вечером (18-24 ч)",
+    "weekend": "в выходные",
+}
+
+
+def rhythm_summary(features: dict[str, float]) -> str:
+    """Строка «Ритм: паузы до минуты, доля 0.640, ночью (0-6 ч) 0.050, …» в порядке ядра."""
+    parts = [f"{RHYTHM_LABELS.get(key, key)} {value:.3f}" for key, value in features.items()]
+    return f"Ритм: {', '.join(parts) or 'нет'}"
+
+
 def feature_section(key: str) -> str:
     """Раздел профиля для ключа признака (`p:comma_per_word` -> `punctuation`)."""
     return _SECTION_BY_PREFIX[key.partition(":")[0]]
