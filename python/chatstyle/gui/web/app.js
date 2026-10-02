@@ -304,6 +304,7 @@ function compareForm() {
     limit: $("limit").value.trim(),
     refresh: $("refresh").checked,
     morph: state.morphAvailable && $("morph").checked,
+    charlm: $("charlm").checked,
   };
 }
 
@@ -368,6 +369,9 @@ function renderResult(view, out) {
         el("span", {}, [`${t("result.final")} `, el("b", { text: candidate.final })]),
         ...(view.morph
           ? [el("span", {}, [`${t("result.morph")} `, el("b", { text: candidate.morph })])]
+          : []),
+        ...(view.charlm
+          ? [el("span", {}, [`${t("result.charlm")} `, el("b", { text: candidate.charlm })])]
           : []),
       ])
     );

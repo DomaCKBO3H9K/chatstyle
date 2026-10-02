@@ -107,6 +107,7 @@ class CompareForm:
     limit: int | None = DEFAULT_LIMIT  # сообщений на источник tg:; None: введено не число
     refresh: bool = False  # для tg:: загрузить заново, не из кэша
     morph: bool = False  # добавить сходство по частям речи (нужно chatstyle[morph])
+    charlm: bool = False  # добавить языковую модель символов
 
 
 @dataclass(frozen=True)
@@ -181,6 +182,7 @@ def run_compare(form: CompareForm) -> CompareOutcome:
         list(form.candidates),
         CollectOptions(limit=form.limit or DEFAULT_LIMIT, refresh=form.refresh),
         morph=form.morph,
+        charlm=form.charlm,
         impostors=impostors,
         seed=form.seed if form.seed is not None else DEFAULT_SEED,
     )

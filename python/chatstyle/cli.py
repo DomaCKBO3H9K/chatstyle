@@ -27,6 +27,7 @@ from chatstyle.pipeline import (
     AuthorProfile,
     ComparisonResult,
     best_methods_text,
+    charlm_text,
     delta_text,
     final_score_text,
     low_volume_warning,
@@ -148,6 +149,13 @@ def compare(
             help="Добавить сходство по частям речи (нужно: pip install chatstyle[morph])",
         ),
     ] = False,
+    charlm: Annotated[
+        bool,
+        typer.Option(
+            "--charlm",
+            help="Добавить языковую модель символов (выигрыш кандидата, бит на символ)",
+        ),
+    ] = False,
 ) -> None:
     """Сравнить неизвестного автора с каждым кандидатом."""
     try:
@@ -173,6 +181,7 @@ def compare(
             seed=seed,
             style_groups=groups,
             morph=morph,
+            charlm=charlm,
         )
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
@@ -359,6 +368,8 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
     headers = ("Слов", "Сообщений", "Сходство", "Delta", "Impostors (итог)")
     if result.morph:
         headers += ("Части речи",)
+    if result.charlm:
+        headers += ("Яз. модель",)
     for header in headers:
         table.add_column(header, justify="right", no_wrap=True, min_width=len(header))
 
@@ -373,6 +384,8 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
         ]
         if result.morph:
             cells.append(morph_text(cand))
+        if result.charlm:
+            cells.append(charlm_text(cand))
         table.add_row(*cells)
 
     console.print(table)

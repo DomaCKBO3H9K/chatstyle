@@ -237,5 +237,7 @@ registerLanguage("es", {
   "pos.u": "categoría gramatical no determinada",
   "pos.x": "palabras fuera del diccionario",
   "pos.l": "palabras en alfabeto latino",
-  "error.morph_missing": "Las partes de la oración requieren el complemento: pip install chatstyle[morph]."
+  "error.morph_missing": "Las partes de la oración requieren el complemento: pip install chatstyle[morph].",
+  "charlm.label": "Añadir el modelo de lenguaje de caracteres",
+  "result.charlm": "Modelo de lenguaje"
 });

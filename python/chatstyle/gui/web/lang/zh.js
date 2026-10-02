@@ -237,5 +237,7 @@ registerLanguage("zh", {
   "pos.u": "词性未确定",
   "pos.x": "词典外的词",
   "pos.l": "拉丁字母词",
-  "error.morph_missing": "词性分析需要附加组件：pip install chatstyle[morph]。"
+  "error.morph_missing": "词性分析需要附加组件：pip install chatstyle[morph]。",
+  "charlm.label": "添加字符语言模型",
+  "result.charlm": "语言模型"
 });

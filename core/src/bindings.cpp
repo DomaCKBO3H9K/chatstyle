@@ -1,5 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <chatstyle/charlm.hpp>
 #include <chatstyle/compare.hpp>
 #include <chatstyle/delta.hpp>
 #include <chatstyle/impostors.hpp>
@@ -7,6 +8,7 @@
 #include <chatstyle/text.hpp>
 #include <chatstyle/version.hpp>
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -167,6 +169,52 @@ PYBIND11_MODULE(_core, m) {
         py::arg("groups") = chatstyle::kGroupAll,
         "Burrows Delta of an unknown author against each candidate; returns "
         "{name: {available, delta, features_used, differences: [...]}}"
+    );
+
+    m.def("charlm_compare",
+        [](const std::vector<std::string>& unknown,
+           const py::dict& candidates,
+           std::size_t order,
+           bool balance) {
+            const auto input = read_candidates(candidates);
+            std::vector<std::vector<std::u32string>> candidate_texts;
+            for (const auto& texts : input.texts) {
+                candidate_texts.push_back(to_u32(texts));
+            }
+            chatstyle::CharLmOptions options;
+            options.order = order;
+            options.balance = balance;
+            const auto unknown_text = to_u32(unknown);
+            std::vector<chatstyle::CharLmResult> results;
+            {
+                py::gil_scoped_release release;
+                try {
+                    results = chatstyle::charlm_compare(unknown_text, candidate_texts, options);
+                } catch (const std::invalid_argument&) {
+                    results.clear();
+                }
+            }
+            if (results.empty() && !input.names.empty()) {
+                throw py::value_error("order must be positive");
+            }
+
+            py::dict output;
+            for (std::size_t i = 0; i < input.names.size(); ++i) {
+                py::dict report;
+                report["available"] = results[i].available;
+                report["bits_candidate"] = results[i].bits_candidate;
+                report["bits_rest"] = results[i].bits_rest;
+                report["llr"] = results[i].llr;
+                report["chars_scored"] = results[i].chars_scored;
+                output[py::str(input.names[i])] = report;
+            }
+            return output;
+        },
+        py::arg("unknown"),
+        py::arg("candidates"),
+        py::arg("order") = 4,
+        py::arg("balance") = true,
+        "Character language model: {name: {available, bits_candidate, bits_rest, llr, chars_scored}}"
     );
 
     m.def("general_impostors",

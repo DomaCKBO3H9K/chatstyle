@@ -69,6 +69,7 @@ class CandidateResult:
     delta: DeltaScore | None = None  # None: метод не запускался
     impostors_score: ImpostorsScore | None = None  # None: метод не запускался
     morph_similarity: float | None = None  # косинус по n-граммам частей речи; None: не считался
+    charlm_llr: float | None = None  # языковая модель символов, бит/символ; None: нет оценки
 
     @property
     def final_score(self) -> float | None:
@@ -98,6 +99,7 @@ class ComparisonResult:
     impostor_count: int = 0  # сколько посторонних авторов дала папка --impostors
     ranked_by: str = METHOD_COSINE  # по какому методу отсортированы кандидаты
     morph: bool = False  # считалось ли сходство по частям речи
+    charlm: bool = False  # считалась ли языковая модель символов
 
     def best_by_method(self) -> dict[str, tuple[str, ...]]:
         """Лучшие кандидаты по каждому методу, доступному ВСЕМ кандидатам.
@@ -185,6 +187,12 @@ def morph_text(candidate: CandidateResult) -> str:
     """Сходство по частям речи для таблицы или прочерк."""
     value = candidate.morph_similarity
     return f"{value:.3f}" if value is not None else NOT_AVAILABLE
+
+
+def charlm_text(candidate: CandidateResult) -> str:
+    """Выигрыш языковой модели кандидата над остальными (бит на символ, со знаком) или прочерк."""
+    value = candidate.charlm_llr
+    return f"{value:+.3f}" if value is not None else NOT_AVAILABLE
 
 
 def final_score_text(candidate: CandidateResult) -> str:
@@ -313,6 +321,18 @@ def _morph_similarities(
     return {label: report["similarity"] for label, report in reports.items()}
 
 
+def _charlm_scores(
+    unknown_messages: Sequence[str], candidate_messages: Mapping[str, Sequence[str]]
+) -> dict[str, float]:
+    """Выигрыш модели символов кандидата над моделью остальных, бит на символ (ядро).
+
+    Больше нуля: текст неизвестного автора предсказывается моделью кандидата лучше, чем моделью
+    остальных. Нужны минимум два непустых кандидата; у остальных оценки нет.
+    """
+    reports = _core.charlm_compare(list(unknown_messages), dict(candidate_messages))
+    return {label: report["llr"] for label, report in reports.items() if report["available"]}
+
+
 def compare_messages(
     unknown_messages: Sequence[str],
     candidate_messages: Mapping[str, Sequence[str]],
@@ -323,6 +343,7 @@ def compare_messages(
     top_differences: int = DEFAULT_TOP_DIFFERENCES,
     style_groups: Sequence[str] = ALL_STYLE_GROUPS,
     morph: bool = False,
+    charlm: bool = False,
 ) -> tuple[tuple[CandidateResult, ...], str]:
     """Три метода по готовым предобработанным сообщениям: косинус, Burrows Delta, Impostors.
 
@@ -339,6 +360,7 @@ def compare_messages(
     )
     impostor_scores = general_impostors(unknown_messages, candidate_messages, impostors, seed=seed)
     morph_scores = _morph_similarities(unknown_messages, candidate_messages) if morph else {}
+    charlm_scores = _charlm_scores(unknown_messages, candidate_messages) if charlm else {}
 
     results: list[CandidateResult] = []
     for label, messages in candidate_messages.items():
@@ -353,6 +375,7 @@ def compare_messages(
                 delta=deltas[label],
                 impostors_score=impostor_scores[label],
                 morph_similarity=morph_scores.get(label),
+                charlm_llr=charlm_scores.get(label),
             )
         )
 
@@ -375,6 +398,7 @@ def run_comparison(
     seed: int = DEFAULT_SEED,
     style_groups: Sequence[str] = ALL_STYLE_GROUPS,
     morph: bool = False,
+    charlm: bool = False,
 ) -> ComparisonResult:
     """Запустить полный цикл сравнения.
 
@@ -424,6 +448,7 @@ def run_comparison(
         top_features=top_features,
         style_groups=style_groups,
         morph=morph,
+        charlm=charlm,
     )
 
     unknown_words = count_words(unknown_messages)
@@ -440,6 +465,7 @@ def run_comparison(
         impostor_count=len(impostors or {}),
         ranked_by=ranked_by,
         morph=morph,
+        charlm=charlm,
     )
 
 

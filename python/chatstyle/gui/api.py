@@ -52,6 +52,7 @@ from chatstyle.pipeline import (
     MIN_WORDS,
     AuthorProfile,
     best_methods_text,
+    charlm_text,
     delta_text,
     final_score_text,
     low_volume_sides,
@@ -114,6 +115,7 @@ def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
                 "delta": delta_text(candidate),
                 "final": final_score_text(candidate),
                 "morph": morph_text(candidate),
+                "charlm": charlm_text(candidate),
                 "why": why,
             }
         )
@@ -148,6 +150,7 @@ def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
     return {
         "metric": metric,
         "morph": bool(result.morph),
+        "charlm": bool(result.charlm),
         "unknown": {
             "label": names[result.unknown_label],
             "words": result.unknown.words,
@@ -398,6 +401,7 @@ class Api:
             limit=limit,
             refresh=bool(form.get("refresh", False)),
             morph=bool(form.get("morph", False)),
+            charlm=bool(form.get("charlm", False)),
         )
         problems = check_compare_form(compare_form)
         if problems:
@@ -543,6 +547,7 @@ class Api:
             and is_text(form.get("limit", ""), 32)
             and isinstance(form.get("refresh", False), bool)
             and isinstance(form.get("morph", False), bool)
+            and isinstance(form.get("charlm", False), bool)
         )
         if not well_formed:
             return [error("bad_input")]
