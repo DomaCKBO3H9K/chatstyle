@@ -202,3 +202,21 @@ def test_cryptography_is_a_declared_dependency_and_a_hidden_import() -> None:
     assert any(item.startswith("cryptography") for item in project["dependencies"])
     spec = (PACKAGING / "chatstyle_gui.spec").read_text(encoding="utf-8")
     assert "chatstyle.securestore" in spec and "cryptography.hazmat.primitives.ciphers.aead" in spec
+
+
+def test_parts_of_speech_are_an_optional_add_on_in_the_build() -> None:
+    import re
+
+    for name in ("chatstyle.spec", "chatstyle_gui.spec"):
+        spec = (PACKAGING / name).read_text(encoding="utf-8")
+        assert "CHATSTYLE_WITH_MORPH" in spec and "EXCLUDES += MORPH_MODULES" in spec, name
+        assert '"pymorphy3"' in spec and "collect_data_files" in spec, name
+    script = (PACKAGING / "build_exe.ps1").read_text(encoding="ascii")
+    assert "[switch]$WithMorph" in script and "requirements-morph.lock" in script
+    lock = (PACKAGING / "requirements-morph.lock").read_text(encoding="utf-8")
+    for name in ("pymorphy3", "pymorphy3-dicts-ru", "dawg2-python"):
+        assert re.search(rf"^{name}==", lock, re.M), name
+    assert "pymorphy3" not in (PACKAGING / "requirements.lock").read_text(encoding="utf-8")
+    project = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert any(item.startswith("pymorphy3") for item in project["optional-dependencies"]["morph"])
+    assert not any(item.startswith("pymorphy3") for item in project["dependencies"])

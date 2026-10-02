@@ -21,6 +21,7 @@ from chatstyle.pipeline import (
     delta_text,
     final_score_text,
     low_volume_sides,
+    morph_text,
     ranking_text,
     unavailable_notes,
 )
@@ -85,6 +86,12 @@ LOW_VOLUME_HEADING = (
 )
 UNKNOWN_AUTHOR = "неизвестный автор"
 COLUMN_HEADERS = ("Кандидат", "Слов", "Сообщений", "Сходство (косинус)", "Delta", "Итоговая оценка")
+MORPH_HEADER = "Части речи (косинус)"
+
+
+def _headers(result: ComparisonResult) -> tuple[str, ...]:
+    return (*COLUMN_HEADERS, MORPH_HEADER) if result.morph else COLUMN_HEADERS
+
 
 _CSS = """\
 body { font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif; color: #111;
@@ -199,14 +206,15 @@ def render_markdown(result: ComparisonResult, generated: datetime) -> str:
         f"Неизвестный автор: {_md_code(result.unknown_label)} — "
         f"{unknown.words} слов, {unknown.messages} сообщений",
         "",
-        "| " + " | ".join(COLUMN_HEADERS) + " |",
-        "|---|---:|---:|---:|---:|---:|",
+        "| " + " | ".join(_headers(result)) + " |",
+        "|---|" + "---:|" * (len(_headers(result)) - 1),
     ]
     for candidate in result.candidates:
         lines.append(
             f"| {_md_code(candidate.label)} | {candidate.words} | {candidate.messages} "
             f"| {candidate.similarity:.3f} | {delta_text(candidate)} "
             f"| {final_score_text(candidate)} |"
+            + (f" {morph_text(candidate)} |" if result.morph else "")
         )
     lines += ["", ranking_text(result)]
     best_line = best_methods_text(result)
@@ -287,7 +295,7 @@ def render_html(result: ComparisonResult, generated: datetime) -> str:
     unknown = result.unknown
     header_cells = "".join(
         f"<th>{_e(name)}</th>" if index == 0 else f'<th class="num">{_e(name)}</th>'
-        for index, name in enumerate(COLUMN_HEADERS)
+        for index, name in enumerate(_headers(result))
     )
     out = [
         "<!DOCTYPE html>",
@@ -317,7 +325,9 @@ def render_html(result: ComparisonResult, generated: datetime) -> str:
             f'<td class="num">{candidate.messages}</td>'
             f'<td class="num">{candidate.similarity:.3f}</td>'
             f'<td class="num">{_e(delta_text(candidate))}</td>'
-            f'<td class="num">{_e(final_score_text(candidate))}</td></tr>'
+            f'<td class="num">{_e(final_score_text(candidate))}</td>'
+            + (f'<td class="num">{_e(morph_text(candidate))}</td>' if result.morph else "")
+            + "</tr>"
         )
     out.append("</table>")
     out.append(f"<p>{_e(ranking_text(result))}</p>")

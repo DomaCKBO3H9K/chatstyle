@@ -80,6 +80,41 @@ _SECTION_BY_PREFIX = {
 }
 
 
+# Названия частей речи по кодам модуля morph (необязательное дополнение chatstyle[morph])
+POS_LABELS: dict[str, str] = {
+    "n": "существительные",
+    "v": "глаголы",
+    "i": "инфинитивы",
+    "a": "прилагательные",
+    "j": "краткие прилагательные",
+    "c": "сравнительные формы",
+    "t": "причастия",
+    "s": "краткие причастия",
+    "g": "деепричастия",
+    "m": "числительные",
+    "d": "наречия",
+    "p": "местоимения",
+    "e": "предикативы",
+    "r": "предлоги",
+    "k": "союзы",
+    "q": "частицы",
+    "h": "междометия",
+    "u": "часть речи не определена",
+    "x": "слова вне словаря",
+    "l": "латиница",
+}
+
+
+def morph_summary(shares: dict[str, float]) -> str:
+    """Строка «Части речи: существительные 0.310, глаголы 0.170, …» по долям `m:<код>`."""
+    ranked = sorted(
+        ((key[2:], value) for key, value in shares.items() if value > 0),
+        key=lambda item: (-item[1], item[0]),
+    )
+    text = ", ".join(f"{POS_LABELS.get(code, code)} {value:.3f}" for code, value in ranked)
+    return f"Части речи: {text or 'нет'}"
+
+
 def feature_section(key: str) -> str:
     """Раздел профиля для ключа признака (`p:comma_per_word` -> `punctuation`)."""
     return _SECTION_BY_PREFIX[key.partition(":")[0]]

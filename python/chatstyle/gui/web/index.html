@@ -64,6 +64,8 @@
             <span class="label" data-i18n="adv.limit"></span>
             <input type="text" inputmode="numeric" id="limit" value="3000">
           </label>
+          <label class="check"><input type="checkbox" id="morph"><span data-i18n="morph.label"></span></label>
+          <p class="hint" id="morph-hint" hidden data-i18n="morph.hint"></p>
           <label class="check"><input type="checkbox" id="refresh"><span data-i18n="adv.refresh"></span></label>
           <div class="field">
             <label class="check"><input type="checkbox" id="save-report"><span data-i18n="adv.save_report"></span></label>
@@ -103,6 +105,8 @@
           </div>
         </div>
       </div>
+      <label class="check profile-check"><input type="checkbox" id="profile-morph"><span data-i18n="morph.label"></span></label>
+      <p class="hint" id="profile-morph-hint" hidden data-i18n="morph.hint"></p>
       <button class="go" id="go-profile" disabled><span class="dot" aria-hidden="true"></span><span id="go-profile-text"></span></button>
       <p class="hint" data-i18n="hint.profile"></p>
     </section>

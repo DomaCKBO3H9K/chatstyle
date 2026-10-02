@@ -106,6 +106,7 @@ class CompareForm:
     report_path: str = ""  # пусто: отчёт не сохранять
     limit: int | None = DEFAULT_LIMIT  # сообщений на источник tg:; None: введено не число
     refresh: bool = False  # для tg:: загрузить заново, не из кэша
+    morph: bool = False  # добавить сходство по частям речи (нужно chatstyle[morph])
 
 
 @dataclass(frozen=True)
@@ -179,6 +180,7 @@ def run_compare(form: CompareForm) -> CompareOutcome:
         form.unknown,
         list(form.candidates),
         CollectOptions(limit=form.limit or DEFAULT_LIMIT, refresh=form.refresh),
+        morph=form.morph,
         impostors=impostors,
         seed=form.seed if form.seed is not None else DEFAULT_SEED,
     )
@@ -188,12 +190,12 @@ def run_compare(form: CompareForm) -> CompareOutcome:
     return CompareOutcome(result=result, report_path=report_path)
 
 
-def run_profile(source: str) -> AuthorProfile:
-    """Профиль стиля автора по источнику из поля ввода."""
+def run_profile(source: str, morph: bool = False) -> AuthorProfile:
+    """Профиль стиля автора по источнику из поля ввода (с частями речи, если morph)."""
     spec = normalize_source(source)
     if not spec:
         raise ChatstyleError("Укажите источник автора.")
-    return profile_author(spec, CollectOptions())
+    return profile_author(spec, CollectOptions(), morph=morph)
 
 
 # --- представления для показа ---

@@ -15,6 +15,7 @@ const state = {
   profileView: null,
   animate: false,
   tg: { step: "logged_out", name: null, has_keys: true },
+  morphAvailable: false,
 };
 
 function el(tag, props = {}, children = []) {
@@ -211,6 +212,11 @@ function refreshCompare() {
   $("go-profile").classList.toggle("busy", state.busy === "profile");
   $("go-profile-text").textContent = t(state.busy === "profile" ? "go.busy" : "go.profile");
   for (const control of document.querySelectorAll("main .btn, main input")) control.disabled = busy;
+  // части речи доступны, только если установлено дополнение chatstyle[morph]
+  for (const id of ["morph", "profile-morph"]) {
+    $(id).disabled = busy || !state.morphAvailable;
+    $(`${id}-hint`).hidden = state.morphAvailable;
+  }
   $("theme").textContent = t(currentTheme() === "dark" ? "theme.to_light" : "theme.to_dark");
   refreshTelegramChip();
 }
@@ -256,7 +262,10 @@ function renderPanels() {
 
 async function launch(kind, payload) {
   clearErrors();
-  const answer = await call(kind === "profile" ? "start_profile" : "start_compare", payload);
+  const answer =
+    kind === "profile"
+      ? await call("start_profile", payload, state.morphAvailable && $("profile-morph").checked)
+      : await call("start_compare", payload);
   if (!answer) return;
   if (!answer.ok) {
     showErrors(answer.errors);
@@ -294,6 +303,7 @@ function compareForm() {
     report_path: $("save-report").checked ? $("report").value.trim() : "",
     limit: $("limit").value.trim(),
     refresh: $("refresh").checked,
+    morph: state.morphAvailable && $("morph").checked,
   };
 }
 
@@ -356,6 +366,9 @@ function renderResult(view, out) {
         el("span", {}, [`${t("result.cosine")} `, el("b", { text: candidate.cosine })]),
         el("span", {}, [`${t("result.delta")} `, el("b", { text: candidate.delta })]),
         el("span", {}, [`${t("result.final")} `, el("b", { text: candidate.final })]),
+        ...(view.morph
+          ? [el("span", {}, [`${t("result.morph")} `, el("b", { text: candidate.morph })])]
+          : []),
       ])
     );
     children.push(block);
@@ -394,6 +407,22 @@ function profileSections(features) {
   return sections;
 }
 
+function morphSection(shares) {
+  return el("section", { class: "feature-section" }, [
+    el("h3", { text: t("section.morph") }),
+    el(
+      "div",
+      { class: "features" },
+      shares.map((item) =>
+        el("div", { class: "feature" }, [
+          el("div", { class: "value", text: item.value }),
+          el("div", { class: "name", text: t(`pos.${item.code}`) }),
+        ])
+      )
+    ),
+  ]);
+}
+
 function renderProfile(view, out) {
   out.replaceChildren(
     el("h1", { class: "verdict compact", text: t("profile.header", view), dir: "auto" }),
@@ -412,6 +441,7 @@ function renderProfile(view, out) {
         ),
       ])
     ),
+    ...(view.morph ? [morphSection(view.morph)] : []),
     el(
       "div",
       { class: "words" },
@@ -764,6 +794,8 @@ bind();
 refreshAll();
 // Методы Python доступны после события pywebviewready; в простом браузере (макет) их может не быть.
 async function onReady() {
+  state.morphAvailable = Boolean(await call("morph_available"));
+  refreshCompare();
   await loadSettings();
   await loadTelegramStatus();
 }

@@ -19,7 +19,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
-from chatstyle import __version__
+from chatstyle import __version__, morph
 from chatstyle.collectors.telegram import DEFAULT_LIMIT
 from chatstyle.collectors.telegram_login import LoginState, TelegramLogin
 from chatstyle.collectors.tg_export import list_tg_senders
@@ -55,6 +55,7 @@ from chatstyle.pipeline import (
     delta_text,
     final_score_text,
     low_volume_sides,
+    morph_text,
     unavailable_facts,
 )
 
@@ -112,6 +113,7 @@ def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
                 "cosine": f"{candidate.similarity:.2f}",
                 "delta": delta_text(candidate),
                 "final": final_score_text(candidate),
+                "morph": morph_text(candidate),
                 "why": why,
             }
         )
@@ -145,6 +147,7 @@ def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
     )
     return {
         "metric": metric,
+        "morph": bool(result.morph),
         "unknown": {
             "label": names[result.unknown_label],
             "words": result.unknown.words,
@@ -167,6 +170,17 @@ def profile_view_dict(profile: AuthorProfile) -> dict[str, Any]:
             {"key": key, "value": f"{profile.features[key]:.3f}", "section": feature_section(key)}
             for key in FEATURE_LABELS
         ],
+        "morph": (
+            None
+            if profile.morph_features is None
+            else [
+                {"code": key[2:], "value": f"{value:.3f}"}
+                for key, value in sorted(
+                    profile.morph_features.items(), key=lambda item: (-item[1], item[0])
+                )
+                if value > 0
+            ]
+        ),
         "word_lists": [
             {
                 "kind": kind,
@@ -259,6 +273,10 @@ class Api:
             path = value.rpartition("#")[0]
             return bool(path) and norm_path(path) in self._allowed_paths
         return scheme == "tg" and bool(value.strip())
+
+    def morph_available(self) -> bool:
+        """Установлено ли необязательное дополнение chatstyle[morph] (части речи)."""
+        return morph.available()
 
     def init(self) -> dict[str, str]:
         return {"disclaimer": DISCLAIMER, "version": __version__}
@@ -379,6 +397,7 @@ class Api:
             report_path=form.get("report_path", ""),
             limit=limit,
             refresh=bool(form.get("refresh", False)),
+            morph=bool(form.get("morph", False)),
         )
         problems = check_compare_form(compare_form)
         if problems:
@@ -389,16 +408,16 @@ class Api:
         self._job.start()
         return {"ok": True}
 
-    def start_profile(self, source: str) -> dict[str, Any]:
+    def start_profile(self, source: str, morph: bool = False) -> dict[str, Any]:
         if self._job is not None:
             return {"ok": False, "errors": [error("busy")]}
-        if not is_text(source):
+        if not is_text(source) or not isinstance(morph, bool):
             return {"ok": False, "errors": [error("bad_input")]}
         if not source.strip():
             return {"ok": False, "errors": [error("source_missing")]}
         if not self._spec_allowed(normalize_source(source)):
             return {"ok": False, "errors": [error("path_not_allowed")]}
-        self._job = BackgroundJob(lambda: run_profile(source))
+        self._job = BackgroundJob(lambda: run_profile(source, morph))
         self._job.start()
         return {"ok": True}
 
@@ -523,6 +542,7 @@ class Api:
             and all(is_text(value) for value in texts)
             and is_text(form.get("limit", ""), 32)
             and isinstance(form.get("refresh", False), bool)
+            and isinstance(form.get("morph", False), bool)
         )
         if not well_formed:
             return [error("bad_input")]

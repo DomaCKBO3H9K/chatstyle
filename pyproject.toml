@@ -20,6 +20,7 @@ chatstyle-gui = "chatstyle.gui:main"
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
 experiments = ["matplotlib"]
+morph = ["pymorphy3>=2", "pymorphy3-dicts-ru"]  # части речи: необязательное дополнение
 
 [tool.scikit-build]
 wheel.packages = ["python/chatstyle"]

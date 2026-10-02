@@ -114,6 +114,16 @@ def _check_vault(folder: Path) -> None:
             raise AssertionError(f"хранилище {mode}: секрет лежит на диске открытым текстом")
 
 
+def _check_morph() -> None:
+    """Части речи (если дополнение в сборке есть): разметка и профиль работают."""
+    from chatstyle import morph
+
+    if not morph.available():
+        return
+    if morph.word_codes("мама иду ваще hello") != ["n", "v", "x", "l"]:
+        raise AssertionError("разметка частей речи вернула неожиданные коды")
+
+
 def _wait(window, expression: str, timeout: float, what: str) -> None:  # noqa: ANN001
     """Ждать, пока выражение JavaScript в странице станет истинным."""
     deadline = time.time() + timeout
@@ -130,6 +140,7 @@ def _wait(window, expression: str, timeout: float, what: str) -> None:  # noqa: 
 def _scenario(window, folder: Path) -> str:  # noqa: ANN001
     """Прогнать сравнение и профиль через страницу; вернуть строку-результат."""
     _check_vault(folder)
+    _check_morph()
     unknown = _write(folder / "unknown.txt", _lines(_CASUAL, 1, False))
     same = _write(folder / "same.txt", _lines(_CASUAL, 2, False))
     other = _write(folder / "other.txt", _lines(_FORMAL, 3, True))

@@ -38,6 +38,18 @@ EXCLUDES = [
     "experiments",
 ]
 
+# Части речи (pymorphy3) — необязательное дополнение: по умолчанию в exe не входит, сборка
+# с ним: build_exe.ps1 -WithMorph (переменная CHATSTYLE_WITH_MORPH=1).
+MORPH_MODULES = ["pymorphy3", "pymorphy3_dicts_ru", "dawg2_python"]
+WITH_MORPH = os.environ.get("CHATSTYLE_WITH_MORPH") == "1"
+if WITH_MORPH:
+    from PyInstaller.utils.hooks import collect_data_files
+
+    MORPH_DATAS = collect_data_files("pymorphy3_dicts_ru") + collect_data_files("pymorphy3")
+else:
+    EXCLUDES += MORPH_MODULES
+    MORPH_DATAS = []
+
 a = Analysis(
     scripts=[os.path.join(root, "python", "chatstyle", "gui", "__main__.py")],
     pathex=[os.path.join(root, "python")],
@@ -55,11 +67,13 @@ a = Analysis(
         "chatstyle.securestore",
         "chatstyle.collectors.telegram_login",
         "cryptography.hazmat.primitives.ciphers.aead",
-    ],
+    ]
+    + (MORPH_MODULES if WITH_MORPH else []),
     datas=[
         (os.path.join(root, "python", "chatstyle", "resources"), "chatstyle/resources"),
         (os.path.join(root, "python", "chatstyle", "gui", "web"), "chatstyle/gui/web"),
-    ],
+    ]
+    + MORPH_DATAS,
     binaries=[(core_spec.origin, "chatstyle")],
     excludes=EXCLUDES,
 )

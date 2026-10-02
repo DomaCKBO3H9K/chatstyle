@@ -18,7 +18,7 @@ from chatstyle.delta import (
     burrows_delta,
 )
 from chatstyle.errors import ChatstyleError
-from chatstyle.features import ALL_STYLE_GROUPS, style_features
+from chatstyle.features import ALL_STYLE_GROUPS, FUNCTION_WORD_PREFIX, style_features
 from chatstyle.impostors import (
     DEFAULT_CHUNK_WORDS as IMPOSTORS_CHUNK_WORDS,
 )
@@ -68,6 +68,7 @@ class CandidateResult:
     top_features: tuple[SharedFeature, ...] = ()
     delta: DeltaScore | None = None  # None: метод не запускался
     impostors_score: ImpostorsScore | None = None  # None: метод не запускался
+    morph_similarity: float | None = None  # косинус по n-граммам частей речи; None: не считался
 
     @property
     def final_score(self) -> float | None:
@@ -96,6 +97,7 @@ class ComparisonResult:
     seed: int = DEFAULT_SEED
     impostor_count: int = 0  # сколько посторонних авторов дала папка --impostors
     ranked_by: str = METHOD_COSINE  # по какому методу отсортированы кандидаты
+    morph: bool = False  # считалось ли сходство по частям речи
 
     def best_by_method(self) -> dict[str, tuple[str, ...]]:
         """Лучшие кандидаты по каждому методу, доступному ВСЕМ кандидатам.
@@ -177,6 +179,12 @@ def delta_text(candidate: CandidateResult) -> str:
     """Delta кандидата для таблицы или прочерк."""
     delta = candidate.delta
     return f"{delta.delta:.2f}" if delta is not None and delta.available else NOT_AVAILABLE
+
+
+def morph_text(candidate: CandidateResult) -> str:
+    """Сходство по частям речи для таблицы или прочерк."""
+    value = candidate.morph_similarity
+    return f"{value:.3f}" if value is not None else NOT_AVAILABLE
 
 
 def final_score_text(candidate: CandidateResult) -> str:
@@ -286,6 +294,25 @@ def _load_messages(spec: str, options: CollectOptions | None) -> list[str]:
     return messages
 
 
+def _morph_similarities(
+    unknown_messages: Sequence[str], candidate_messages: Mapping[str, Sequence[str]]
+) -> dict[str, float]:
+    """Косинус по n-граммам частей речи (1-4): слова заменяются кодами, дальше считает ядро.
+
+    У кого нет ни одного слова (нечего размечать), оценки нет: такого кандидата в словаре нет.
+    """
+    from chatstyle import morph
+
+    morph.require()
+    unknown_view = morph.compact_view(unknown_messages)
+    views = {label: morph.compact_view(messages) for label, messages in candidate_messages.items()}
+    views = {label: view for label, view in views.items() if view}
+    if not unknown_view or not views:
+        return {}
+    reports = _core.compare_detailed(unknown_view, views, 0)
+    return {label: report["similarity"] for label, report in reports.items()}
+
+
 def compare_messages(
     unknown_messages: Sequence[str],
     candidate_messages: Mapping[str, Sequence[str]],
@@ -295,6 +322,7 @@ def compare_messages(
     top_features: int = DEFAULT_TOP_FEATURES,
     top_differences: int = DEFAULT_TOP_DIFFERENCES,
     style_groups: Sequence[str] = ALL_STYLE_GROUPS,
+    morph: bool = False,
 ) -> tuple[tuple[CandidateResult, ...], str]:
     """Три метода по готовым предобработанным сообщениям: косинус, Burrows Delta, Impostors.
 
@@ -310,6 +338,7 @@ def compare_messages(
         groups=style_groups,
     )
     impostor_scores = general_impostors(unknown_messages, candidate_messages, impostors, seed=seed)
+    morph_scores = _morph_similarities(unknown_messages, candidate_messages) if morph else {}
 
     results: list[CandidateResult] = []
     for label, messages in candidate_messages.items():
@@ -323,6 +352,7 @@ def compare_messages(
                 top_features=tuple(SharedFeature(**item) for item in report["features"]),
                 delta=deltas[label],
                 impostors_score=impostor_scores[label],
+                morph_similarity=morph_scores.get(label),
             )
         )
 
@@ -344,6 +374,7 @@ def run_comparison(
     impostors: Mapping[str, Sequence[str]] | None = None,
     seed: int = DEFAULT_SEED,
     style_groups: Sequence[str] = ALL_STYLE_GROUPS,
+    morph: bool = False,
 ) -> ComparisonResult:
     """Запустить полный цикл сравнения.
 
@@ -391,6 +422,8 @@ def run_comparison(
         impostors=impostors,
         seed=seed,
         top_features=top_features,
+        style_groups=style_groups,
+        morph=morph,
     )
 
     unknown_words = count_words(unknown_messages)
@@ -406,6 +439,7 @@ def run_comparison(
         seed=seed,
         impostor_count=len(impostors or {}),
         ranked_by=ranked_by,
+        morph=morph,
     )
 
 
@@ -416,13 +450,35 @@ class AuthorProfile:
     label: str
     stats: AuthorStats
     features: dict[str, float]
+    morph_features: dict[str, float] | None = None  # m:<код части речи>; None: не считались
 
 
-def profile_author(spec: str, options: CollectOptions | None = None) -> AuthorProfile:
-    """Собрать сообщения автора и посчитать его стилевые признаки."""
+def morph_profile(messages: Sequence[str]) -> dict[str, float]:
+    """Доли частей речи среди слов автора (`m:n` — существительные, `m:x` — слов нет в словаре).
+
+    Слова заменяются кодами, частоты кодов считает то же ядро, что и частоты служебных слов.
+    """
+    from chatstyle import morph
+
+    morph.require()
+    shares = _core.style_features(
+        morph.pos_view(messages), list(morph.ALL_CODES), [], [], [], [], 0
+    )
+    return {
+        f"m:{key[len(FUNCTION_WORD_PREFIX) :]}": value
+        for key, value in shares.items()
+        if key.startswith(FUNCTION_WORD_PREFIX)
+    }
+
+
+def profile_author(
+    spec: str, options: CollectOptions | None = None, morph: bool = False
+) -> AuthorProfile:
+    """Собрать сообщения автора и посчитать его стилевые признаки (и части речи, если morph)."""
     messages = _load_messages(spec, options)
     return AuthorProfile(
         label=spec,
         stats=AuthorStats(words=count_words(messages), messages=len(messages)),
         features=style_features(messages),
+        morph_features=morph_profile(messages) if morph else None,
     )

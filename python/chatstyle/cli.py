@@ -17,6 +17,7 @@ from chatstyle.features import (
     FEATURE_LABELS,
     FEATURE_SECTIONS,
     feature_section,
+    morph_summary,
     parse_style_groups,
     word_list_lines,
 )
@@ -29,6 +30,7 @@ from chatstyle.pipeline import (
     delta_text,
     final_score_text,
     low_volume_warning,
+    morph_text,
     profile_author,
     ranking_text,
     run_comparison,
@@ -139,6 +141,13 @@ def compare(
             ),
         ),
     ] = "all",
+    morph: Annotated[
+        bool,
+        typer.Option(
+            "--morph",
+            help="Добавить сходство по частям речи (нужно: pip install chatstyle[morph])",
+        ),
+    ] = False,
 ) -> None:
     """Сравнить неизвестного автора с каждым кандидатом."""
     try:
@@ -163,6 +172,7 @@ def compare(
             impostors=impostor_authors,
             seed=seed,
             style_groups=groups,
+            morph=morph,
         )
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
@@ -194,6 +204,13 @@ def features(
         bool,
         typer.Option("--refresh", help="Игнорировать кэш и заново загрузить сообщения"),
     ] = False,
+    morph: Annotated[
+        bool,
+        typer.Option(
+            "--morph",
+            help="Показать доли частей речи (нужно дополнение: pip install chatstyle[morph])",
+        ),
+    ] = False,
 ) -> None:
     """Показать стилевой профиль одного автора (пунктуация, оформление, частые слова)."""
     options = CollectOptions(
@@ -202,7 +219,7 @@ def features(
         notify=lambda message: typer.echo(message, err=True),
     )
     try:
-        profile = profile_author(source, options)
+        profile = profile_author(source, options, morph=morph)
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
         raise typer.Exit(code=2) from exc
@@ -231,6 +248,8 @@ def _print_profile(profile: AuthorProfile, top: int) -> None:
 
     for line in word_list_lines(profile.features, top):
         console.print(line, soft_wrap=True)
+    if profile.morph_features is not None:
+        console.print(morph_summary(profile.morph_features), soft_wrap=True)
 
 
 @app.command()
@@ -337,18 +356,24 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
     table = Table(title=None)
     # длинная подпись источника переносится, а заголовки чисел не сокращаются
     table.add_column("Кандидат", overflow="fold")
-    for header in ("Слов", "Сообщений", "Сходство", "Delta", "Impostors (итог)"):
+    headers = ("Слов", "Сообщений", "Сходство", "Delta", "Impostors (итог)")
+    if result.morph:
+        headers += ("Части речи",)
+    for header in headers:
         table.add_column(header, justify="right", no_wrap=True, min_width=len(header))
 
     for cand in result.candidates:
-        table.add_row(
+        cells = [
             cand.label,
             str(cand.words),
             str(cand.messages),
             f"{cand.similarity:.3f}",
             delta_text(cand),
             final_score_text(cand),
-        )
+        ]
+        if result.morph:
+            cells.append(morph_text(cand))
+        table.add_row(*cells)
 
     console.print(table)
     console.print(ranking_text(result), soft_wrap=True)

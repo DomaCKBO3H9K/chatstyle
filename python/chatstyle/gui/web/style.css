@@ -231,3 +231,7 @@ dialog { max-height: 90vh; overflow: auto; }
 .feature-section { margin-top: 20px; }
 .feature-section h3 { margin: 0 0 8px; font: 700 15px var(--display); color: var(--muted); }
 .feature-section .features { margin: 0; }
+
+.profile-check { margin-top: 20px; }
+
+.words { margin-top: 18px; }
