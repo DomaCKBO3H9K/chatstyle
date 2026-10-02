@@ -270,5 +270,8 @@ registerLanguage("fr", {
   "chatpick.senders": "Participants",
   "chatpick.add": "Choisir",
   "chatpick.empty": "Importez d'abord une conversation dans l'onglet « Conversations ».",
-  "error.chat_missing": "La conversation importée est introuvable. Importez-la de nouveau dans l'onglet « Conversations »."
+  "error.chat_missing": "La conversation importée est introuvable. Importez-la de nouveau dans l'onglet « Conversations ».",
+  "result.summary.delta": "Proximité relative des candidats selon Delta (cosinus des profils de style) : les parts totalisent 1. Ce n'est pas la probabilité d'être l'auteur.",
+  "metric.delta": "Proximité selon Delta (cosinus des profils de style)",
+  "note.ranking.delta": "Ordre : selon Delta (cosinus des profils de style) ; General Impostors est affiché à part."
 });

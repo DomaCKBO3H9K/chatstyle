@@ -197,7 +197,10 @@ def test_result_view_with_all_methods(tmp_path: Path) -> None:
         )
     )
     view = build_result_view(outcome.result)
-    assert view.notes[0] == "Порядок: по итоговой оценке (General Impostors)."
+    assert (
+        view.notes[0]
+        == "Порядок: по Delta (косинус профилей стиля); General Impostors показан отдельно."
+    )
     assert "(методы согласны)" in view.notes[1]
     assert all("недоступ" not in note for note in view.notes)
     assert float(view.rows[0][5]) > float(view.rows[1][5])

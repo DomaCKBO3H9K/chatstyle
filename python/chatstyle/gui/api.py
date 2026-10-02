@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import subprocess
 import sys
@@ -47,10 +48,13 @@ from chatstyle.gui.model import (
 from chatstyle.gui.settings import load_settings, save_setting
 from chatstyle.impostors import DEFAULT_SEED
 from chatstyle.pipeline import (
+    DELTA_TEMPERATURE,
     DISCLAIMER,
+    METHOD_DELTA,
     METHOD_IMPOSTORS,
     MIN_WORDS,
     AuthorProfile,
+    ComparisonResult,
     best_methods_text,
     charlm_text,
     delta_text,
@@ -91,16 +95,40 @@ def _shorten_all(labels: list[str], names: dict[str, str]) -> list[str]:
     return [names.get(label, label) for label in labels]
 
 
+def _delta_shares(result: ComparisonResult) -> dict[str, float]:
+    """Относительная близость кандидатов: softmax по косинусному расстоянию Delta."""
+    distances = {
+        row.label: 1.0 - row.delta.cosine
+        for row in result.candidates
+        if row.delta is not None and row.delta.cosine is not None
+    }
+    if not distances:
+        return {}
+    nearest = min(distances.values())
+    weights = {
+        label: math.exp(-(distance - nearest) / DELTA_TEMPERATURE)
+        for label, distance in distances.items()
+    }
+    total = sum(weights.values())
+    return {label: weight / total for label, weight in weights.items()}
+
+
 def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
     """Результат сравнения для JS: числа, подписи и коды пояснений."""
     result = outcome.result
     view = build_result_view(result)
     names = short_labels([result.unknown_label, *(c.label for c in result.candidates)])
-    metric = METHOD_IMPOSTORS if result.ranked_by == METHOD_IMPOSTORS else "cosine"
+    metric = result.ranked_by if result.ranked_by in (METHOD_IMPOSTORS, METHOD_DELTA) else "cosine"
+    shares = _delta_shares(result) if metric == METHOD_DELTA else {}
 
     candidates: list[dict[str, Any]] = []
     for index, candidate in enumerate(result.candidates):
-        value = candidate.final_score if metric == METHOD_IMPOSTORS else candidate.similarity
+        if metric == METHOD_DELTA:
+            value = shares.get(candidate.label)
+        elif metric == METHOD_IMPOSTORS:
+            value = candidate.final_score
+        else:
+            value = candidate.similarity
         value = max(0.0, min(1.0, 0.0 if value is None else value))
         why: list[str] = []
         if index == 0:

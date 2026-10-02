@@ -131,9 +131,9 @@ def _dynamic_keys() -> set[str]:
     keys |= {f"note.{code}" for code in fact_codes}
     keys |= {f"feature.{key}" for key in FEATURE_LABELS}
     keys |= {f"method.{method}" for method in METHOD_NAMES}
-    keys |= {f"metric.{m}" for m in ("impostors", "cosine")}
-    keys |= {f"result.summary.{m}" for m in ("impostors", "cosine")}
-    keys |= {f"note.ranking.{m}" for m in ("impostors", "cosine")}
+    keys |= {f"metric.{m}" for m in ("impostors", "cosine", "delta")}
+    keys |= {f"result.summary.{m}" for m in ("impostors", "cosine", "delta")}
+    keys |= {f"note.ranking.{m}" for m in ("impostors", "cosine", "delta")}
     keys |= {"profile.fw", "profile.fl", "profile.ms"}
     keys |= {f"section.{section}" for section in FEATURE_SECTIONS}
     keys |= {f"error.{code}" for code in re.findall(r'"(vault_\w+)"', coded)}  # выбираются условием

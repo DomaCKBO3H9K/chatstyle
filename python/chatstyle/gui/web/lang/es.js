@@ -270,5 +270,8 @@ registerLanguage("es", {
   "chatpick.senders": "Participantes",
   "chatpick.add": "Elegir",
   "chatpick.empty": "Primero carga un chat en la pestaña «Chats».",
-  "error.chat_missing": "No se encontró el chat cargado. Cárgalo de nuevo en la pestaña «Chats»."
+  "error.chat_missing": "No se encontró el chat cargado. Cárgalo de nuevo en la pestaña «Chats».",
+  "result.summary.delta": "Cercanía relativa de los candidatos según Delta (coseno de los perfiles de estilo): las proporciones suman 1. No es la probabilidad de autoría.",
+  "metric.delta": "Cercanía según Delta (coseno de los perfiles de estilo)",
+  "note.ranking.delta": "Orden: según Delta (coseno de los perfiles de estilo); General Impostors se muestra aparte."
 });

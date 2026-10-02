@@ -131,14 +131,41 @@ std::vector<DeltaResult> burrows_delta(const std::vector<std::u32string>& unknow
     }
 
     const SparseVector unknown_profile = style_features(unknown, lexicon);
+    std::vector<SparseVector> candidate_profiles(candidates.size());
+    std::size_t non_empty = 0;
+    for (std::size_t i = 0; i < candidates.size(); ++i) {
+        if (!candidates[i].empty()) {
+            candidate_profiles[i] = style_features(candidates[i], lexicon);
+            ++non_empty;
+        }
+    }
+
+    // среднее значение каждого выбранного признака по профилям неизвестного и всех кандидатов
+    std::vector<double> means(selected.size(), 0.0);
+    if (non_empty >= 2) {
+        for (std::size_t f = 0; f < selected.size(); ++f) {
+            double sum = unknown_profile.at(selected[f].key);
+            for (std::size_t i = 0; i < candidates.size(); ++i) {
+                if (!candidates[i].empty()) {
+                    sum += candidate_profiles[i].at(selected[f].key);
+                }
+            }
+            means[f] = sum / static_cast<double>(non_empty + 1);
+        }
+    }
+
     for (std::size_t i = 0; i < candidates.size(); ++i) {
         if (candidates[i].empty()) {
             continue;
         }
-        const SparseVector candidate_profile = style_features(candidates[i], lexicon);
+        const SparseVector& candidate_profile = candidate_profiles[i];
         DeltaResult& result = results[i];
         double total = 0.0;
-        for (const auto& feature : selected) {
+        double dot = 0.0;
+        double unknown_norm = 0.0;
+        double candidate_norm = 0.0;
+        for (std::size_t f = 0; f < selected.size(); ++f) {
+            const auto& feature = selected[f];
             FeatureDifference difference;
             difference.feature = feature.key;
             difference.unknown_value = unknown_profile.at(feature.key);
@@ -147,6 +174,13 @@ std::vector<DeltaResult> burrows_delta(const std::vector<std::u32string>& unknow
             difference.z_difference =
                 (difference.unknown_value - difference.candidate_value) / feature.sigma;
             total += std::fabs(difference.z_difference);
+            if (non_empty >= 2) {
+                const double z_unknown = (difference.unknown_value - means[f]) / feature.sigma;
+                const double z_candidate = (difference.candidate_value - means[f]) / feature.sigma;
+                dot += z_unknown * z_candidate;
+                unknown_norm += z_unknown * z_unknown;
+                candidate_norm += z_candidate * z_candidate;
+            }
             result.differences.push_back(std::move(difference));
         }
         std::sort(result.differences.begin(), result.differences.end(),
@@ -158,6 +192,11 @@ std::vector<DeltaResult> burrows_delta(const std::vector<std::u32string>& unknow
         result.available = true;
         result.features_used = selected.size();
         result.delta = total / static_cast<double>(selected.size());
+        if (non_empty >= 2) {
+            result.cosine_available = true;
+            const double norms = std::sqrt(unknown_norm) * std::sqrt(candidate_norm);
+            result.cosine = norms > 0.0 ? dot / norms : 0.0;
+        }
     }
     return results;
 }

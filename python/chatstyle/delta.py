@@ -37,6 +37,9 @@ class DeltaScore:
     delta: float
     features_used: int
     differences: tuple[FeatureDifference, ...]
+    # Косинус z-профилей (в [-1, 1], больше — ближе); None, если кандидатов меньше двух:
+    # среднего профиля нет, и косинус был бы всегда -1.
+    cosine: float | None = None
 
 
 def burrows_delta(
@@ -75,6 +78,7 @@ def burrows_delta(
             delta=report["delta"],
             features_used=report["features_used"],
             differences=tuple(FeatureDifference(**item) for item in report["differences"]),
+            cosine=report["cosine"] if report["cosine_available"] else None,
         )
         for name, report in raw.items()
     }

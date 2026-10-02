@@ -203,3 +203,52 @@ TEST_CASE("delta: result is deterministic", "[delta]") {
         REQUIRE(first[i].differences.size() == second[i].differences.size());
     }
 }
+
+// --- косинусная Delta ---
+
+TEST_CASE("delta: cosine ranks the same style first and needs two non-empty candidates", "[delta]") {
+    const auto unknown = synthetic::casual(1, 60);
+    const std::vector<Messages> candidates = {synthetic::casual(2, 60), synthetic::formal(3, 60)};
+    const auto results = burrows_delta(unknown, candidates, chat_lexicon(), options(50));
+    REQUIRE(results[0].cosine_available);
+    REQUIRE(results[1].cosine_available);
+    REQUIRE(results[0].cosine > results[1].cosine);
+    for (const auto& result : results) {
+        REQUIRE(result.cosine >= -1.0);
+        REQUIRE(result.cosine <= 1.0);
+    }
+}
+
+TEST_CASE("delta: cosine is unavailable for a single candidate", "[delta]") {
+    // профиль неизвестного и единственного кандидата зеркальны относительно среднего: -1 всегда
+    const auto unknown = synthetic::casual(1, 60);
+    const std::vector<Messages> candidates = {synthetic::casual(2, 60)};
+    const auto results = burrows_delta(unknown, candidates, chat_lexicon(), options(50));
+    REQUIRE(results[0].available);
+    REQUIRE_FALSE(results[0].cosine_available);
+}
+
+TEST_CASE("delta: an empty candidate does not count towards the two needed for cosine", "[delta]") {
+    const auto unknown = synthetic::casual(1, 60);
+    const std::vector<Messages> candidates = {synthetic::casual(2, 60), Messages{}};
+    const auto results = burrows_delta(unknown, candidates, chat_lexicon(), options(50));
+    REQUIRE(results[0].available);
+    REQUIRE_FALSE(results[0].cosine_available);
+    REQUIRE_FALSE(results[1].available);
+
+    const std::vector<Messages> three = {synthetic::casual(2, 60), Messages{}, synthetic::formal(3, 60)};
+    const auto with_two = burrows_delta(unknown, three, chat_lexicon(), options(50));
+    REQUIRE(with_two[0].cosine_available);
+    REQUIRE_FALSE(with_two[1].cosine_available);
+    REQUIRE(with_two[2].cosine_available);
+}
+
+TEST_CASE("delta: cosine does not depend on the order of candidates", "[delta]") {
+    const auto unknown = synthetic::casual(1, 60);
+    const Messages a = synthetic::casual(2, 60);
+    const Messages b = synthetic::formal(3, 60);
+    const auto forward = burrows_delta(unknown, {a, b}, chat_lexicon(), options(50));
+    const auto backward = burrows_delta(unknown, {b, a}, chat_lexicon(), options(50));
+    REQUIRE_THAT(forward[0].cosine, WithinAbs(backward[1].cosine, 1e-12));
+    REQUIRE_THAT(forward[1].cosine, WithinAbs(backward[0].cosine, 1e-12));
+}

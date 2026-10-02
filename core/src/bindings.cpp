@@ -152,6 +152,8 @@ PYBIND11_MODULE(_core, m) {
                 report["available"] = results[i].available;
                 report["delta"] = results[i].delta;
                 report["features_used"] = results[i].features_used;
+                report["cosine_available"] = results[i].cosine_available;
+                report["cosine"] = results[i].cosine;
                 report["differences"] = differences;
                 output[py::str(input.names[i])] = report;
             }
