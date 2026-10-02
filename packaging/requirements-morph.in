@@ -1,5 +1,5 @@
 # Необязательное дополнение chatstyle[morph] для сборки exe с частями речи
-# (powershell -File packaginguild_exe.ps1 -WithMorph). Лок-файл:
+# (powershell -File packaginguild_exe.ps1; части речи входят по умолчанию, -NoMorph их убирает). Лок-файл:
 #   pip-compile --generate-hashes --allow-unsafe -o packaging/requirements-morph.lock packaging/requirements-morph.in
 -r requirements.in
 pymorphy3>=2

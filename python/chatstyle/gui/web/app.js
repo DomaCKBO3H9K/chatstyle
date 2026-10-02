@@ -828,6 +828,9 @@ refreshAll();
 // Методы Python доступны после события pywebviewready; в простом браузере (макет) их может не быть.
 async function onReady() {
   state.morphAvailable = Boolean(await call("morph_available"));
+  // части речи включены сразу, если дополнение есть в этой сборке
+  $("morph").checked = state.morphAvailable;
+  $("profile-morph").checked = state.morphAvailable;
   refreshCompare();
   await loadSettings();
   await loadTelegramStatus();

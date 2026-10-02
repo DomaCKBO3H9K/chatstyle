@@ -37,8 +37,8 @@ EXCLUDES = [
     "experiments",
 ]
 
-# Части речи (pymorphy3) — необязательное дополнение: по умолчанию в exe не входит, сборка
-# с ним: build_exe.ps1 -WithMorph (переменная CHATSTYLE_WITH_MORPH=1).
+# Части речи (pymorphy3): build_exe.ps1 кладёт их в exe по умолчанию (CHATSTYLE_WITH_MORPH=1),
+# с ключом -NoMorph переменная не задаётся, и они исключаются (меньше примерно на 9 МБ).
 MORPH_MODULES = ["pymorphy3", "pymorphy3_dicts_ru", "dawg2_python"]
 WITH_MORPH = os.environ.get("CHATSTYLE_WITH_MORPH") == "1"
 if WITH_MORPH:

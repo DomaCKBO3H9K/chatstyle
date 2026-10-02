@@ -202,7 +202,7 @@ def _scenario(window, folder: Path) -> str:  # noqa: ANN001
 
     _wait(
         window,
-        f"document.querySelectorAll('.feature').length === {len(FEATURE_LABELS)}",
+        f"document.querySelectorAll('.feature').length >= {len(FEATURE_LABELS)}",
         JOB_TIMEOUT,
         "профиль стиля",
     )

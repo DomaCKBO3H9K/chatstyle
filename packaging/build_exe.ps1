@@ -4,12 +4,12 @@
 #   powershell -File packaging\build_exe.ps1 -Target cli     only dist\chatstyle.exe
 #   powershell -File packaging\build_exe.ps1 -Target gui     only dist\chatstyle-gui.exe
 #   powershell -File packaging\build_exe.ps1 -OneDir         folders dist\chatstyle\ (debugging)
-#   powershell -File packaging\build_exe.ps1 -WithMorph      with parts of speech (pymorphy3, about +9 MB)
+#   powershell -File packaging\build_exe.ps1 -NoMorph        without parts of speech (pymorphy3 is in by default, about +9 MB)
 # Run `pip install -e .` first: the core module chatstyle._core must be importable.
 param(
     [ValidateSet('cli', 'gui', 'all')][string]$Target = 'all',
     [switch]$OneDir,
-    [switch]$WithMorph
+    [switch]$NoMorph
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,12 +17,12 @@ $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 
 # Build tools come from the hash-pinned lock file (pip refuses any file whose hash differs).
-if ($WithMorph) {
-    python -m pip install --require-hashes -r packaging\requirements-morph.lock
-    $env:CHATSTYLE_WITH_MORPH = '1'
-} else {
+if ($NoMorph) {
     python -m pip install --require-hashes -r packaging\requirements.lock
     Remove-Item Env:\CHATSTYLE_WITH_MORPH -ErrorAction SilentlyContinue
+} else {
+    python -m pip install --require-hashes -r packaging\requirements-morph.lock
+    $env:CHATSTYLE_WITH_MORPH = '1'
 }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

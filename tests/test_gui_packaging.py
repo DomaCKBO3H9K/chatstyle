@@ -212,7 +212,7 @@ def test_parts_of_speech_are_an_optional_add_on_in_the_build() -> None:
         assert "CHATSTYLE_WITH_MORPH" in spec and "EXCLUDES += MORPH_MODULES" in spec, name
         assert '"pymorphy3"' in spec and "collect_data_files" in spec, name
     script = (PACKAGING / "build_exe.ps1").read_text(encoding="ascii")
-    assert "[switch]$WithMorph" in script and "requirements-morph.lock" in script
+    assert "[switch]$NoMorph" in script and "requirements-morph.lock" in script
     lock = (PACKAGING / "requirements-morph.lock").read_text(encoding="utf-8")
     for name in ("pymorphy3", "pymorphy3-dicts-ru", "dawg2-python"):
         assert re.search(rf"^{name}==", lock, re.M), name
