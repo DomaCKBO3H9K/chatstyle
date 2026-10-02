@@ -239,5 +239,7 @@ registerLanguage("ar", {
   "pos.l": "كلمات بالحروف اللاتينية",
   "error.morph_missing": "أقسام الكلام تحتاج إلى الإضافة: pip install chatstyle[morph].",
   "charlm.label": "إضافة نموذج لغة الأحرف",
-  "result.charlm": "نموذج اللغة"
+  "result.charlm": "نموذج اللغة",
+  "wordgrams.label": "إضافة n-غرامات الكلمات",
+  "result.wordgrams": "الكلمات"
 });

@@ -239,5 +239,7 @@ registerLanguage("fr", {
   "pos.l": "mots en alphabet latin",
   "error.morph_missing": "Les parties du discours nécessitent le module complémentaire : pip install chatstyle[morph].",
   "charlm.label": "Ajouter le modèle de langage des caractères",
-  "result.charlm": "Modèle de langage"
+  "result.charlm": "Modèle de langage",
+  "wordgrams.label": "Ajouter les n-grammes de mots",
+  "result.wordgrams": "Mots"
 });

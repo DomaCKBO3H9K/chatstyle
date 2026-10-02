@@ -36,6 +36,7 @@ from chatstyle.pipeline import (
     ranking_text,
     run_comparison,
     unavailable_notes,
+    wordgram_text,
 )
 from chatstyle.report import report_format, write_report
 from chatstyle.securestore import (
@@ -156,6 +157,10 @@ def compare(
             help="Добавить языковую модель символов (выигрыш кандидата, бит на символ)",
         ),
     ] = False,
+    wordgrams: Annotated[
+        bool,
+        typer.Option("--wordgrams", help="Добавить сходство по пословным n-граммам (1-4 слова)"),
+    ] = False,
 ) -> None:
     """Сравнить неизвестного автора с каждым кандидатом."""
     try:
@@ -182,6 +187,7 @@ def compare(
             style_groups=groups,
             morph=morph,
             charlm=charlm,
+            wordgrams=wordgrams,
         )
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
@@ -370,6 +376,8 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
         headers += ("Части речи",)
     if result.charlm:
         headers += ("Яз. модель",)
+    if result.wordgrams:
+        headers += ("Слова",)
     for header in headers:
         table.add_column(header, justify="right", no_wrap=True, min_width=len(header))
 
@@ -386,6 +394,8 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
             cells.append(morph_text(cand))
         if result.charlm:
             cells.append(charlm_text(cand))
+        if result.wordgrams:
+            cells.append(wordgram_text(cand))
         table.add_row(*cells)
 
     console.print(table)

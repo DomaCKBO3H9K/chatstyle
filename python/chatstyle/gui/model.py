@@ -108,6 +108,7 @@ class CompareForm:
     refresh: bool = False  # для tg:: загрузить заново, не из кэша
     morph: bool = False  # добавить сходство по частям речи (нужно chatstyle[morph])
     charlm: bool = False  # добавить языковую модель символов
+    wordgrams: bool = False  # добавить пословные n-граммы
 
 
 @dataclass(frozen=True)
@@ -183,6 +184,7 @@ def run_compare(form: CompareForm) -> CompareOutcome:
         CollectOptions(limit=form.limit or DEFAULT_LIMIT, refresh=form.refresh),
         morph=form.morph,
         charlm=form.charlm,
+        wordgrams=form.wordgrams,
         impostors=impostors,
         seed=form.seed if form.seed is not None else DEFAULT_SEED,
     )

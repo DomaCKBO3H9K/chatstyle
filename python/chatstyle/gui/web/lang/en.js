@@ -239,5 +239,7 @@ registerLanguage("en", {
   "pos.l": "Latin-script words",
   "error.morph_missing": "Parts of speech need the add-on: pip install chatstyle[morph].",
   "charlm.label": "Add the character language model",
-  "result.charlm": "Language model"
+  "result.charlm": "Language model",
+  "wordgrams.label": "Add word n-grams",
+  "result.wordgrams": "Words"
 });

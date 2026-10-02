@@ -239,5 +239,7 @@ registerLanguage("ru", {
   "pos.l": "латиница",
   "error.morph_missing": "Части речи требуют дополнения: pip install chatstyle[morph].",
   "charlm.label": "Добавить языковую модель символов",
-  "result.charlm": "Яз. модель"
+  "result.charlm": "Яз. модель",
+  "wordgrams.label": "Добавить пословные n-граммы",
+  "result.wordgrams": "Слова"
 });

@@ -32,6 +32,7 @@ from chatstyle.impostors import (
     general_impostors,
 )
 from chatstyle.preprocess import MENTION_TOKEN, URL_TOKEN, preprocess
+from chatstyle.wordgrams import word_views
 
 MIN_WORDS: int = 1000
 # Сколько общих n-грамм хранится на кандидата: отчёт скрывает тривиальные и берёт из них 20
@@ -70,6 +71,9 @@ class CandidateResult:
     impostors_score: ImpostorsScore | None = None  # None: метод не запускался
     morph_similarity: float | None = None  # косинус по n-граммам частей речи; None: не считался
     charlm_llr: float | None = None  # языковая модель символов, бит/символ; None: нет оценки
+    wordgram_similarity: float | None = (
+        None  # косинус по пословным n-граммам 1-4; None: не считался
+    )
 
     @property
     def final_score(self) -> float | None:
@@ -100,6 +104,7 @@ class ComparisonResult:
     ranked_by: str = METHOD_COSINE  # по какому методу отсортированы кандидаты
     morph: bool = False  # считалось ли сходство по частям речи
     charlm: bool = False  # считалась ли языковая модель символов
+    wordgrams: bool = False  # считались ли пословные n-граммы
 
     def best_by_method(self) -> dict[str, tuple[str, ...]]:
         """Лучшие кандидаты по каждому методу, доступному ВСЕМ кандидатам.
@@ -186,6 +191,12 @@ def delta_text(candidate: CandidateResult) -> str:
 def morph_text(candidate: CandidateResult) -> str:
     """Сходство по частям речи для таблицы или прочерк."""
     value = candidate.morph_similarity
+    return f"{value:.3f}" if value is not None else NOT_AVAILABLE
+
+
+def wordgram_text(candidate: CandidateResult) -> str:
+    """Сходство по пословным n-граммам для таблицы или прочерк."""
+    value = candidate.wordgram_similarity
     return f"{value:.3f}" if value is not None else NOT_AVAILABLE
 
 
@@ -321,6 +332,21 @@ def _morph_similarities(
     return {label: report["similarity"] for label, report in reports.items()}
 
 
+def _wordgram_similarities(
+    unknown_messages: Sequence[str], candidate_messages: Mapping[str, Sequence[str]]
+) -> dict[str, float]:
+    """Косинус по пословным n-граммам 1-4: слова заменяются символами, дальше считает ядро.
+
+    У кого нет ни одного слова, оценки нет: такого кандидата в словаре нет.
+    """
+    unknown_view, views = word_views(unknown_messages, candidate_messages)
+    views = {label: view for label, view in views.items() if view}
+    if not unknown_view or not views:
+        return {}
+    reports = _core.compare_detailed(unknown_view, views, 0)
+    return {label: report["similarity"] for label, report in reports.items()}
+
+
 def _charlm_scores(
     unknown_messages: Sequence[str], candidate_messages: Mapping[str, Sequence[str]]
 ) -> dict[str, float]:
@@ -344,6 +370,7 @@ def compare_messages(
     style_groups: Sequence[str] = ALL_STYLE_GROUPS,
     morph: bool = False,
     charlm: bool = False,
+    wordgrams: bool = False,
 ) -> tuple[tuple[CandidateResult, ...], str]:
     """Три метода по готовым предобработанным сообщениям: косинус, Burrows Delta, Impostors.
 
@@ -361,6 +388,9 @@ def compare_messages(
     impostor_scores = general_impostors(unknown_messages, candidate_messages, impostors, seed=seed)
     morph_scores = _morph_similarities(unknown_messages, candidate_messages) if morph else {}
     charlm_scores = _charlm_scores(unknown_messages, candidate_messages) if charlm else {}
+    wordgram_scores = (
+        _wordgram_similarities(unknown_messages, candidate_messages) if wordgrams else {}
+    )
 
     results: list[CandidateResult] = []
     for label, messages in candidate_messages.items():
@@ -376,6 +406,7 @@ def compare_messages(
                 impostors_score=impostor_scores[label],
                 morph_similarity=morph_scores.get(label),
                 charlm_llr=charlm_scores.get(label),
+                wordgram_similarity=wordgram_scores.get(label),
             )
         )
 
@@ -399,6 +430,7 @@ def run_comparison(
     style_groups: Sequence[str] = ALL_STYLE_GROUPS,
     morph: bool = False,
     charlm: bool = False,
+    wordgrams: bool = False,
 ) -> ComparisonResult:
     """Запустить полный цикл сравнения.
 
@@ -449,6 +481,7 @@ def run_comparison(
         style_groups=style_groups,
         morph=morph,
         charlm=charlm,
+        wordgrams=wordgrams,
     )
 
     unknown_words = count_words(unknown_messages)
@@ -466,6 +499,7 @@ def run_comparison(
         ranked_by=ranked_by,
         morph=morph,
         charlm=charlm,
+        wordgrams=wordgrams,
     )
 
 

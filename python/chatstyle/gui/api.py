@@ -58,6 +58,7 @@ from chatstyle.pipeline import (
     low_volume_sides,
     morph_text,
     unavailable_facts,
+    wordgram_text,
 )
 
 TELEGRAM_SITE = "https://my.telegram.org"  # единственный адрес, который окно открывает в браузере
@@ -116,6 +117,7 @@ def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
                 "final": final_score_text(candidate),
                 "morph": morph_text(candidate),
                 "charlm": charlm_text(candidate),
+                "wordgrams": wordgram_text(candidate),
                 "why": why,
             }
         )
@@ -151,6 +153,7 @@ def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
         "metric": metric,
         "morph": bool(result.morph),
         "charlm": bool(result.charlm),
+        "wordgrams": bool(result.wordgrams),
         "unknown": {
             "label": names[result.unknown_label],
             "words": result.unknown.words,
@@ -402,6 +405,7 @@ class Api:
             refresh=bool(form.get("refresh", False)),
             morph=bool(form.get("morph", False)),
             charlm=bool(form.get("charlm", False)),
+            wordgrams=bool(form.get("wordgrams", False)),
         )
         problems = check_compare_form(compare_form)
         if problems:
@@ -548,6 +552,7 @@ class Api:
             and isinstance(form.get("refresh", False), bool)
             and isinstance(form.get("morph", False), bool)
             and isinstance(form.get("charlm", False), bool)
+            and isinstance(form.get("wordgrams", False), bool)
         )
         if not well_formed:
             return [error("bad_input")]

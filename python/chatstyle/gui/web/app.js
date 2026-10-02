@@ -305,6 +305,7 @@ function compareForm() {
     refresh: $("refresh").checked,
     morph: state.morphAvailable && $("morph").checked,
     charlm: $("charlm").checked,
+    wordgrams: $("wordgrams").checked,
   };
 }
 
@@ -372,6 +373,9 @@ function renderResult(view, out) {
           : []),
         ...(view.charlm
           ? [el("span", {}, [`${t("result.charlm")} `, el("b", { text: candidate.charlm })])]
+          : []),
+        ...(view.wordgrams
+          ? [el("span", {}, [`${t("result.wordgrams")} `, el("b", { text: candidate.wordgrams })])]
           : []),
       ])
     );
