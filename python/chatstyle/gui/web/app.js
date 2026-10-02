@@ -16,6 +16,7 @@ const state = {
   animate: false,
   tg: { step: "logged_out", name: null, has_keys: true },
   morphAvailable: false,
+  chats: [],
 };
 
 function el(tag, props = {}, children = []) {
@@ -98,7 +99,8 @@ function initLanguage() {
 // --- вкладки ---
 
 function selectTab(name) {
-  for (const id of ["compare", "profile"]) {
+  if (name === "chats") loadChats();
+  for (const id of ["compare", "profile", "chats"]) {
     $(`tab-${id}`).setAttribute("aria-selected", String(id === name));
     $(`view-${id}`).hidden = id !== name;
   }
@@ -132,6 +134,104 @@ async function chooseTelegram() {
     return null;
   }
   return source;
+}
+
+// --- загруженные чаты ---
+
+async function loadChats() {
+  state.chats = (await call("chats_list")) || [];
+  renderChats();
+}
+
+function renderChats() {
+  $("chats-empty").hidden = state.chats.length > 0;
+  $("chats-list").replaceChildren(
+    ...state.chats.map((chat) => {
+      const remove = el("button", { class: "btn", "aria-label": t("chats.remove_aria", { name: chat.name }), text: t("chats.remove") });
+      remove.disabled = Boolean(state.busy);
+      remove.addEventListener("click", async () => {
+        const answer = await call("chats_remove", chat.id);
+        if (answer && answer.error) showErrors([answer.error]);
+        await loadChats();
+      });
+      return el("li", {}, [
+        el("div", { class: "info" }, [
+          el("strong", { text: chat.name, dir: "auto" }),
+          el("small", {
+            text: t("chats.summary", { senders: chat.senders.length, messages: chat.messages, date: chat.updated }),
+          }),
+        ]),
+        remove,
+      ]);
+    })
+  );
+}
+
+async function uploadChat() {
+  const answer = await call("chats_add");
+  if (!answer) return;
+  if (answer.error) {
+    showErrors([answer.error]);
+  } else {
+    clearErrors();
+  }
+  await loadChats();
+}
+
+// Выбор людей из загруженных чатов: один (radio) или несколько (checkbox); пусто при отмене.
+async function chooseFromChats(multi) {
+  await loadChats();
+  const dialog = $("chatpick");
+  const select = $("chatpick-chat");
+  const list = $("chatpick-senders");
+  select.replaceChildren(...state.chats.map((chat) => el("option", { value: chat.id, text: chat.name })));
+  $("chatpick-empty").hidden = state.chats.length > 0;
+  $("chatpick-add").disabled = state.chats.length === 0;
+
+  const fill = () => {
+    list.replaceChildren();
+    const chat = state.chats.find((item) => item.id === select.value);
+    if (!chat) return;
+    for (const sender of chat.senders) {
+      const input = el("input", { type: multi ? "checkbox" : "radio", name: "chatpick-sender", value: sender.key });
+      list.append(
+        el("li", {}, [
+          el("label", {}, [
+            input,
+            el("span", { text: sender.name, dir: "auto" }),
+            el("small", { text: t("senders.count", { n: sender.messages }) }),
+          ]),
+        ])
+      );
+    }
+  };
+  select.onchange = fill;
+  fill();
+
+  return new Promise((resolve) => {
+    $("chatpick-add").onclick = async () => {
+      const chat = state.chats.find((item) => item.id === select.value);
+      const keys = [...list.querySelectorAll("input:checked")].map((input) => input.value);
+      if (!chat || keys.length === 0) return;
+      const sources = [];
+      for (const key of keys) {
+        const source = await call("chat_source", chat.id, key);
+        if (source && source.error) {
+          showErrors([source.error]);
+        } else if (source) {
+          sources.push(source);
+        }
+      }
+      dialog.close();
+      resolve(sources);
+    };
+    $("chatpick-cancel").onclick = () => {
+      dialog.close();
+      resolve([]);
+    };
+    dialog.addEventListener("close", () => resolve([]), { once: true }); // Esc: без выбора
+    dialog.showModal();
+  });
 }
 
 // Источник напрямую из Telegram: нужен вход, иначе открывается окно подключения.
@@ -757,6 +857,7 @@ function openTelegramDialog() {
 
 function refreshAll() {
   refreshCompare();
+  renderChats();
   renderPanels();
   if ($("tg").open) renderTelegramDialog();
 }
@@ -766,6 +867,22 @@ function refreshAll() {
 function bind() {
   $("tab-compare").addEventListener("click", () => selectTab("compare"));
   $("tab-profile").addEventListener("click", () => selectTab("profile"));
+  $("tab-chats").addEventListener("click", () => selectTab("chats"));
+  $("chats-upload").addEventListener("click", uploadChat);
+  $("unknown-chat").addEventListener("click", async () => {
+    state.unknown = (await chooseFromChats(false))[0] || state.unknown;
+    refreshCompare();
+  });
+  $("profile-chat").addEventListener("click", async () => {
+    state.profile = (await chooseFromChats(false))[0] || state.profile;
+    refreshCompare();
+  });
+  $("add-chat").addEventListener("click", async () => {
+    for (const picked of await chooseFromChats(true)) {
+      if (!state.candidates.some((c) => c.spec === picked.spec)) state.candidates.push(picked);
+    }
+    refreshCompare();
+  });
 
   $("unknown-file").addEventListener("click", async () => {
     state.unknown = (await chooseFile()) || state.unknown;

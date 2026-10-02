@@ -254,5 +254,21 @@ registerLanguage("fr", {
   "rhythm.morning": "le matin (6-12 h)",
   "rhythm.day": "l'après-midi (12-18 h)",
   "rhythm.evening": "le soir (18-24 h)",
-  "rhythm.weekend": "le week-end"
+  "rhythm.weekend": "le week-end",
+  "tab.chats": "Conversations",
+  "chats.title": "Conversations importées",
+  "chats.hint": "Importez une fois l'export d'une conversation de Telegram Desktop (result.json), puis choisissez des personnes dans la liste pour comparer ou voir le profil. Le fichier d'origine peut être supprimé après l'import.",
+  "chats.upload": "Importer l'export d'une conversation",
+  "chats.empty": "Aucune conversation pour l'instant.",
+  "chats.remove": "Supprimer",
+  "chats.remove_aria": "Supprimer la conversation {name}",
+  "chats.summary": "Participants : {senders}, messages : {messages}, mis à jour le {date}",
+  "btn.from_chats": "Depuis les conversations importées",
+  "btn.add_from_chats": "Ajouter depuis les conversations importées",
+  "chatpick.title": "Qui prendre dans les conversations importées ?",
+  "chatpick.chat": "Conversation",
+  "chatpick.senders": "Participants",
+  "chatpick.add": "Choisir",
+  "chatpick.empty": "Importez d'abord une conversation dans l'onglet « Conversations ».",
+  "error.chat_missing": "La conversation importée est introuvable. Importez-la de nouveau dans l'onglet « Conversations »."
 });

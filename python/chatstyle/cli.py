@@ -6,7 +6,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from chatstyle import __version__, _core
+from chatstyle import __version__, _core, chatstore
 from chatstyle.collectors import CollectOptions
 from chatstyle.collectors.impostors import load_impostor_directory
 from chatstyle.collectors.telegram import DEFAULT_LIMIT, TelethonFetcher
@@ -289,6 +289,81 @@ def _print_profile(profile: AuthorProfile, top: int) -> None:
         console.print(morph_summary(profile.morph_features), soft_wrap=True)
     if profile.rhythm_features is not None:
         console.print(rhythm_summary(profile.rhythm_features), soft_wrap=True)
+
+
+chats_app = typer.Typer(
+    add_completion=False,
+    no_args_is_help=True,
+    help="Загруженные чаты: экспорты Telegram, из которых выбираются авторы (источник chat:).",
+)
+app.add_typer(chats_app, name="chats")
+
+
+@chats_app.command("add")
+def chats_add(
+    path: Annotated[Path, typer.Argument(help="JSON-экспорт одного чата (Telegram Desktop)")],
+) -> None:
+    """Загрузить экспорт чата в список (повторная загрузка дополняет чат без дублей)."""
+    try:
+        chat = chatstore.import_chat(path)
+    except ChatstyleError as exc:
+        typer.echo(f"Ошибка: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"Загружен чат «{chat.name}» (id {chat.id}): участников {len(chat.senders)}, "
+        f"сообщений {chat.messages}."
+    )
+    typer.echo(f"Источник: chat:{chat.id}#Имя участника")
+
+
+@chats_app.command("list")
+def chats_list(
+    chat: Annotated[
+        str | None, typer.Argument(help="id или название чата: показать его участников")
+    ] = None,
+) -> None:
+    """Показать загруженные чаты или участников одного чата."""
+    console = Console(highlight=False, markup=False)
+    try:
+        if chat is not None:
+            stored = chatstore.get_chat(chat)
+            table = Table(title=f"Чат «{stored.name}» (id {stored.id})")
+            table.add_column("Участник", overflow="fold")
+            table.add_column("Идентификатор", overflow="fold")
+            table.add_column("Сообщений", justify="right", no_wrap=True)
+            for sender in stored.senders:
+                table.add_row(sender.name, sender.key, str(sender.messages))
+            console.print(table)
+            return
+        chats = chatstore.list_chats()
+    except ChatstyleError as exc:
+        typer.echo(f"Ошибка: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    if not chats:
+        typer.echo("Загруженных чатов нет. Добавьте: chatstyle chats add result.json")
+        return
+    table = Table(title=None)
+    table.add_column("id", overflow="fold")
+    table.add_column("Название", overflow="fold")
+    table.add_column("Участников", justify="right", no_wrap=True)
+    table.add_column("Сообщений", justify="right", no_wrap=True)
+    table.add_column("Обновлён", no_wrap=True)
+    for item in chats:
+        table.add_row(item.id, item.name, str(len(item.senders)), str(item.messages), item.updated)
+    console.print(table)
+
+
+@chats_app.command("remove")
+def chats_remove(
+    chat: Annotated[str, typer.Argument(help="id или название чата")],
+) -> None:
+    """Удалить загруженный чат из списка."""
+    try:
+        chatstore.remove_chat(chat)
+    except ChatstyleError as exc:
+        typer.echo(f"Ошибка: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(f"Чат «{chat}» удалён из списка.")
 
 
 @app.command()

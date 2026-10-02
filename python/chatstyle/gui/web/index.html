@@ -14,6 +14,7 @@
     <div class="tabs" role="tablist" data-i18n-aria="tab.aria">
       <button role="tab" id="tab-compare" aria-selected="true" aria-controls="view-compare" data-i18n="tab.compare"></button>
       <button role="tab" id="tab-profile" aria-selected="false" aria-controls="view-profile" data-i18n="tab.profile"></button>
+      <button role="tab" id="tab-chats" aria-selected="false" aria-controls="view-chats" data-i18n="tab.chats"></button>
     </div>
     <div class="tools">
       <button class="tool" id="tg-chip" type="button" aria-haspopup="dialog"></button>
@@ -31,6 +32,7 @@
           <div class="row">
             <button class="btn" id="unknown-file" data-i18n="btn.file"></button>
             <button class="btn" id="unknown-tg" data-i18n="btn.telegram"></button>
+            <button class="btn" id="unknown-chat" data-i18n="btn.from_chats"></button>
             <button class="btn" id="unknown-tg-live" data-i18n="btn.telegram_live"></button>
           </div>
         </div>
@@ -42,6 +44,7 @@
         <div class="row">
           <button class="btn" id="add-file" data-i18n="btn.add_file"></button>
           <button class="btn" id="add-tg" data-i18n="btn.add_telegram"></button>
+          <button class="btn" id="add-chat" data-i18n="btn.add_from_chats"></button>
           <button class="btn" id="add-tg-live" data-i18n="btn.add_telegram_live"></button>
         </div>
       </div>
@@ -105,6 +108,7 @@
           <div class="row">
             <button class="btn" id="profile-file" data-i18n="btn.file"></button>
             <button class="btn" id="profile-tg" data-i18n="btn.telegram"></button>
+            <button class="btn" id="profile-chat" data-i18n="btn.from_chats"></button>
             <button class="btn" id="profile-tg-live" data-i18n="btn.telegram_live"></button>
           </div>
         </div>
@@ -126,6 +130,18 @@
     </section>
   </main>
 
+  <main id="view-chats" role="tabpanel" aria-labelledby="tab-chats" hidden>
+    <section class="card">
+      <div class="step">
+        <h2><span data-i18n="chats.title"></span></h2>
+        <p class="hint" data-i18n="chats.hint"></p>
+        <div class="row"><button class="btn" id="chats-upload" data-i18n="chats.upload"></button></div>
+        <p class="hint" id="chats-empty" data-i18n="chats.empty"></p>
+        <ul class="chat-list" id="chats-list"></ul>
+      </div>
+    </section>
+  </main>
+
   <footer id="disclaimer" data-i18n="disclaimer"></footer>
 </div>
 
@@ -133,6 +149,21 @@
   <h2 id="senders-title" data-i18n="senders.title"></h2>
   <ul class="senders" id="senders-list"></ul>
   <div class="row end"><button class="btn" id="senders-cancel" data-i18n="btn.cancel"></button></div>
+</dialog>
+
+<dialog id="chatpick" aria-labelledby="chatpick-title">
+  <h2 id="chatpick-title" data-i18n="chatpick.title"></h2>
+  <p class="hint" id="chatpick-empty" hidden data-i18n="chatpick.empty"></p>
+  <label class="field">
+    <span class="label" data-i18n="chatpick.chat"></span>
+    <select id="chatpick-chat"></select>
+  </label>
+  <span class="label" data-i18n="chatpick.senders"></span>
+  <ul class="chat-senders" id="chatpick-senders"></ul>
+  <div class="row end">
+    <button class="btn" id="chatpick-cancel" data-i18n="btn.cancel"></button>
+    <button class="btn" id="chatpick-add" data-i18n="chatpick.add"></button>
+  </div>
 </dialog>
 
 <dialog id="tg" aria-labelledby="tg-title">

@@ -254,5 +254,21 @@ registerLanguage("es", {
   "rhythm.morning": "por la mañana (6-12 h)",
   "rhythm.day": "por la tarde (12-18 h)",
   "rhythm.evening": "por la noche (18-24 h)",
-  "rhythm.weekend": "en fines de semana"
+  "rhythm.weekend": "en fines de semana",
+  "tab.chats": "Chats",
+  "chats.title": "Chats cargados",
+  "chats.hint": "Carga una vez la exportación de un chat de Telegram Desktop (result.json) y luego elige personas de la lista al comparar o ver el perfil. El archivo original se puede borrar después de cargarlo.",
+  "chats.upload": "Cargar la exportación de un chat",
+  "chats.empty": "Aún no hay chats.",
+  "chats.remove": "Eliminar",
+  "chats.remove_aria": "Eliminar el chat {name}",
+  "chats.summary": "Participantes: {senders}, mensajes: {messages}, actualizado {date}",
+  "btn.from_chats": "De los chats cargados",
+  "btn.add_from_chats": "Añadir de los chats cargados",
+  "chatpick.title": "¿A quién tomar de los chats cargados?",
+  "chatpick.chat": "Chat",
+  "chatpick.senders": "Participantes",
+  "chatpick.add": "Elegir",
+  "chatpick.empty": "Primero carga un chat en la pestaña «Chats».",
+  "error.chat_missing": "No se encontró el chat cargado. Cárgalo de nuevo en la pestaña «Chats»."
 });

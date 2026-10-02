@@ -254,5 +254,21 @@ registerLanguage("zh", {
   "rhythm.morning": "上午 (6-12 时)",
   "rhythm.day": "下午 (12-18 时)",
   "rhythm.evening": "晚上 (18-24 时)",
-  "rhythm.weekend": "周末"
+  "rhythm.weekend": "周末",
+  "tab.chats": "聊天",
+  "chats.title": "已上传的聊天",
+  "chats.hint": "上传一次 Telegram Desktop 导出的聊天记录 (result.json)，之后在比较和画像中直接从列表选择人物。上传后可以删除原文件。",
+  "chats.upload": "上传聊天导出文件",
+  "chats.empty": "还没有聊天。",
+  "chats.remove": "删除",
+  "chats.remove_aria": "删除聊天 {name}",
+  "chats.summary": "参与者：{senders}，消息：{messages}，更新于 {date}",
+  "btn.from_chats": "从已上传的聊天中选择",
+  "btn.add_from_chats": "从已上传的聊天中添加",
+  "chatpick.title": "从已上传的聊天中选取谁？",
+  "chatpick.chat": "聊天",
+  "chatpick.senders": "参与者",
+  "chatpick.add": "选择",
+  "chatpick.empty": "请先在“聊天”标签页上传聊天。",
+  "error.chat_missing": "未找到已上传的聊天。请在“聊天”标签页重新上传。"
 });

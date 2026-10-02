@@ -137,6 +137,56 @@ def _wait(window, expression: str, timeout: float, what: str) -> None:  # noqa: 
     raise TimeoutError(f"не дождались: {what}")
 
 
+def _check_chats(window, folder: Path) -> None:  # noqa: ANN001
+    """Вкладка «Чаты»: загруженный чат виден в списке, из него выбирается участник."""
+    from chatstyle import chatstore
+
+    records = [
+        {
+            "id": index,
+            "type": "message",
+            "date": f"2024-03-0{1 + index % 5}T12:{index:02d}:00",
+            "from": name,
+            "from_id": key,
+            "text": f"сообщение {index} ну как бы",
+        }
+        for index in range(5)
+        for name, key in (("Аня", "user1"), ("Боря", "user2"))
+    ]
+    export = folder / "chat_export.json"
+    export.write_text(
+        json.dumps({"name": "Друзья", "id": 7, "messages": records}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    chatstore.import_chat(export)
+    window.evaluate_js("document.getElementById('tab-chats').click()")
+    _wait(
+        window,
+        "document.querySelectorAll('#chats-list li').length === 1",
+        PAGE_TIMEOUT,
+        "список загруженных чатов",
+    )
+    window.evaluate_js("document.getElementById('tab-compare').click()")
+    window.evaluate_js("document.getElementById('unknown-chat').click()")
+    _wait(
+        window,
+        "document.getElementById('chatpick').open === true"
+        " && document.querySelectorAll('#chatpick-senders input').length === 2",
+        PAGE_TIMEOUT,
+        "диалог выбора из загруженных чатов",
+    )
+    window.evaluate_js(
+        "(document.querySelector('#chatpick-senders input').click(),"
+        " document.getElementById('chatpick-add').click(), true)"
+    )
+    _wait(
+        window,
+        "!!state.unknown && state.unknown.spec.startsWith('chat:7#')",
+        PAGE_TIMEOUT,
+        "выбор участника загруженного чата",
+    )
+
+
 def _scenario(window, folder: Path) -> str:  # noqa: ANN001
     """Прогнать сравнение и профиль через страницу; вернуть строку-результат."""
     _check_vault(folder)
@@ -219,6 +269,7 @@ def _scenario(window, folder: Path) -> str:  # noqa: ANN001
             raise AssertionError(
                 f"язык {code}: ожидали {[direction, compare, True]}, увидели {seen}"
             )
+    _check_chats(window, folder)
     window.evaluate_js("document.getElementById('tg-chip').click()")
     _wait(
         window,

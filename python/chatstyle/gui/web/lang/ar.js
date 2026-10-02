@@ -254,5 +254,21 @@ registerLanguage("ar", {
   "rhythm.morning": "صباحاً (6-12 ساعة)",
   "rhythm.day": "بعد الظهر (12-18 ساعة)",
   "rhythm.evening": "مساءً (18-24 ساعة)",
-  "rhythm.weekend": "في عطلات نهاية الأسبوع"
+  "rhythm.weekend": "في عطلات نهاية الأسبوع",
+  "tab.chats": "المحادثات",
+  "chats.title": "المحادثات المرفوعة",
+  "chats.hint": "ارفع تصدير المحادثة من Telegram Desktop (result.json) مرة واحدة، ثم اختر الأشخاص من القائمة عند المقارنة أو عرض الملف. يمكن حذف الملف الأصلي بعد الرفع.",
+  "chats.upload": "رفع تصدير محادثة",
+  "chats.empty": "لا توجد محادثات بعد.",
+  "chats.remove": "حذف",
+  "chats.remove_aria": "حذف المحادثة {name}",
+  "chats.summary": "المشاركون: {senders}، الرسائل: {messages}، آخر تحديث {date}",
+  "btn.from_chats": "من المحادثات المرفوعة",
+  "btn.add_from_chats": "إضافة من المحادثات المرفوعة",
+  "chatpick.title": "من تريد أخذه من المحادثات المرفوعة؟",
+  "chatpick.chat": "المحادثة",
+  "chatpick.senders": "المشاركون",
+  "chatpick.add": "اختيار",
+  "chatpick.empty": "ارفع محادثة أولاً في تبويب «المحادثات».",
+  "error.chat_missing": "لم يتم العثور على المحادثة المرفوعة. ارفعها مرة أخرى في تبويب «المحادثات»."
 });

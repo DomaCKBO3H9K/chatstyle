@@ -254,5 +254,21 @@ registerLanguage("ru", {
   "rhythm.morning": "утром (6-12 ч)",
   "rhythm.day": "днём (12-18 ч)",
   "rhythm.evening": "вечером (18-24 ч)",
-  "rhythm.weekend": "в выходные"
+  "rhythm.weekend": "в выходные",
+  "tab.chats": "Чаты",
+  "chats.title": "Загруженные чаты",
+  "chats.hint": "Загрузите экспорт чата из Telegram Desktop (result.json) один раз, а потом выбирайте людей из списка в сравнении и профиле. Исходный файл после загрузки можно удалить.",
+  "chats.upload": "Загрузить экспорт чата",
+  "chats.empty": "Чатов пока нет.",
+  "chats.remove": "Удалить",
+  "chats.remove_aria": "Удалить чат {name}",
+  "chats.summary": "Участников: {senders}, сообщений: {messages}, обновлён {date}",
+  "btn.from_chats": "Из загруженных чатов",
+  "btn.add_from_chats": "Добавить из загруженных чатов",
+  "chatpick.title": "Кого взять из загруженных чатов?",
+  "chatpick.chat": "Чат",
+  "chatpick.senders": "Участники",
+  "chatpick.add": "Выбрать",
+  "chatpick.empty": "Сначала загрузите чат на вкладке «Чаты».",
+  "error.chat_missing": "Загруженный чат не найден. Загрузите его заново на вкладке «Чаты»."
 });

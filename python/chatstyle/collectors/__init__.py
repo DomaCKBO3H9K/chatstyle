@@ -47,7 +47,14 @@ def collect(spec: str, options: CollectOptions | None = None) -> list[str]:
             )
         return read_tg_export(Path(path_part), sender.strip())
 
+    if scheme == "chat":
+        from chatstyle.chatstore import read_chat_sender  # chatstore сам читает tg_export
+
+        return read_chat_sender(value)
+
     if scheme == "tg":
         return read_telegram(value, limit=opts.limit, refresh=opts.refresh, notify=opts.notify)
 
-    raise ChatstyleError(f"Неизвестный тип источника «{scheme}». Доступно: file, tg, tgexport.")
+    raise ChatstyleError(
+        f"Неизвестный тип источника «{scheme}». Доступно: file, tg, tgexport, chat."
+    )

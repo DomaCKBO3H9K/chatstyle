@@ -57,8 +57,8 @@ def _flatten_text(text: Any) -> str:
     return ""
 
 
-def _load_messages(path: Path) -> list[object]:
-    """Прочитать экспорт одного чата и вернуть список его сообщений (сырые записи)."""
+def _load_export(path: Path) -> dict[str, Any]:
+    """Прочитать экспорт одного чата и вернуть его целиком (сырой словарь с `messages`)."""
     try:
         raw_text = path.read_text(encoding="utf-8-sig")
     except OSError as exc:
@@ -78,9 +78,14 @@ def _load_messages(path: Path) -> list[object]:
             "Это экспорт всех чатов. Экспортируйте один чат (Export chat history) и повторите."
         )
 
-    messages = data.get("messages")
-    if not isinstance(messages, list):
+    if not isinstance(data.get("messages"), list):
         raise ChatstyleError(f"Файл {path} не похож на экспорт Telegram: нет списка messages.")
+    return data
+
+
+def _load_messages(path: Path) -> list[object]:
+    """Список сырых записей сообщений экспорта одного чата."""
+    messages: list[object] = _load_export(path)["messages"]
     return messages
 
 
@@ -190,3 +195,43 @@ def list_tg_senders(path: Path) -> list[TgSender]:
     senders = [TgSender(key, names[key], counts[key]) for key in counts]
     senders.sort(key=lambda sender: (-sender.messages, sender.name))
     return senders
+
+
+@dataclass(frozen=True)
+class TgChatExport:
+    """Весь экспорт одного чата: название, id и сообщения каждого участника."""
+
+    chat_id: str  # id чата из экспорта (если его нет, пусто)
+    name: str  # название чата (если его нет, пусто)
+    senders: dict[str, tuple[str, Messages]]  # key -> (имя для показа, сообщения с временем)
+
+
+def read_tg_export_chat(path: Path) -> TgChatExport:
+    """Тексты и время сообщений всех участников чата (правила отбора как у ``read_tg_export``).
+
+    Ключ участника — ``from_id`` (или имя, если id нет); имя берётся из последнего его сообщения.
+    Участники идут в порядке первого появления, пересланные, сервисные и пустые сообщения
+    пропускаются.
+    """
+    data = _load_export(path)
+    texts: dict[str, list[str]] = {}
+    moments: dict[str, list[int | None]] = {}
+    names: dict[str, str] = {}
+    for msg in data["messages"]:
+        if not isinstance(msg, dict) or msg.get("type") != "message" or "forwarded_from" in msg:
+            continue
+        key = msg.get("from_id") or msg.get("from")
+        flat = _flatten_text(msg.get("text"))
+        if not isinstance(key, str) or not key or not flat.strip():
+            continue
+        texts.setdefault(key, []).append(flat)
+        moments.setdefault(key, []).append(parse_export_date(msg.get("date")))
+        name = msg.get("from")
+        names[key] = name if isinstance(name, str) and name else key
+    chat_id = data.get("id")
+    chat_name = data.get("name")
+    return TgChatExport(
+        chat_id=str(chat_id) if isinstance(chat_id, (int, str)) and chat_id != "" else "",
+        name=chat_name if isinstance(chat_name, str) else "",
+        senders={key: (names[key], Messages(texts[key], moments[key])) for key in texts},
+    )

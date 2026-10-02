@@ -19,7 +19,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
-from chatstyle import __version__, morph
+from chatstyle import __version__, chatstore, morph
 from chatstyle.collectors.telegram import DEFAULT_LIMIT
 from chatstyle.collectors.telegram_login import LoginState, TelegramLogin
 from chatstyle.collectors.tg_export import list_tg_senders
@@ -214,6 +214,20 @@ def profile_view_dict(profile: AuthorProfile) -> dict[str, Any]:
     }
 
 
+def chat_view_dict(chat: chatstore.StoredChat) -> dict[str, Any]:
+    """Загруженный чат для JS."""
+    return {
+        "id": chat.id,
+        "name": chat.name,
+        "messages": chat.messages,
+        "updated": chat.updated,
+        "senders": [
+            {"key": sender.key, "name": sender.name, "messages": sender.messages}
+            for sender in chat.senders
+        ],
+    }
+
+
 def state_dict(state: LoginState) -> dict[str, Any]:
     """Состояние входа для окна."""
     return {
@@ -292,6 +306,12 @@ class Api:
         if scheme == "tgexport":
             path = value.rpartition("#")[0]
             return bool(path) and norm_path(path) in self._allowed_paths
+        if scheme == "chat":
+            chat_ref = value.rpartition("#")[0]
+            try:
+                return bool(chat_ref) and bool(chatstore.get_chat(chat_ref))
+            except ChatstyleError:
+                return False
         return scheme == "tg" and bool(value.strip())
 
     def morph_available(self) -> bool:
@@ -359,6 +379,51 @@ class Api:
             return {"error": error("sender_missing")}
         spec = tgexport_spec(path, sender, senders)
         return {"spec": spec, "label": short_labels([spec])[spec]}
+
+    def chats_list(self) -> list[dict[str, Any]]:
+        """Загруженные чаты для вкладки «Чаты» и диалога выбора."""
+        return [chat_view_dict(chat) for chat in chatstore.list_chats()]
+
+    def chats_add(self) -> dict[str, Any] | None:
+        """Диалог выбора экспорта и загрузка чата в список; None при отмене."""
+        import webview
+
+        path = first_path(
+            self._dialog(
+                webview.FileDialog.OPEN,
+                file_types=("JSON files (*.json)", "All files (*.*)"),
+            )
+        )
+        if path is None:
+            return None
+        try:
+            return {"chat": chat_view_dict(chatstore.import_chat(Path(path)))}
+        except ChatstyleError as exc:
+            return {"error": core_error(exc)}
+
+    def chats_remove(self, chat_id: str) -> dict[str, Any]:
+        if not is_text(chat_id):
+            return {"ok": False, "error": error("bad_input")}
+        try:
+            chatstore.remove_chat(chat_id)
+        except ChatstyleError:
+            return {"ok": False, "error": error("chat_missing")}
+        return {"ok": True}
+
+    def chat_source(self, chat_id: str, key: str) -> dict[str, Any]:
+        """Источник `chat:id#участник` для участника загруженного чата."""
+        if not is_text(chat_id) or not is_text(key):
+            return {"error": error("bad_input")}
+        try:
+            chat = chatstore.get_chat(chat_id)
+        except ChatstyleError:
+            return {"error": error("chat_missing")}
+        sender = next((s for s in chat.senders if s.key == key), None)
+        if sender is None:
+            return {"error": error("sender_missing")}
+        same_name = [item for item in chat.senders if item.name == sender.name]
+        reference = sender.name if len(same_name) == 1 and "#" not in sender.name else sender.key
+        return {"spec": f"chat:{chat.id}#{reference}", "label": f"{chat.name} › {sender.name}"}
 
     def pick_folder(self) -> str | None:
         import webview

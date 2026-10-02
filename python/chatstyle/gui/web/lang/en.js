@@ -254,5 +254,21 @@ registerLanguage("en", {
   "rhythm.morning": "in the morning (6-12 h)",
   "rhythm.day": "in the afternoon (12-18 h)",
   "rhythm.evening": "in the evening (18-24 h)",
-  "rhythm.weekend": "on weekends"
+  "rhythm.weekend": "on weekends",
+  "tab.chats": "Chats",
+  "chats.title": "Uploaded chats",
+  "chats.hint": "Upload a chat export from Telegram Desktop (result.json) once, then pick people from the list when comparing or profiling. The original file can be deleted after uploading.",
+  "chats.upload": "Upload a chat export",
+  "chats.empty": "No chats yet.",
+  "chats.remove": "Delete",
+  "chats.remove_aria": "Delete chat {name}",
+  "chats.summary": "Participants: {senders}, messages: {messages}, updated {date}",
+  "btn.from_chats": "From uploaded chats",
+  "btn.add_from_chats": "Add from uploaded chats",
+  "chatpick.title": "Whom to take from the uploaded chats?",
+  "chatpick.chat": "Chat",
+  "chatpick.senders": "Participants",
+  "chatpick.add": "Select",
+  "chatpick.empty": "Upload a chat on the Chats tab first.",
+  "error.chat_missing": "The uploaded chat was not found. Upload it again on the Chats tab."
 });
