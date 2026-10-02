@@ -88,7 +88,9 @@ TEST_CASE("delta: hand-computed example with a single varying feature", "[delta]
     // значения по кускам 2,2,2,4,4,4,2,3,3, sigma = 0.927960727138337
     const Messages unknown = {U"aa", U"aa", U"aa"};
     const std::vector<Messages> candidates = {{U"aaaa", U"aaaa", U"aaaa"}, {U"aa", U"aaa", U"aaa"}};
-    const auto results = burrows_delta(unknown, candidates, StyleLexicon{}, options(1));
+    StyleLexicon base_only;
+    base_only.groups = 0;  // один меняющийся признак: группы привычек выключены
+    const auto results = burrows_delta(unknown, candidates, base_only, options(1));
     REQUIRE(results.size() == 2);
     for (const auto& result : results) {
         REQUIRE(result.available);

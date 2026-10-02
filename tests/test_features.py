@@ -9,7 +9,7 @@ from chatstyle.features import (
     FUNCTION_WORD_PREFIX,
     style_features,
 )
-from chatstyle.lexicon import filler_words, function_words, parse_word_list
+from chatstyle.lexicon import filler_words, function_words, nonstandard_words, parse_word_list
 from chatstyle.pipeline import profile_author
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -53,7 +53,9 @@ def test_lexicons_are_package_resources() -> None:
 def test_feature_key_set_is_complete_and_sorted() -> None:
     result = style_features(["Привет))"])
     assert FIXED_KEYS <= set(result)
-    expected = len(FIXED_KEYS) + len(function_words()) + len(filler_words())
+    expected = (
+        len(FIXED_KEYS) + len(function_words()) + len(filler_words()) + len(nonstandard_words())
+    )
     assert len(result) == expected
     assert list(result) == sorted(result, key=lambda key: key.encode("utf-8"))
 

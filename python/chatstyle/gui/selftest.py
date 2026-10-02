@@ -187,8 +187,13 @@ def _scenario(window, folder: Path) -> str:  # noqa: ANN001
         " document.getElementById('tab-profile').click(),"
         " document.getElementById('go-profile').click(), true)"
     )
+    from chatstyle.features import FEATURE_LABELS
+
     _wait(
-        window, "document.querySelectorAll('.feature').length === 15", JOB_TIMEOUT, "профиль стиля"
+        window,
+        f"document.querySelectorAll('.feature').length === {len(FEATURE_LABELS)}",
+        JOB_TIMEOUT,
+        "профиль стиля",
     )
     for code, direction, compare in (("ar", "rtl", "قارن"), ("en", "ltr", "Compare")):
         window.evaluate_js(

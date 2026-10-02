@@ -177,7 +177,7 @@ def test_start_profile(tmp_path: Path) -> None:
     assert view["label"] == "author.txt"
     assert view["words"] > 0 and view["messages"] == 60
     assert [item["key"] for item in view["features"]] == list(FEATURE_LABELS)
-    assert [group["kind"] for group in view["word_lists"]] == ["fw", "fl"]
+    assert [group["kind"] for group in view["word_lists"]] == ["fw", "fl", "ms"]
     assert all(
         set(item) == {"word", "value"} for group in view["word_lists"] for item in group["items"]
     )

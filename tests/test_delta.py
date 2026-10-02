@@ -34,7 +34,8 @@ def formal_messages(seed: int, count: int = 60) -> list[str]:
 def test_hand_computed_example_through_wrapper() -> None:
     # меняется только r:avg_chars: значения по кускам 2,2,2,4,4,4,2,3,3
     candidates = {"A": ["aaaa"] * 3, "B": ["aa", "aaa", "aaa"]}
-    result = burrows_delta(["aa"] * 3, candidates, chunk_words=1)
+    # группы привычек выключены: иначе разброс дают и другие признаки
+    result = burrows_delta(["aa"] * 3, candidates, chunk_words=1, groups=())
     assert list(result) == ["A", "B"]
     assert result["A"].available
     assert result["A"].delta == pytest.approx(2.155263624321299)

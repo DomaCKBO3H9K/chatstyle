@@ -26,6 +26,7 @@ SparseVector features_of(const std::vector<std::u32string>& messages,
 
 TEST_CASE("style: empty input gives full key set of zeros", "[style]") {
     StyleLexicon lexicon;
+    lexicon.groups = 0;  // только базовые признаки; группы привычек проверяет test_style_habits
     lexicon.function_words = {U"и"};
     lexicon.filler_words = {U"ну"};
     for (const auto& messages :
@@ -112,6 +113,7 @@ TEST_CASE("style: hyphen rules for words", "[style]") {
 
 TEST_CASE("style: lexicon words are lowercased and deduplicated", "[style]") {
     StyleLexicon lexicon;
+    lexicon.groups = 0;
     lexicon.function_words = {U"И", U"и"};
     lexicon.filler_words = {U"Ну"};
     const auto r = features_of({U"ну и"}, lexicon);

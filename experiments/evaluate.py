@@ -20,6 +20,7 @@ from functools import partial
 from pathlib import Path
 
 from chatstyle.errors import ChatstyleError
+from chatstyle.features import ALL_STYLE_GROUPS, parse_style_groups
 from chatstyle.pipeline import compare_messages
 
 from experiments.metrics import (
@@ -37,6 +38,7 @@ SYNTHETIC_WARNING = (
 )
 
 _SEGMENTS: Segments = {}
+_STYLE_GROUPS: tuple[str, ...] = ALL_STYLE_GROUPS
 
 
 @dataclass(frozen=True)
@@ -58,9 +60,10 @@ METHODS: dict[str, tuple[str, Callable[[TrialResult], float | None]]] = {
 }
 
 
-def _init_worker(segments: Segments) -> None:
-    global _SEGMENTS
+def _init_worker(segments: Segments, style_groups: tuple[str, ...] = ALL_STYLE_GROUPS) -> None:
+    global _SEGMENTS, _STYLE_GROUPS
     _SEGMENTS = segments
+    _STYLE_GROUPS = style_groups
 
 
 def score_trial(trial: Trial, seed: int) -> TrialResult:
@@ -75,6 +78,7 @@ def score_trial(trial: Trial, seed: int) -> TrialResult:
         seed=seed + trial.index,
         top_features=0,
         top_differences=0,
+        style_groups=_STYLE_GROUPS,
     )
     row = candidates[0]
     return TrialResult(
@@ -89,15 +93,19 @@ def score_trial(trial: Trial, seed: int) -> TrialResult:
 
 
 def run_trials(
-    segments: Segments, trials: Sequence[Trial], seed: int, jobs: int = 1
+    segments: Segments,
+    trials: Sequence[Trial],
+    seed: int,
+    jobs: int = 1,
+    style_groups: tuple[str, ...] = ALL_STYLE_GROUPS,
 ) -> list[TrialResult]:
     """Посчитать все испытания; результат в порядке испытаний и не зависит от jobs."""
     worker = partial(score_trial, seed=seed)
     if jobs <= 1:
-        _init_worker(segments)
+        _init_worker(segments, style_groups)
         return [worker(trial) for trial in trials]
     with ProcessPoolExecutor(
-        max_workers=jobs, initializer=_init_worker, initargs=(segments,)
+        max_workers=jobs, initializer=_init_worker, initargs=(segments, style_groups)
     ) as executor:
         return list(executor.map(worker, trials))
 
@@ -177,6 +185,7 @@ def build_report(
             "seed": args.seed,
             "bootstrap": args.bootstrap,
             "folds": args.folds,
+            "style_groups": args.style_groups,
         },
         "dataset": {"authors": authors, "skipped_authors": skipped, "synthetic": synthetic},
         "trials_total": len(results),
@@ -199,6 +208,11 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--bootstrap", type=int, default=1000, help="число бутстрэп-выборок")
     parser.add_argument("--folds", type=int, default=5, help="фолдов для точности с порогом")
     parser.add_argument("--output", type=Path, default=None, help="записать результаты в JSON")
+    parser.add_argument(
+        "--style-groups",
+        default="all",
+        help="группы стилевых признаков для Burrows Delta: all, none или список через запятую",
+    )
     args = parser.parse_args(argv)
     if min(args.words, args.neg_per_pos, args.impostors, args.jobs, args.bootstrap, args.folds) < 1:
         parser.error("числовые параметры должны быть не меньше 1")
@@ -221,7 +235,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"(пропущено из-за малого текста: {len(dataset.skipped)}); "
         f"испытаний: {len(trials)}; слов в куске: {args.words}"
     )
-    results = run_trials(dataset.segments, trials, args.seed, args.jobs)
+    try:
+        groups = parse_style_groups(args.style_groups)
+    except ChatstyleError as exc:
+        print(f"Ошибка: {exc}", file=sys.stderr)
+        return 2
+    results = run_trials(dataset.segments, trials, args.seed, args.jobs, groups)
     summary = summarize(results, args.seed, args.bootstrap, args.folds)
     print(format_summary(summary))
     if dataset.synthetic:

@@ -6,6 +6,8 @@ from importlib import resources
 
 FUNCTION_WORDS_FILE = "function_words_ru.txt"
 FILLER_WORDS_FILE = "filler_words_ru.txt"
+NONSTANDARD_WORDS_FILE = "nonstandard_ru.txt"
+CONJUNCTIONS_FILE = "conjunctions_ru.txt"
 
 
 def parse_word_list(text: str) -> list[str]:
@@ -43,3 +45,13 @@ def function_words() -> list[str]:
 def filler_words() -> list[str]:
     """Слова-паразиты и разговорные вставки."""
     return list(_load(FILLER_WORDS_FILE))
+
+
+def nonstandard_words() -> list[str]:
+    """Нестандартные написания и сленг: признаки o:nonstandard и ms:<слово>."""
+    return list(_load(NONSTANDARD_WORDS_FILE))
+
+
+def conjunctions() -> list[str]:
+    """Союзы, перед которыми по правилам ставится запятая: признак p:comma_before_conj."""
+    return list(_load(CONJUNCTIONS_FILE))

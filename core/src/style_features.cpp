@@ -1,7 +1,9 @@
 #include "chatstyle/style_features.hpp"
 
 #include <cstddef>
+#include <functional>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "chatstyle/text.hpp"
 
@@ -90,34 +92,46 @@ void count_punctuation(const std::u32string& text, PunctuationCounts& counts) {
     }
 }
 
+struct Span {
+    std::size_t begin;
+    std::size_t end;  // [begin, end)
+};
+
 // Слово: серия букв, внутри допускается один дефис между буквами («что-то»)
-std::size_t count_words(const std::u32string& lowered,
-                        std::unordered_map<std::u32string, std::size_t>* counts) {
-    const std::size_t size = lowered.size();
-    std::size_t total = 0;
+std::vector<Span> word_spans(const std::u32string& text) {
+    std::vector<Span> spans;
+    const std::size_t size = text.size();
     std::size_t i = 0;
     while (i < size) {
-        if (!is_letter(lowered[i])) {
+        if (!is_letter(text[i])) {
             ++i;
             continue;
         }
         std::size_t j = i + 1;
         while (j < size) {
-            if (is_letter(lowered[j])) {
+            if (is_letter(text[j])) {
                 ++j;
-            } else if (lowered[j] == U'-' && j + 1 < size && is_letter(lowered[j + 1])) {
+            } else if (text[j] == U'-' && j + 1 < size && is_letter(text[j + 1])) {
                 j += 2;
             } else {
                 break;
             }
         }
-        if (counts != nullptr) {
-            ++(*counts)[lowered.substr(i, j - i)];
-        }
-        ++total;
+        spans.push_back({i, j});
         i = j;
     }
-    return total;
+    return spans;
+}
+
+std::size_t count_words(const std::u32string& lowered,
+                        std::unordered_map<std::u32string, std::size_t>* counts) {
+    const auto spans = word_spans(lowered);
+    if (counts != nullptr) {
+        for (const auto& span : spans) {
+            ++(*counts)[lowered.substr(span.begin, span.end - span.begin)];
+        }
+    }
+    return spans.size();
 }
 
 double ratio(double part, double whole) {
@@ -134,6 +148,295 @@ void add_word_frequencies(SparseVector& result, const char32_t* prefix,
         const double count = found == counts.end() ? 0.0 : static_cast<double>(found->second);
         result[std::u32string(prefix) + lowered] = ratio(count, static_cast<double>(total_words));
     }
+}
+
+// --- дополнительные группы признаков: привычки пунктуации, орфографии, слов и предложений ---
+
+struct Habits {
+    // пунктуация
+    double commas = 0;
+    double conj_total = 0;
+    double conj_with_comma = 0;
+    double comma_no_space = 0;
+    double marks = 0;
+    double marks_space_before = 0;
+    double dashes = 0;
+    double guillemets = 0;
+    double quotes_all = 0;
+    double end_none = 0;
+    // орфография
+    double caps_words = 0;
+    double after_dot_total = 0;
+    double after_dot_upper = 0;
+    double repeat_runs = 0;
+    double tsya = 0;
+    double tsya_soft = 0;
+    double mixed_script = 0;
+    double double_spaces = 0;
+    // слова
+    double word_letters = 0;
+    double long_words = 0;
+    double short_words = 0;
+    std::vector<std::size_t> tokens;  // хэши слов в порядке следования, для MATTR
+    // предложения
+    double sentences = 0;
+    double sentence_words = 0;
+    double short_sentences = 0;
+    double long_sentences = 0;
+    double multi_messages = 0;
+};
+
+constexpr std::size_t kMattrWindow = 50;
+constexpr std::size_t kLongWordLetters = 9;
+constexpr std::size_t kShortWordLetters = 2;
+constexpr std::size_t kShortSentenceWords = 3;
+constexpr std::size_t kLongSentenceWords = 15;
+
+bool is_digit(char32_t cp) {
+    return cp >= U'0' && cp <= U'9';
+}
+
+bool is_cyrillic(char32_t cp) {
+    return cp >= 0x0400 && cp <= 0x04FF;
+}
+
+bool is_sentence_end(char32_t cp) {
+    return cp == U'.' || cp == U'!' || cp == U'?' || cp == 0x2026 || cp == U'\n';
+}
+
+// Буквы слова без дефисов
+std::size_t letter_count(const std::u32string& text, const Span& span) {
+    std::size_t letters = 0;
+    for (std::size_t k = span.begin; k < span.end; ++k) {
+        if (is_letter(text[k])) {
+            ++letters;
+        }
+    }
+    return letters;
+}
+
+bool ends_with(const std::u32string& text, const Span& span, const std::u32string& suffix) {
+    const std::size_t length = span.end - span.begin;
+    return length >= suffix.size() &&
+           text.compare(span.end - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+void count_punctuation_habits(const std::u32string& text, const std::vector<Span>& spans,
+                              const std::unordered_set<std::u32string>& conjunctions,
+                              const std::u32string& lowered, Habits& h) {
+    const std::size_t size = text.size();
+    for (std::size_t i = 0; i < size; ++i) {
+        const char32_t ch = text[i];
+        if (ch == U',') {
+            h.commas += 1;
+            if (i + 1 < size && is_letter(text[i + 1])) {
+                h.comma_no_space += 1;
+            }
+        }
+        if (ch == U',' || ch == U'.' || ch == U'!' || ch == U'?') {
+            h.marks += 1;
+            if (i > 0 && is_space(text[i - 1])) {
+                h.marks_space_before += 1;
+            }
+        }
+        if (ch == 0x2013 || ch == 0x2014) {
+            h.dashes += 1;
+        } else if (ch == U'-' && i > 0 && i + 1 < size && is_space(text[i - 1]) &&
+                   is_space(text[i + 1])) {
+            h.dashes += 1;
+        }
+        if (ch == 0xAB || ch == 0xBB) {
+            h.guillemets += 1;
+            h.quotes_all += 1;
+        } else if (ch == U'"' || ch == 0x201C || ch == 0x201D || ch == 0x201E) {
+            h.quotes_all += 1;
+        }
+    }
+    if (is_letter(text.back()) || is_digit(text.back())) {
+        h.end_none += 1;
+    }
+    if (conjunctions.empty()) {
+        return;
+    }
+    for (const auto& span : spans) {
+        if (conjunctions.count(lowered.substr(span.begin, span.end - span.begin)) == 0) {
+            continue;
+        }
+        std::size_t p = span.begin;
+        while (p > 0 && is_space(text[p - 1])) {
+            --p;
+        }
+        if (p == 0 || is_sentence_end(text[p - 1])) {
+            continue;  // начало сообщения или предложения: запятой перед союзом не бывает
+        }
+        h.conj_total += 1;
+        if (text[p - 1] == U',') {
+            h.conj_with_comma += 1;
+        }
+    }
+}
+
+void count_orthography_habits(const std::u32string& text, const std::vector<Span>& spans,
+                              const std::u32string& lowered, Habits& h) {
+    const std::size_t size = text.size();
+    for (const auto& span : spans) {
+        std::size_t letters = 0;
+        bool all_upper = true;
+        bool cyrillic = false;
+        bool latin = false;
+        for (std::size_t k = span.begin; k < span.end; ++k) {
+            if (!is_letter(text[k])) {
+                continue;
+            }
+            ++letters;
+            if (!is_upper(text[k])) {
+                all_upper = false;
+            }
+            (is_cyrillic(text[k]) ? cyrillic : latin) = true;
+        }
+        if (letters >= 2 && all_upper) {
+            h.caps_words += 1;
+        }
+        if (cyrillic && latin) {
+            h.mixed_script += 1;
+        }
+        if (ends_with(lowered, span, U"ться")) {
+            h.tsya_soft += 1;
+        } else if (ends_with(lowered, span, U"тся")) {
+            h.tsya += 1;
+        }
+    }
+    std::size_t i = 0;
+    while (i < size) {
+        if (is_letter(lowered[i])) {
+            std::size_t j = i + 1;
+            while (j < size && lowered[j] == lowered[i]) {
+                ++j;
+            }
+            if (j - i >= 3) {
+                h.repeat_runs += 1;
+            }
+            i = j;
+        } else if (text[i] == U' ') {
+            std::size_t j = i + 1;
+            while (j < size && text[j] == U' ') {
+                ++j;
+            }
+            if (j - i >= 2) {
+                h.double_spaces += 1;
+            }
+            i = j;
+        } else {
+            ++i;
+        }
+    }
+    for (std::size_t k = 0; k < size; ++k) {
+        const char32_t ch = text[k];
+        if ((ch == U'.' || ch == U'!' || ch == U'?') && k + 1 < size && is_space(text[k + 1])) {
+            std::size_t j = k + 1;
+            while (j < size && is_space(text[j])) {
+                ++j;
+            }
+            if (j < size && is_letter(text[j])) {
+                h.after_dot_total += 1;
+                if (is_upper(text[j])) {
+                    h.after_dot_upper += 1;
+                }
+            }
+        }
+    }
+}
+
+void count_word_habits(const std::u32string& text, const std::vector<Span>& spans,
+                       const std::u32string& lowered, Habits& h) {
+    for (const auto& span : spans) {
+        const std::size_t letters = letter_count(text, span);
+        h.word_letters += static_cast<double>(letters);
+        if (letters >= kLongWordLetters) {
+            h.long_words += 1;
+        }
+        if (letters <= kShortWordLetters) {
+            h.short_words += 1;
+        }
+        h.tokens.push_back(
+            std::hash<std::u32string>{}(lowered.substr(span.begin, span.end - span.begin)));
+    }
+}
+
+void count_sentence_habits(const std::u32string& text, const std::vector<Span>& spans,
+                           Habits& h) {
+    std::size_t in_sentence = 0;
+    std::size_t sentences = 0;
+    auto close = [&]() {
+        if (in_sentence == 0) {
+            return;
+        }
+        ++sentences;
+        h.sentences += 1;
+        h.sentence_words += static_cast<double>(in_sentence);
+        if (in_sentence <= kShortSentenceWords) {
+            h.short_sentences += 1;
+        }
+        if (in_sentence >= kLongSentenceWords) {
+            h.long_sentences += 1;
+        }
+        in_sentence = 0;
+    };
+    std::size_t previous_end = 0;
+    for (const auto& span : spans) {
+        for (std::size_t k = previous_end; k < span.begin; ++k) {
+            if (is_sentence_end(text[k])) {
+                close();
+                break;
+            }
+        }
+        ++in_sentence;
+        previous_end = span.end;
+    }
+    close();
+    if (sentences >= 2) {
+        h.multi_messages += 1;
+    }
+}
+
+// Скользящее разнообразие слов: среднее число различных слов в окне из kMattrWindow слов.
+// Для текста короче окна — доля различных слов во всём тексте.
+double mattr(const std::vector<std::size_t>& tokens) {
+    if (tokens.empty()) {
+        return 0.0;
+    }
+    std::unordered_map<std::size_t, std::size_t> counts;
+    std::size_t types = 0;
+    double sum = 0.0;
+    std::size_t windows = 0;
+    for (std::size_t i = 0; i < tokens.size(); ++i) {
+        if (counts[tokens[i]]++ == 0) {
+            ++types;
+        }
+        if (i >= kMattrWindow) {
+            const auto found = counts.find(tokens[i - kMattrWindow]);
+            if (--found->second == 0) {
+                --types;
+                counts.erase(found);
+            }
+        }
+        if (i + 1 >= kMattrWindow) {
+            sum += static_cast<double>(types) / static_cast<double>(kMattrWindow);
+            ++windows;
+        }
+    }
+    if (windows == 0) {
+        return static_cast<double>(types) / static_cast<double>(tokens.size());
+    }
+    return sum / static_cast<double>(windows);
+}
+
+std::unordered_set<std::u32string> lowered_set(const std::vector<std::u32string>& words) {
+    std::unordered_set<std::u32string> result;
+    for (const auto& word : words) {
+        result.insert(to_lower(word));
+    }
+    return result;
 }
 
 }  // namespace
@@ -153,6 +456,8 @@ SparseVector style_features(const std::vector<std::u32string>& messages,
     std::size_t yo_count = 0;
     std::size_t ye_count = 0;
     std::size_t emoji_count = 0;
+    Habits habits;
+    const auto conjunctions = lowered_set(lexicon.conjunctions);
 
     for (const auto& raw : messages) {
         const std::u32string text = clean_message(raw, lexicon.ignored_tokens);
@@ -197,6 +502,22 @@ SparseVector style_features(const std::vector<std::u32string>& messages,
             }
         }
         total_words += count_words(lowered, &word_counts);
+
+        if (lexicon.groups != 0) {
+            const auto spans = word_spans(lowered);
+            if ((lexicon.groups & kGroupPunctuation) != 0) {
+                count_punctuation_habits(text, spans, conjunctions, lowered, habits);
+            }
+            if ((lexicon.groups & kGroupOrthography) != 0) {
+                count_orthography_habits(text, spans, lowered, habits);
+            }
+            if ((lexicon.groups & kGroupWords) != 0) {
+                count_word_habits(text, spans, lowered, habits);
+            }
+            if ((lexicon.groups & kGroupSentences) != 0) {
+                count_sentence_habits(text, spans, habits);
+            }
+        }
     }
 
     const auto messages_n = static_cast<double>(used_messages);
@@ -219,6 +540,47 @@ SparseVector style_features(const std::vector<std::u32string>& messages,
     result[U"f:emoji"] = ratio(static_cast<double>(emoji_count), messages_n);
     result[U"r:avg_chars"] = ratio(static_cast<double>(total_chars), messages_n);
     result[U"r:avg_words"] = ratio(static_cast<double>(total_words), messages_n);
+
+    const double words_n = static_cast<double>(total_words);
+    if ((lexicon.groups & kGroupPunctuation) != 0) {
+        result[U"p:comma_per_word"] = ratio(habits.commas, words_n);
+        result[U"p:comma_before_conj"] = ratio(habits.conj_with_comma, habits.conj_total);
+        result[U"p:no_space_after_comma"] = ratio(habits.comma_no_space, habits.commas);
+        result[U"p:space_before_punct"] = ratio(habits.marks_space_before, habits.marks);
+        result[U"p:dash"] = ratio(habits.dashes, messages_n);
+        result[U"p:guillemets"] = ratio(habits.guillemets, habits.quotes_all);
+        result[U"p:end_none"] = ratio(habits.end_none, messages_n);
+    }
+    if ((lexicon.groups & kGroupOrthography) != 0) {
+        double nonstandard = 0.0;
+        for (const auto& word : lowered_set(lexicon.nonstandard_words)) {
+            const auto found = word_counts.find(word);
+            if (found != word_counts.end()) {
+                nonstandard += static_cast<double>(found->second);
+            }
+        }
+        result[U"f:caps_words"] = ratio(habits.caps_words, messages_n);
+        result[U"f:capital_after_dot"] = ratio(habits.after_dot_upper, habits.after_dot_total);
+        result[U"o:repeat_letters"] = ratio(habits.repeat_runs, messages_n);
+        result[U"o:tsya_share"] = ratio(habits.tsya, habits.tsya + habits.tsya_soft);
+        result[U"o:mixed_script"] = ratio(habits.mixed_script, words_n);
+        result[U"o:double_space"] = ratio(habits.double_spaces, messages_n);
+        result[U"o:nonstandard"] = ratio(nonstandard, words_n);
+        add_word_frequencies(result, U"ms:", lexicon.nonstandard_words, word_counts, total_words);
+    }
+    if ((lexicon.groups & kGroupWords) != 0) {
+        result[U"w:mattr"] = mattr(habits.tokens);
+        result[U"w:avg_word_len"] = ratio(habits.word_letters, words_n);
+        result[U"w:long_words"] = ratio(habits.long_words, words_n);
+        result[U"w:short_words"] = ratio(habits.short_words, words_n);
+    }
+    if ((lexicon.groups & kGroupSentences) != 0) {
+        result[U"s:avg_sentence_words"] = ratio(habits.sentence_words, habits.sentences);
+        result[U"s:per_message"] = ratio(habits.sentences, messages_n);
+        result[U"s:short_share"] = ratio(habits.short_sentences, habits.sentences);
+        result[U"s:long_share"] = ratio(habits.long_sentences, habits.sentences);
+        result[U"s:multi_share"] = ratio(habits.multi_messages, messages_n);
+    }
 
     add_word_frequencies(result, U"fw:", lexicon.function_words, word_counts, total_words);
     add_word_frequencies(result, U"fl:", lexicon.filler_words, word_counts, total_words);

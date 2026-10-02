@@ -18,7 +18,7 @@ from chatstyle.delta import (
     burrows_delta,
 )
 from chatstyle.errors import ChatstyleError
-from chatstyle.features import style_features
+from chatstyle.features import ALL_STYLE_GROUPS, style_features
 from chatstyle.impostors import (
     DEFAULT_CHUNK_WORDS as IMPOSTORS_CHUNK_WORDS,
 )
@@ -294,6 +294,7 @@ def compare_messages(
     seed: int = DEFAULT_SEED,
     top_features: int = DEFAULT_TOP_FEATURES,
     top_differences: int = DEFAULT_TOP_DIFFERENCES,
+    style_groups: Sequence[str] = ALL_STYLE_GROUPS,
 ) -> tuple[tuple[CandidateResult, ...], str]:
     """Три метода по готовым предобработанным сообщениям: косинус, Burrows Delta, Impostors.
 
@@ -302,7 +303,12 @@ def compare_messages(
     отсортированы (по итоговой оценке, если она есть у всех, иначе по косинусу).
     """
     reports = _core.compare_detailed(list(unknown_messages), dict(candidate_messages), top_features)
-    deltas = burrows_delta(unknown_messages, candidate_messages, top_differences=top_differences)
+    deltas = burrows_delta(
+        unknown_messages,
+        candidate_messages,
+        top_differences=top_differences,
+        groups=style_groups,
+    )
     impostor_scores = general_impostors(unknown_messages, candidate_messages, impostors, seed=seed)
 
     results: list[CandidateResult] = []
@@ -337,6 +343,7 @@ def run_comparison(
     top_features: int = DEFAULT_TOP_FEATURES,
     impostors: Mapping[str, Sequence[str]] | None = None,
     seed: int = DEFAULT_SEED,
+    style_groups: Sequence[str] = ALL_STYLE_GROUPS,
 ) -> ComparisonResult:
     """Запустить полный цикл сравнения.
 

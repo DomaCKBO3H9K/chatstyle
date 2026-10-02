@@ -28,6 +28,8 @@ from chatstyle.features import (
     FEATURE_LABELS,
     FILLER_WORD_PREFIX,
     FUNCTION_WORD_PREFIX,
+    NONSTANDARD_WORD_PREFIX,
+    feature_section,
     top_words,
 )
 from chatstyle.gui.model import (
@@ -61,7 +63,11 @@ MAX_TEXT = 4096  # длиннее любой путь или подпись из
 MAX_CANDIDATES = 50
 MAX_PHONE, MAX_CODE, MAX_PASSWORD, MAX_API_ID, MAX_API_HASH = 64, 32, 256, 20, 64
 REPORT_SUFFIXES = (".html", ".md")
-WORD_LIST_PREFIXES = (("fw", FUNCTION_WORD_PREFIX), ("fl", FILLER_WORD_PREFIX))
+WORD_LIST_PREFIXES = (
+    ("fw", FUNCTION_WORD_PREFIX),
+    ("fl", FILLER_WORD_PREFIX),
+    ("ms", NONSTANDARD_WORD_PREFIX),
+)
 WORD_LIST_LIMIT = 10
 WHY_LIMIT = 6
 
@@ -158,7 +164,8 @@ def profile_view_dict(profile: AuthorProfile) -> dict[str, Any]:
         "words": profile.stats.words,
         "messages": profile.stats.messages,
         "features": [
-            {"key": key, "value": f"{profile.features[key]:.3f}"} for key in FEATURE_LABELS
+            {"key": key, "value": f"{profile.features[key]:.3f}", "section": feature_section(key)}
+            for key in FEATURE_LABELS
         ],
         "word_lists": [
             {

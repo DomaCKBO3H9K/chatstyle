@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from chatstyle.delta import DeltaScore
-from chatstyle.features import FEATURE_LABELS
+from chatstyle.features import FEATURE_LABELS, FEATURE_SECTIONS
 from chatstyle.gui.model import _FORM_ERROR_TEXTS
 from chatstyle.impostors import DEFAULT_MIN_IMPOSTORS, ImpostorsScore
 from chatstyle.pipeline import (
@@ -23,6 +23,12 @@ from chatstyle.securestore import MODES
 WEB = Path(str(resources.files("chatstyle").joinpath("gui", "web")))
 CODES = ("ru", "en", "ar", "es", "zh", "fr")
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
+# подписи, в которых русские буквы и слова сами являются примером («ё», «тся», «приветттт»)
+CYRILLIC_EXAMPLES = {
+    "feature.f:yo_ratio",
+    "feature.o:tsya_share",
+    "feature.o:repeat_letters",
+}
 
 
 def _read(*parts: str) -> str:
@@ -76,7 +82,7 @@ def test_non_russian_languages_are_really_translated() -> None:
         assert not any(
             re.search("[а-яёА-ЯЁ]", v)
             for k, v in DICTIONARIES[code].items()
-            if not k.startswith("feature.f:yo")
+            if k not in CYRILLIC_EXAMPLES
         ), code
 
 
@@ -126,7 +132,8 @@ def _dynamic_keys() -> set[str]:
     keys |= {f"metric.{m}" for m in ("impostors", "cosine")}
     keys |= {f"result.summary.{m}" for m in ("impostors", "cosine")}
     keys |= {f"note.ranking.{m}" for m in ("impostors", "cosine")}
-    keys |= {"profile.fw", "profile.fl"}
+    keys |= {"profile.fw", "profile.fl", "profile.ms"}
+    keys |= {f"section.{section}" for section in FEATURE_SECTIONS}
     keys |= {f"error.{code}" for code in re.findall(r'"(vault_\w+)"', coded)}  # выбираются условием
     keys |= {f"tg.mode.{mode}" for mode in MODES} | {f"tg.mode.{mode}.desc" for mode in MODES}
     keys |= {"note.agree", "note.disagree"}  # выбираются тернарным оператором в noteText

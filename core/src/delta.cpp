@@ -12,7 +12,8 @@ namespace {
 constexpr double kMinSigma = 1e-12;
 
 bool is_word_feature(const std::u32string& key) {
-    return key.compare(0, 3, U"fw:") == 0 || key.compare(0, 3, U"fl:") == 0;
+    return key.compare(0, 3, U"fw:") == 0 || key.compare(0, 3, U"fl:") == 0 ||
+           key.compare(0, 3, U"ms:") == 0;
 }
 
 // Признак, выбранный для Delta, и его разброс по кускам

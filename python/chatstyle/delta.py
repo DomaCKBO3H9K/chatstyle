@@ -4,7 +4,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from chatstyle import _core
-from chatstyle.lexicon import filler_words, function_words
+from chatstyle.features import ALL_STYLE_GROUPS, style_groups_mask
+from chatstyle.lexicon import conjunctions, filler_words, function_words, nonstandard_words
 from chatstyle.preprocess import MENTION_TOKEN, URL_TOKEN
 
 DEFAULT_CHUNK_WORDS = 200
@@ -46,6 +47,7 @@ def burrows_delta(
     min_chunks: int = DEFAULT_MIN_CHUNKS,
     top_words: int = DEFAULT_TOP_WORDS,
     top_differences: int = DEFAULT_TOP_DIFFERENCES,
+    groups: Sequence[str] = ALL_STYLE_GROUPS,
 ) -> dict[str, DeltaScore]:
     """Delta неизвестного автора с каждым кандидатом по предобработанным сообщениям.
 
@@ -63,6 +65,9 @@ def burrows_delta(
         min_chunks,
         top_words,
         top_differences,
+        nonstandard_words(),
+        conjunctions(),
+        style_groups_mask(groups),
     )
     return {
         name: DeltaScore(

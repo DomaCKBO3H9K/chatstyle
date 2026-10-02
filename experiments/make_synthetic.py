@@ -1,6 +1,7 @@
 """Синтетический датасет для отладки скриптов оценки: ВЫМЫШЛЕННЫЕ авторы, не реальные люди.
 
     python -m experiments.make_synthetic DIR --authors 12 --messages 1500 --seed 1 --blend 0.6
+    python -m experiments.make_synthetic DIR --habits   # плюс привычки письма (для абляции групп)
 
 В папке появятся a001.txt, a002.txt, ... и файл-метка SYNTHETIC. Метку читает evaluate.py и
 предупреждает, что числа с такого датасета нельзя публиковать как результат: у каждого автора
@@ -13,7 +14,7 @@ import random
 from collections.abc import Sequence
 from pathlib import Path
 
-from chatstyle.lexicon import filler_words, function_words
+from chatstyle.lexicon import filler_words, function_words, nonstandard_words
 
 from experiments.trials import SYNTHETIC_MARKER
 
@@ -46,7 +47,9 @@ def _ending(rng: random.Random, habits: dict[str, float]) -> str:
 class _Traits:
     """Привычки автора: веса слов, доли знаков и длина сообщения."""
 
-    def __init__(self, rng: random.Random, vocabulary_size: int, content_size: int) -> None:
+    def __init__(
+        self, rng: random.Random, vocabulary_size: int, content_size: int, habits: bool = False
+    ) -> None:
         self.vocabulary_weights = _skewed_weights(rng, vocabulary_size)
         self.content_weights = _skewed_weights(rng, content_size)
         self.content_share = rng.uniform(0.15, 0.4)
@@ -58,6 +61,17 @@ class _Traits:
         }
         self.capital_share = rng.choice([0.0, 0.1, 0.5, 0.9])
         self.mean_length = float(rng.randint(5, 11))
+        # привычки письма: вероятности на слово или на сообщение. Случайные числа тратятся только
+        # при habits=True, чтобы прежние синтетические наборы (и пример отчёта) не менялись.
+        self.writing = dict.fromkeys(("comma", "stretch", "double_space", "slang", "split"), 0.0)
+        if habits:
+            self.writing = {
+                "comma": rng.choice([0.0, 0.05, 0.15, 0.3]),  # запятая после слова
+                "stretch": rng.choice([0.0, 0.02, 0.08]),  # растянутая буква в слове
+                "double_space": rng.choice([0.0, 0.03, 0.1]),  # двойной пробел между словами
+                "slang": rng.choice([0.0, 0.03, 0.1]),  # слово из нестандартных написаний
+                "split": rng.choice([0.0, 0.05, 0.2]),  # граница предложения внутри сообщения
+            }
 
     def blended(self, common: "_Traits", blend: float) -> "_Traits":
         """Привычки, смешанные с общими: blend=0 — как есть, blend=1 — все авторы одинаковы."""
@@ -78,7 +92,27 @@ class _Traits:
         result.habits = {k: mix(v, common.habits[k]) for k, v in self.habits.items()}
         result.capital_share = mix(self.capital_share, common.capital_share)
         result.mean_length = mix(self.mean_length, common.mean_length)
+        result.writing = {k: mix(v, common.writing[k]) for k, v in self.writing.items()}
         return result
+
+
+def _with_writing_habits(rng: random.Random, words: list[str], writing: dict[str, float]) -> str:
+    """Собрать сообщение с привычками: запятые, растяжения, двойные пробелы, сленг, предложения."""
+    slang = nonstandard_words()
+    parts: list[str] = []
+    for index, word in enumerate(words):
+        if rng.random() < writing["slang"]:
+            word = rng.choice(slang)
+        if rng.random() < writing["stretch"] and word:
+            word = word + word[-1] * 2
+        if index and rng.random() < writing["split"]:
+            parts[-1] += "."
+            word = word.capitalize()
+        elif index and rng.random() < writing["comma"]:
+            parts[-1] += ","
+        parts.append(word)
+    separator = "  " if rng.random() < writing["double_space"] else " "
+    return separator.join(parts)
 
 
 def make_author(
@@ -87,11 +121,12 @@ def make_author(
     content_pool: Sequence[str],
     common: _Traits | None = None,
     blend: float = 0.0,
+    habits: bool = False,
 ) -> list[str]:
     """Сообщения одного вымышленного автора со своими привычками (смешанными с общими)."""
     rng = random.Random(seed)
     vocabulary = function_words() + filler_words()
-    traits = _Traits(rng, len(vocabulary), len(content_pool))
+    traits = _Traits(rng, len(vocabulary), len(content_pool), habits)
     if common is not None and blend > 0:
         traits = traits.blended(common, blend)
 
@@ -105,6 +140,11 @@ def make_author(
                 words.append(rng.choices(vocabulary, traits.vocabulary_weights)[0])
         if rng.random() < traits.capital_share:
             words[0] = words[0].capitalize()
+        if habits:
+            lines.append(
+                _with_writing_habits(rng, words, traits.writing) + _ending(rng, traits.habits)
+            )
+            continue
         lines.append(" ".join(words) + _ending(rng, traits.habits))
     return lines
 
@@ -115,6 +155,7 @@ def make_dataset(
     messages: int = 1500,
     seed: int = 1,
     blend: float = 0.6,
+    habits: bool = False,
 ) -> None:
     """Создать папку датасета (формат evaluate.py) с вымышленными авторами.
 
@@ -123,9 +164,11 @@ def make_dataset(
     directory.mkdir(parents=True, exist_ok=True)
     content_pool = _content_pool(random.Random(seed))
     vocabulary_size = len(function_words()) + len(filler_words())
-    common = _Traits(random.Random(seed * 7919 + 1), vocabulary_size, len(content_pool))
+    common = _Traits(
+        random.Random(seed * 7919 + 1), vocabulary_size, len(content_pool), habits=True
+    )
     for index in range(authors):
-        lines = make_author(seed * 1000 + index, messages, content_pool, common, blend)
+        lines = make_author(seed * 1000 + index, messages, content_pool, common, blend, habits)
         (directory / f"a{index + 1:03d}.txt").write_text("\n".join(lines), encoding="utf-8")
     (directory / SYNTHETIC_MARKER).write_text(
         "Синтетический датасет (make_synthetic.py): числа с него нельзя публиковать.\n",
@@ -142,10 +185,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--blend", type=float, default=0.6, help="0..1: чем больше, тем труднее различить авторов"
     )
+    parser.add_argument(
+        "--habits",
+        action="store_true",
+        help="добавить авторам привычки письма (запятые, растяжения, двойные пробелы, сленг)",
+    )
     args = parser.parse_args(argv)
     if not 0.0 <= args.blend <= 1.0:
         parser.error("--blend должен быть от 0 до 1")
-    make_dataset(args.directory, args.authors, args.messages, args.seed, args.blend)
+    make_dataset(args.directory, args.authors, args.messages, args.seed, args.blend, args.habits)
     print(f"Создано авторов: {args.authors} в {args.directory} (метка {SYNTHETIC_MARKER})")
     return 0
 

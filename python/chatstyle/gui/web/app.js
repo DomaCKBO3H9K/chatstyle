@@ -381,18 +381,36 @@ function renderResult(view, out) {
   }
 }
 
+function profileSections(features) {
+  const sections = [];
+  for (const item of features) {
+    let section = sections.find((candidate) => candidate.id === item.section);
+    if (!section) {
+      section = { id: item.section, items: [] };
+      sections.push(section);
+    }
+    section.items.push(item);
+  }
+  return sections;
+}
+
 function renderProfile(view, out) {
   out.replaceChildren(
     el("h1", { class: "verdict compact", text: t("profile.header", view), dir: "auto" }),
-    el(
-      "div",
-      { class: "features" },
-      view.features.map((item) =>
-        el("div", { class: "feature" }, [
-          el("div", { class: "value", text: item.value }),
-          el("div", { class: "name", text: t(`feature.${item.key}`) }),
-        ])
-      )
+    ...profileSections(view.features).map((section) =>
+      el("section", { class: "feature-section" }, [
+        el("h3", { text: t(`section.${section.id}`) }),
+        el(
+          "div",
+          { class: "features" },
+          section.items.map((item) =>
+            el("div", { class: "feature" }, [
+              el("div", { class: "value", text: item.value }),
+              el("div", { class: "name", text: t(`feature.${item.key}`) }),
+            ])
+          )
+        ),
+      ])
     ),
     el(
       "div",

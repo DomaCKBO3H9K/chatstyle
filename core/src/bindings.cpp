@@ -108,14 +108,18 @@ PYBIND11_MODULE(_core, m) {
            std::size_t chunk_words,
            std::size_t min_chunks,
            std::size_t top_words,
-           std::size_t top_k) {
+           std::size_t top_k,
+           const std::vector<std::string>& nonstandard_words,
+           const std::vector<std::string>& conjunctions,
+           unsigned groups) {
             const auto input = read_candidates(candidates);
             std::vector<std::vector<std::u32string>> candidate_texts;
             for (const auto& texts : input.texts) {
                 candidate_texts.push_back(to_u32(texts));
             }
             const chatstyle::StyleLexicon lexicon{
-                to_u32(function_words), to_u32(filler_words), to_u32(ignored_tokens)};
+                to_u32(function_words), to_u32(filler_words), to_u32(ignored_tokens),
+                to_u32(nonstandard_words), to_u32(conjunctions), groups};
             chatstyle::DeltaOptions options;
             options.chunk_words = chunk_words;
             options.min_chunks = min_chunks;
@@ -158,6 +162,9 @@ PYBIND11_MODULE(_core, m) {
         py::arg("min_chunks") = 6,
         py::arg("top_words") = 100,
         py::arg("top_k") = 20,
+        py::arg("nonstandard_words") = std::vector<std::string>{},
+        py::arg("conjunctions") = std::vector<std::string>{},
+        py::arg("groups") = chatstyle::kGroupAll,
         "Burrows Delta of an unknown author against each candidate; returns "
         "{name: {available, delta, features_used, differences: [...]}}"
     );
@@ -230,9 +237,13 @@ PYBIND11_MODULE(_core, m) {
         [](const std::vector<std::string>& messages,
            const std::vector<std::string>& function_words,
            const std::vector<std::string>& filler_words,
-           const std::vector<std::string>& ignored_tokens) {
+           const std::vector<std::string>& ignored_tokens,
+           const std::vector<std::string>& nonstandard_words,
+           const std::vector<std::string>& conjunctions,
+           unsigned groups) {
             const chatstyle::StyleLexicon lexicon{
-                to_u32(function_words), to_u32(filler_words), to_u32(ignored_tokens)};
+                to_u32(function_words), to_u32(filler_words), to_u32(ignored_tokens),
+                to_u32(nonstandard_words), to_u32(conjunctions), groups};
             const auto message_text = to_u32(messages);
             chatstyle::SparseVector features;
             {
@@ -249,6 +260,9 @@ PYBIND11_MODULE(_core, m) {
         py::arg("function_words"),
         py::arg("filler_words"),
         py::arg("ignored_tokens"),
+        py::arg("nonstandard_words") = std::vector<std::string>{},
+        py::arg("conjunctions") = std::vector<std::string>{},
+        py::arg("groups") = chatstyle::kGroupAll,
         "Style features of an author (without n-grams); returns {name: value}"
     );
 }

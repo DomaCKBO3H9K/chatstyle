@@ -13,7 +13,13 @@ from chatstyle.collectors.telegram import DEFAULT_LIMIT, TelethonFetcher
 from chatstyle.collectors.telegram_login import TelegramLogin
 from chatstyle.config import load_credentials_with_vault
 from chatstyle.errors import ChatstyleError
-from chatstyle.features import FEATURE_LABELS, word_list_lines
+from chatstyle.features import (
+    FEATURE_LABELS,
+    FEATURE_SECTIONS,
+    feature_section,
+    parse_style_groups,
+    word_list_lines,
+)
 from chatstyle.impostors import DEFAULT_SEED
 from chatstyle.pipeline import (
     DISCLAIMER,
@@ -123,6 +129,16 @@ def compare(
             help="Seed General Impostors: один и тот же seed даёт один и тот же результат",
         ),
     ] = DEFAULT_SEED,
+    style_groups: Annotated[
+        str,
+        typer.Option(
+            "--style-groups",
+            help=(
+                "Группы признаков для Burrows Delta: all, none или список через запятую из "
+                "punctuation, orthography, words, sentences"
+            ),
+        ),
+    ] = "all",
 ) -> None:
     """Сравнить неизвестного автора с каждым кандидатом."""
     try:
@@ -139,7 +155,15 @@ def compare(
     )
     try:
         impostor_authors = load_impostor_directory(impostors) if impostors is not None else None
-        result = run_comparison(unknown, candidate, options, impostors=impostor_authors, seed=seed)
+        groups = parse_style_groups(style_groups)
+        result = run_comparison(
+            unknown,
+            candidate,
+            options,
+            impostors=impostor_authors,
+            seed=seed,
+            style_groups=groups,
+        )
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
         raise typer.Exit(code=2) from exc
@@ -196,7 +220,12 @@ def _print_profile(profile: AuthorProfile, top: int) -> None:
     table = Table(title=None)
     table.add_column("Признак")
     table.add_column("Значение", justify="right")
+    current_section = None
     for key, label in FEATURE_LABELS.items():
+        section = feature_section(key)
+        if section != current_section:
+            current_section = section
+            table.add_row(FEATURE_SECTIONS[section], "", style="bold")
         table.add_row(label, f"{profile.features[key]:.3f}")
     console.print(table)
 

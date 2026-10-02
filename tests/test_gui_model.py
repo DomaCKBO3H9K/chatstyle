@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from chatstyle.collectors.tg_export import TgSender, list_tg_senders
 from chatstyle.errors import ChatstyleError
-from chatstyle.features import top_words, word_list_lines
+from chatstyle.features import FEATURE_LABELS, top_words, word_list_lines
 from chatstyle.gui.model import (
     PROFILE_COLUMNS,
     RESULT_COLUMNS,
@@ -206,7 +206,7 @@ def test_result_view_with_all_methods(tmp_path: Path) -> None:
 def test_profile_view() -> None:
     view = build_profile_view(profile_author(f"file:{FIXTURES / 'same.txt'}"), top=3)
     assert view.columns == PROFILE_COLUMNS
-    assert len(view.rows) == 15
+    assert len(view.rows) == len(FEATURE_LABELS)
     assert ("«))» на сообщение", "0.263") in view.rows
     assert view.word_lines[0] == "Частые служебные слова: и 0.051, там 0.038, в 0.025"
     assert view.word_lines[1].startswith("Частые слова-паразиты: ну 0.089")
@@ -220,6 +220,7 @@ def test_top_words_helpers() -> None:
     assert word_list_lines(features, 3) == [
         "Частые служебные слова: а 0.200, и 0.200",
         "Частые слова-паразиты: ну 0.100",
+        "Частые нестандартные написания: нет",
     ]
     assert word_list_lines({}, 3)[0] == "Частые служебные слова: нет"
 

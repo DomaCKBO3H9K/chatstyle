@@ -227,3 +227,7 @@ dialog .row { margin-top: 4px; }
 .tg-password { display: grid; gap: 12px; }
 .tg-forget { display: grid; gap: 8px; }
 dialog { max-height: 90vh; overflow: auto; }
+
+.feature-section { margin-top: 20px; }
+.feature-section h3 { margin: 0 0 8px; font: 700 15px var(--display); color: var(--muted); }
+.feature-section .features { margin: 0; }
