@@ -61,6 +61,7 @@ from chatstyle.pipeline import (
     emoji_text,
     ensemble_text,
     final_score_text,
+    lexical_hint,
     low_volume_sides,
     morph_text,
     rhythm_text,
@@ -169,6 +170,9 @@ def compare_view_dict(outcome: CompareOutcome) -> dict[str, Any]:
         )
     for fact in unavailable_facts(result):
         notes.append({**fact, "labels": _shorten_all(list(fact["labels"]), names)})  # type: ignore[call-overload]
+    hint = lexical_hint(result)
+    if hint:
+        notes.append(hint)
 
     sides = low_volume_sides(result)
     warning = (

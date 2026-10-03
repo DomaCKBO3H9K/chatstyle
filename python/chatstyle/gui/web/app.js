@@ -422,7 +422,7 @@ function noteText(note) {
       .join("; ");
     return t("note.best_methods", { parts, verdict: t(note.agree ? "note.agree" : "note.disagree") });
   }
-  return t(`note.${note.code}`, { ...note, labels: note.labels.join(", ") });
+  return t(`note.${note.code}`, { ...note, labels: (note.labels || []).join(", ") });
 }
 
 function warningText(warning) {

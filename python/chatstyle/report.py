@@ -23,6 +23,7 @@ from chatstyle.pipeline import (
     emoji_text,
     ensemble_text,
     final_score_text,
+    lexical_hint_text,
     low_volume_sides,
     morph_text,
     ranking_text,
@@ -256,7 +257,7 @@ def render_markdown(result: ComparisonResult, generated: datetime) -> str:
     if best_line:
         lines += ["", _md_plain_text(best_line)]
 
-    notes = unavailable_notes(result)
+    notes = [*unavailable_notes(result), *filter(None, [lexical_hint_text(result)])]
     if notes:
         lines.append("")
         lines += [f"- {_md_plain_text(note)}" for note in notes]
@@ -375,7 +376,7 @@ def render_html(result: ComparisonResult, generated: datetime) -> str:
     if best_line:
         out.append(f"<p>{_e(best_line)}</p>")
 
-    notes = unavailable_notes(result)
+    notes = [*unavailable_notes(result), *filter(None, [lexical_hint_text(result)])]
     if notes:
         out.append("<ul>")
         out += [f"<li>{_e(note)}</li>" for note in notes]

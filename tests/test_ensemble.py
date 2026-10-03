@@ -18,6 +18,8 @@ from chatstyle.pipeline import (
     METHOD_ENSEMBLE,
     CandidateResult,
     ensemble_text,
+    lexical_hint,
+    lexical_hint_text,
     ranking_text,
     run_comparison,
 )
@@ -269,3 +271,51 @@ def test_gui_form_passes_lexical_and_rejects_non_bool(tmp_path: Path) -> None:
     )
     assert answer["ok"] is False
     assert {item["code"] for item in answer["errors"]} == {"bad_input"}
+
+
+# --- подсказка включить лексику ---
+
+
+def test_hint_appears_for_short_unknown_text_in_style_mode(tmp_path: Path) -> None:
+    files = write_workspace(tmp_path)  # у неизвестного около 660 слов
+    args = (spec(files["unknown"]), [spec(files["other"]), spec(files["same"])])
+    result = run_comparison(*args)
+    hint = lexical_hint(result)
+    assert hint is not None and hint["code"] == "lexical_hint"
+    assert hint["min"] == 1000 and hint["words"] == result.unknown.words < 1000
+    text = lexical_hint_text(result)
+    assert text is not None and "--lexical" in text and str(result.unknown.words) in text
+
+
+def test_no_hint_with_lexicon_enough_text_or_a_single_candidate(tmp_path: Path) -> None:
+    files = write_workspace(tmp_path)
+    candidates = [spec(files["other"]), spec(files["same"])]
+    assert lexical_hint(run_comparison(spec(files["unknown"]), candidates, lexical=True)) is None
+    assert lexical_hint(run_comparison(spec(files["unknown"]), [spec(files["same"])])) is None
+    assert lexical_hint(run_comparison(spec(files["unknown"]), candidates, ensemble=False)) is None
+    long_unknown = write_lines(tmp_path / "long.txt", casual(1, 150))
+    long_result = run_comparison(spec(long_unknown), candidates)
+    assert long_result.unknown.words >= 1000
+    assert lexical_hint(long_result) is None and lexical_hint_text(long_result) is None
+
+
+def test_hint_is_shown_in_cli_reports_and_window(tmp_path: Path) -> None:
+    files = write_workspace(tmp_path)
+    candidates = [spec(files["other"]), spec(files["same"])]
+    args = ["compare", "-u", spec(files["unknown"]), "-c", candidates[0], "-c", candidates[1]]
+    assert "Подсказка:" in runner.invoke(app, args, env={"COLUMNS": "220"}).output
+    lexical = runner.invoke(app, [*args, "--lexical"], env={"COLUMNS": "220"})
+    assert "Подсказка:" not in lexical.output
+
+    result = run_comparison(spec(files["unknown"]), candidates)
+    for suffix in ("md", "html"):
+        path = tmp_path / f"hint.{suffix}"
+        write_report(path, result)
+        assert "Подсказка:" in path.read_text(encoding="utf-8")
+
+    view = compare_view_dict(CompareOutcome(result, None))
+    assert {"code": "lexical_hint", "words": result.unknown.words, "min": 1000} in view["notes"]
+    lexical_view = compare_view_dict(
+        CompareOutcome(run_comparison(spec(files["unknown"]), candidates, lexical=True), None)
+    )
+    assert all(note["code"] != "lexical_hint" for note in lexical_view["notes"])

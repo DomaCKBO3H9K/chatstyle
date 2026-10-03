@@ -277,5 +277,6 @@ registerLanguage("fr", {
   "metric.ensemble": "Proximité selon le mélange de méthodes",
   "note.ranking.ensemble": "Ordre : selon le mélange de style (squelette des mots-outils, Delta, modèle de langage sans sujets).",
   "lexical.label": "Ajouter le vocabulaire au mélange (plus précis, mais plus sensible au sujet)",
-  "lexical.hint": "Par défaut l'ordre des candidats ne repose que sur le style : mots-outils, Delta et un modèle de langage sans sujets."
+  "lexical.hint": "Par défaut l'ordre des candidats ne repose que sur le style : mots-outils, Delta et un modèle de langage sans sujets.",
+  "note.lexical_hint": "Conseil : l'auteur inconnu a {words} mots (moins de {min}). Sur un texte court, le mélange de style est nettement plus faible et le vocabulaire plus précis : cochez « Ajouter le vocabulaire au mélange »."
 });

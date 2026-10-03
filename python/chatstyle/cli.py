@@ -33,6 +33,7 @@ from chatstyle.pipeline import (
     emoji_text,
     ensemble_text,
     final_score_text,
+    lexical_hint_text,
     low_volume_warning,
     morph_text,
     profile_author,
@@ -528,6 +529,9 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
         console.print(best_line, soft_wrap=True)
     for note in unavailable_notes(result):
         console.print(note, soft_wrap=True)
+    hint = lexical_hint_text(result)
+    if hint:
+        console.print(hint, soft_wrap=True)
 
     # 3. Предупреждение о малом объёме текста
     warning = low_volume_warning(result)

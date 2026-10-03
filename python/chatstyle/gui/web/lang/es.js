@@ -277,5 +277,6 @@ registerLanguage("es", {
   "metric.ensemble": "Cercanía según la mezcla de métodos",
   "note.ranking.ensemble": "Orden: según la mezcla de estilo (esqueleto de palabras funcionales, Delta, modelo de lenguaje sin temas).",
   "lexical.label": "Añadir el vocabulario a la mezcla (más preciso, pero más sensible al tema)",
-  "lexical.hint": "Por defecto el orden de los candidatos usa solo el estilo: palabras funcionales, Delta y un modelo de lenguaje sin temas."
+  "lexical.hint": "Por defecto el orden de los candidatos usa solo el estilo: palabras funcionales, Delta y un modelo de lenguaje sin temas.",
+  "note.lexical_hint": "Consejo: el autor desconocido tiene {words} palabras (menos de {min}). En textos cortos la mezcla de estilo es claramente más débil y el vocabulario más preciso: marca «Añadir el vocabulario a la mezcla»."
 });

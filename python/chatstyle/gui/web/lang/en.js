@@ -277,5 +277,6 @@ registerLanguage("en", {
   "metric.ensemble": "Closeness by the mix of methods",
   "note.ranking.ensemble": "Order: by the style mix (function-word skeleton, Delta, language model without topics).",
   "lexical.label": "Add vocabulary to the mix (more accurate, but more sensitive to topic)",
-  "lexical.hint": "By default the order of candidates uses style only: function words, Delta and a language model without topics."
+  "lexical.hint": "By default the order of candidates uses style only: function words, Delta and a language model without topics.",
+  "note.lexical_hint": "Tip: the unknown author has {words} words (fewer than {min}). On short text the style mix is noticeably weaker and vocabulary is more accurate: tick \"Add vocabulary to the mix\"."
 });

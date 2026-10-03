@@ -277,5 +277,6 @@ registerLanguage("zh", {
   "metric.ensemble": "方法混合的接近度",
   "note.ranking.ensemble": "排序：按风格混合（虚词骨架、Delta、不含话题的语言模型）。",
   "lexical.label": "将词汇加入混合（更准确，但对话题更敏感）",
-  "lexical.hint": "默认情况下候选人的排序只依据风格：虚词、Delta 和不含话题的语言模型。"
+  "lexical.hint": "默认情况下候选人的排序只依据风格：虚词、Delta 和不含话题的语言模型。",
+  "note.lexical_hint": "提示：未知作者只有 {words} 个词（少于 {min}）。文本较短时风格混合明显偏弱，词汇更准确：请勾选“将词汇加入混合”。"
 });
