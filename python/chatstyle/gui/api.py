@@ -68,6 +68,7 @@ from chatstyle.pipeline import (
     unavailable_facts,
     wordgram_text,
 )
+from chatstyle.securestore import MODE_MEMORY, default_vault
 
 TELEGRAM_SITE = "https://my.telegram.org"  # единственный адрес, который окно открывает в браузере
 MAX_TEXT = 4096  # длиннее любой путь или подпись из формы: такие данные отбрасываются
@@ -248,6 +249,13 @@ def profile_view_dict(profile: AuthorProfile) -> dict[str, Any]:
     }
 
 
+def chat_error(exc: Exception) -> dict[str, Any]:
+    """Ошибка хранилища чатов: код переводится в окне, прочее показывается текстом."""
+    if isinstance(exc, CodedError):
+        return error(exc.code, **exc.params)
+    return core_error(exc)
+
+
 def chat_view_dict(chat: chatstore.StoredChat) -> dict[str, Any]:
     """Загруженный чат для JS."""
     return {
@@ -414,9 +422,29 @@ class Api:
         spec = tgexport_spec(path, sender, senders)
         return {"spec": spec, "label": short_labels([spec])[spec]}
 
-    def chats_list(self) -> list[dict[str, Any]]:
-        """Загруженные чаты для вкладки «Чаты» и диалога выбора."""
-        return [chat_view_dict(chat) for chat in chatstore.list_chats()]
+    def chats_list(self) -> dict[str, Any]:
+        """Загруженные чаты и состояние хранилища: ok, locked (закрыто), setup (нет защиты)."""
+        memory = default_vault().mode() == MODE_MEMORY
+        try:
+            chats = [chat_view_dict(chat) for chat in chatstore.list_chats()]
+        except CodedError as exc:
+            if exc.code in ("chats_locked", "chats_setup"):
+                state = "locked" if exc.code == "chats_locked" else "setup"
+                return {
+                    "state": state,
+                    "chats": [],
+                    "memory": memory,
+                    "legacy": chatstore.legacy_plain_chats(),
+                }
+            return {"state": "error", "chats": [], "memory": memory, "error": chat_error(exc)}
+        except ChatstyleError as exc:
+            return {"state": "error", "chats": [], "memory": memory, "error": chat_error(exc)}
+        return {
+            "state": "ok",
+            "chats": chats,
+            "memory": memory,
+            "legacy": chatstore.legacy_plain_chats(),
+        }
 
     def chats_add(self) -> dict[str, Any] | None:
         """Диалог выбора экспорта и загрузка чата в список; None при отмене."""
@@ -433,13 +461,15 @@ class Api:
         try:
             return {"chat": chat_view_dict(chatstore.import_chat(Path(path)))}
         except ChatstyleError as exc:
-            return {"error": core_error(exc)}
+            return {"error": chat_error(exc)}
 
     def chats_remove(self, chat_id: str) -> dict[str, Any]:
         if not is_text(chat_id):
             return {"ok": False, "error": error("bad_input")}
         try:
             chatstore.remove_chat(chat_id)
+        except CodedError as exc:
+            return {"ok": False, "error": chat_error(exc)}
         except ChatstyleError:
             return {"ok": False, "error": error("chat_missing")}
         return {"ok": True}
@@ -450,6 +480,8 @@ class Api:
             return {"error": error("bad_input")}
         try:
             chat = chatstore.get_chat(chat_id)
+        except CodedError as exc:
+            return {"error": chat_error(exc)}
         except ChatstyleError:
             return {"error": error("chat_missing")}
         sender = next((s for s in chat.senders if s.key == key), None)

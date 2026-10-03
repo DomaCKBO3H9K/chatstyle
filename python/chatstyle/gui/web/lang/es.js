@@ -278,5 +278,14 @@ registerLanguage("es", {
   "note.ranking.ensemble": "Orden: según la mezcla de estilo (esqueleto de palabras funcionales, Delta, modelo de lenguaje sin temas).",
   "lexical.label": "Añadir el vocabulario a la mezcla (más preciso, pero más sensible al tema)",
   "lexical.hint": "Por defecto el orden de los candidatos usa solo el estilo: palabras funcionales, Delta y un modelo de lenguaje sin temas.",
-  "note.lexical_hint": "Consejo: el autor desconocido tiene {words} palabras (menos de {min}). En textos cortos la mezcla de estilo es claramente más débil y el vocabulario más preciso: marca «Añadir el vocabulario a la mezcla»."
+  "note.lexical_hint": "Consejo: el autor desconocido tiene {words} palabras (menos de {min}). En textos cortos la mezcla de estilo es claramente más débil y el vocabulario más preciso: marca «Añadir el vocabulario a la mezcla».",
+  "error.chats_locked": "El almacén está cerrado: ábrelo (contraseña maestra) en la ventana de Telegram y vuelve a intentarlo.",
+  "error.chats_setup": "Para guardar chats, primero configura la protección (contraseña maestra, DPAPI o «solo mientras dura la ventana») en la ventana de Telegram.",
+  "error.chat_decrypt": "No se pudo descifrar el chat: clave incorrecta o archivo modificado.",
+  "error.chat_key_invalid": "La clave de cifrado de los chats en el almacén está dañada.",
+  "chats.locked": "Los chats están cifrados y el almacén está cerrado. Ábrelo para ver la lista.",
+  "chats.setup": "Para guardar chats, configura la protección del almacén: contraseña maestra, DPAPI o «solo mientras dura la ventana».",
+  "chats.unlock": "Abrir la protección",
+  "chats.memory": "Modo «solo mientras dura la ventana»: los chats se guardan solo en memoria y desaparecen al cerrar la ventana.",
+  "chats.legacy": "Hay {n} archivos de chat sin cifrar de una versión anterior en el disco. Elige la protección «contraseña maestra» o DPAPI y se cifrarán la próxima vez que se abra esta pestaña. En el modo «solo mientras dura la ventana» siguen sin cifrar y no se muestran."
 });

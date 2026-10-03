@@ -278,5 +278,14 @@ registerLanguage("zh", {
   "note.ranking.ensemble": "排序：按风格混合（虚词骨架、Delta、不含话题的语言模型）。",
   "lexical.label": "将词汇加入混合（更准确，但对话题更敏感）",
   "lexical.hint": "默认情况下候选人的排序只依据风格：虚词、Delta 和不含话题的语言模型。",
-  "note.lexical_hint": "提示：未知作者只有 {words} 个词（少于 {min}）。文本较短时风格混合明显偏弱，词汇更准确：请勾选“将词汇加入混合”。"
+  "note.lexical_hint": "提示：未知作者只有 {words} 个词（少于 {min}）。文本较短时风格混合明显偏弱，词汇更准确：请勾选“将词汇加入混合”。",
+  "error.chats_locked": "保险库已锁定：请在 Telegram 窗口中解锁（主密码）后重试。",
+  "error.chats_setup": "要保存聊天，请先在 Telegram 窗口中设置保护方式（主密码、DPAPI 或“仅限窗口期间”）。",
+  "error.chat_decrypt": "无法解密聊天：密钥错误或文件被修改。",
+  "error.chat_key_invalid": "保险库中的聊天加密密钥已损坏。",
+  "chats.locked": "聊天已加密，保险库已锁定。解锁后才能看到列表。",
+  "chats.setup": "要保存聊天，请设置保险库保护方式：主密码、DPAPI 或“仅限窗口期间”。",
+  "chats.unlock": "打开保护",
+  "chats.memory": "“仅限窗口期间”模式：聊天只保存在内存中，关闭窗口后消失。",
+  "chats.legacy": "磁盘上有 {n} 个旧版本留下的未加密聊天文件。选择“主密码”或 DPAPI 保护后，下次打开此标签页时会将其加密。在“仅限窗口期间”模式下它们保持未加密且不会显示。"
 });

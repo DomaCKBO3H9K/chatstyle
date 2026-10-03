@@ -102,3 +102,23 @@ def test_main_with_lexical_flag_and_when_there_is_nothing_to_check(
     assert "с лексикой" in capsys.readouterr().out
     assert chats_eval.main(["--chats-dir", str(tmp_path / "пусто")]) == 1
     assert "Не нашлось ни одной задачи" in capsys.readouterr().out
+
+
+def test_main_reads_the_encrypted_store_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from chatstyle.securestore import MODE_PASSWORD, Vault, reset_default_vault
+
+    monkeypatch.setenv("CHATSTYLE_HOME", str(tmp_path / "home"))
+    vault = Vault(tmp_path / "vault.json", backoff=False)
+    vault.create(MODE_PASSWORD, "правильный-пароль-123")
+    reset_default_vault(vault)
+    try:
+        chatstore.import_chat(write_export(tmp_path / "a.json", 1, "Первый", 10))
+        chatstore.import_chat(write_export(tmp_path / "b.json", 2, "Второй", 100))
+        assert {p.suffix for p in (tmp_path / "home" / "chats").iterdir()} == {".chat"}
+        code = chats_eval.main(["--min-words", "600", "--time-tasks", "0"])
+        assert code == 0
+        assert "через контексты: задач 8, top1 1.00" in capsys.readouterr().out
+    finally:
+        reset_default_vault(None)

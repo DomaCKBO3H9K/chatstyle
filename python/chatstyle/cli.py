@@ -204,6 +204,8 @@ def compare(
     try:
         impostor_authors = load_impostor_directory(impostors) if impostors is not None else None
         groups = parse_style_groups(style_groups)
+        if _uses_chats(unknown, *candidate):
+            _open_chat_vault()
         result = run_comparison(
             unknown,
             candidate,
@@ -269,6 +271,8 @@ def features(
         notify=lambda message: typer.echo(message, err=True),
     )
     try:
+        if _uses_chats(source):
+            _open_chat_vault()
         profile = profile_author(source, options, morph=morph)
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
@@ -318,6 +322,7 @@ def chats_add(
 ) -> None:
     """Загрузить экспорт чата в список (повторная загрузка дополняет чат без дублей)."""
     try:
+        _open_chat_vault()
         chat = chatstore.import_chat(path)
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
@@ -338,6 +343,7 @@ def chats_list(
     """Показать загруженные чаты или участников одного чата."""
     console = Console(highlight=False, markup=False)
     try:
+        _open_chat_vault()
         if chat is not None:
             stored = chatstore.get_chat(chat)
             table = Table(title=f"Чат «{stored.name}» (id {stored.id})")
@@ -372,6 +378,7 @@ def chats_remove(
 ) -> None:
     """Удалить загруженный чат из списка."""
     try:
+        _open_chat_vault()
         chatstore.remove_chat(chat)
     except ChatstyleError as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
@@ -425,7 +432,8 @@ def _prepare_vault(vault: Vault) -> None:
     """Создать хранилище, если его нет (спросив способ защиты), и открыть его."""
     if not vault.exists():
         typer.echo(
-            "Вход в Telegram хранится в зашифрованном хранилище. Выберите защиту:\n"
+            "Вход в Telegram и загруженные чаты хранятся в зашифрованном хранилище.\n"
+            "Выберите защиту:\n"
             "  1 - мастер-пароль (рекомендуется: без пароля файл бесполезен)\n"
             "  2 - привязка к вашей учётной записи Windows (DPAPI, пароль не нужен)"
         )
@@ -435,6 +443,16 @@ def _prepare_vault(vault: Vault) -> None:
         else:
             vault.create(MODE_PASSWORD, _new_master_password())
     unlock_interactively(vault)
+
+
+def _open_chat_vault() -> None:
+    """Открыть общее хранилище (создать, если его нет): в нём ключ шифрования чатов."""
+    _use_console_password_prompt()
+    _prepare_vault(default_vault())
+
+
+def _uses_chats(*specs: str) -> bool:
+    return any(spec.lower().startswith("chat:") for spec in specs)
 
 
 def _ensure_keys(vault: Vault) -> None:

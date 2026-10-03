@@ -115,6 +115,8 @@ def _dynamic_keys() -> set[str]:
             ("collectors", "telegram_login.py"),
             ("securestore.py",),
             ("morph.py",),
+            ("chatcrypt.py",),
+            ("chatstore.py",),
         )
     )
     coded_codes = set(
@@ -140,6 +142,7 @@ def _dynamic_keys() -> set[str]:
     keys |= {f"tg.mode.{mode}" for mode in MODES} | {f"tg.mode.{mode}.desc" for mode in MODES}
     keys |= {f"pos.{code}" for code in ALL_CODES}
     keys |= {f"rhythm.{key}" for key in RHYTHM_LABELS}
+    keys |= {"chats.locked", "chats.setup"}  # ключ строится по состоянию хранилища
     keys |= {"note.agree", "note.disagree"}  # выбираются тернарным оператором в noteText
     return keys
 

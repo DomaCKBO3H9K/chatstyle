@@ -19,6 +19,7 @@
 """
 
 import argparse
+import getpass
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -29,6 +30,7 @@ from chatstyle.ensemble import DEFAULT_CAP_WORDS, cap_messages
 from chatstyle.errors import ChatstyleError
 from chatstyle.pipeline import compare_messages, count_words
 from chatstyle.preprocess import preprocess_timed
+from chatstyle.securestore import default_vault, set_password_prompt, unlock_interactively
 from chatstyle.timeline import Messages
 
 MIN_UNKNOWN_WORDS = 600  # меньше текста в контексте — задача не строится
@@ -50,8 +52,12 @@ class Summary:
     chance: float  # доля при случайном угадывании
 
 
-def load_people(chats_dir: Path) -> dict[str, dict[str, Messages]]:
-    """чат -> идентификатор участника -> предобработанные сообщения со временем."""
+def load_people(chats_dir: Path | None) -> dict[str, dict[str, Messages]]:
+    """чат -> идентификатор участника -> предобработанные сообщения со временем.
+
+    Без `chats_dir` читается рабочее зашифрованное хранилище (нужно открыть общее хранилище
+    секретов), с `chats_dir` — открытые файлы чатов из этой папки (копия для проверок).
+    """
     data: dict[str, dict[str, Messages]] = {}
     for chat in chatstore.list_chats(chats_dir):
         data[chat.id] = {
@@ -162,7 +168,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="experiments.chats_eval", description=__doc__.split("\n\n")[0]
     )
-    parser.add_argument("--chats-dir", type=Path, default=None, help="папка загруженных чатов")
+    parser.add_argument(
+        "--chats-dir",
+        type=Path,
+        default=None,
+        help="папка с ОТКРЫТЫМИ файлами чатов (по умолчанию — зашифрованное хранилище)",
+    )
     parser.add_argument("--min-words", type=int, default=2500, help="слов у кандидата вне чата")
     parser.add_argument("--unknown-words", type=int, default=1400, help="слов у неизвестного")
     parser.add_argument("--cap-words", type=int, default=DEFAULT_CAP_WORDS)
@@ -170,9 +181,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--lexical", action="store_true", help="смесь с лексикой")
     args = parser.parse_args(argv)
 
-    folder = args.chats_dir if args.chats_dir is not None else chatstore.chats_dir()
     try:
-        data = load_people(folder)
+        if args.chats_dir is None:
+            set_password_prompt(lambda: getpass.getpass("Мастер-пароль хранилища: "))
+            unlock_interactively(default_vault())
+        data = load_people(args.chats_dir)
     except ChatstyleError as exc:
         print(f"Ошибка: {exc}", file=sys.stderr)
         return 2

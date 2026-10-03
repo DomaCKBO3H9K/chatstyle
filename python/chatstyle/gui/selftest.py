@@ -140,6 +140,7 @@ def _wait(window, expression: str, timeout: float, what: str) -> None:  # noqa: 
 def _check_chats(window, folder: Path) -> None:  # noqa: ANN001
     """Вкладка «Чаты»: загруженный чат виден в списке, из него выбирается участник."""
     from chatstyle import chatstore
+    from chatstyle.securestore import MODE_PASSWORD, Vault, reset_default_vault
 
     records = [
         {
@@ -158,7 +159,19 @@ def _check_chats(window, folder: Path) -> None:  # noqa: ANN001
         json.dumps({"name": "Друзья", "id": 7, "messages": records}, ensure_ascii=False),
         encoding="utf-8",
     )
-    chatstore.import_chat(export)
+    # рабочий режим требует открытого хранилища: временное, с паролем (свои данные не трогаем)
+    vault = Vault(folder / "chats-vault.json", backoff=False)
+    vault.create(MODE_PASSWORD, "самопроверка-пароль-1")
+    reset_default_vault(vault)
+    try:
+        chatstore.import_chat(export)
+        _check_chats_page(window)
+    finally:
+        reset_default_vault(None)
+
+
+def _check_chats_page(window) -> None:  # noqa: ANN001
+    """Страница: список чатов, диалог выбора и выбор участника."""
     window.evaluate_js("document.getElementById('tab-chats').click()")
     _wait(
         window,

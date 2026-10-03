@@ -278,5 +278,14 @@ registerLanguage("fr", {
   "note.ranking.ensemble": "Ordre : selon le mélange de style (squelette des mots-outils, Delta, modèle de langage sans sujets).",
   "lexical.label": "Ajouter le vocabulaire au mélange (plus précis, mais plus sensible au sujet)",
   "lexical.hint": "Par défaut l'ordre des candidats ne repose que sur le style : mots-outils, Delta et un modèle de langage sans sujets.",
-  "note.lexical_hint": "Conseil : l'auteur inconnu a {words} mots (moins de {min}). Sur un texte court, le mélange de style est nettement plus faible et le vocabulaire plus précis : cochez « Ajouter le vocabulaire au mélange »."
+  "note.lexical_hint": "Conseil : l'auteur inconnu a {words} mots (moins de {min}). Sur un texte court, le mélange de style est nettement plus faible et le vocabulaire plus précis : cochez « Ajouter le vocabulaire au mélange ».",
+  "error.chats_locked": "Le coffre est verrouillé : déverrouillez-le (mot de passe maître) dans la fenêtre Telegram, puis réessayez.",
+  "error.chats_setup": "Pour conserver des conversations, configurez d'abord la protection (mot de passe maître, DPAPI ou « le temps de la fenêtre ») dans la fenêtre Telegram.",
+  "error.chat_decrypt": "Impossible de déchiffrer la conversation : mauvaise clé ou fichier modifié.",
+  "error.chat_key_invalid": "La clé de chiffrement des conversations dans le coffre est endommagée.",
+  "chats.locked": "Les conversations sont chiffrées et le coffre est verrouillé. Déverrouillez-le pour voir la liste.",
+  "chats.setup": "Pour conserver des conversations, configurez la protection du coffre : mot de passe maître, DPAPI ou « le temps de la fenêtre ».",
+  "chats.unlock": "Ouvrir la protection",
+  "chats.memory": "Mode « le temps de la fenêtre » : les conversations restent en mémoire et disparaissent à la fermeture de la fenêtre.",
+  "chats.legacy": "{n} fichiers de conversation non chiffrés d'une ancienne version sont sur le disque. Choisissez la protection « mot de passe maître » ou DPAPI : ils seront chiffrés à la prochaine ouverture de l'onglet. En mode « le temps de la fenêtre », ils restent non chiffrés et ne sont pas affichés."
 });

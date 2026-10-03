@@ -278,5 +278,14 @@ registerLanguage("en", {
   "note.ranking.ensemble": "Order: by the style mix (function-word skeleton, Delta, language model without topics).",
   "lexical.label": "Add vocabulary to the mix (more accurate, but more sensitive to topic)",
   "lexical.hint": "By default the order of candidates uses style only: function words, Delta and a language model without topics.",
-  "note.lexical_hint": "Tip: the unknown author has {words} words (fewer than {min}). On short text the style mix is noticeably weaker and vocabulary is more accurate: tick \"Add vocabulary to the mix\"."
+  "note.lexical_hint": "Tip: the unknown author has {words} words (fewer than {min}). On short text the style mix is noticeably weaker and vocabulary is more accurate: tick \"Add vocabulary to the mix\".",
+  "error.chats_locked": "The vault is locked: unlock it (master password) in the Telegram window, then retry.",
+  "error.chats_setup": "To store chats, first set up protection (master password, DPAPI or \"window only\") in the Telegram window.",
+  "error.chat_decrypt": "Could not decrypt the chat: wrong key or the file was modified.",
+  "error.chat_key_invalid": "The chat encryption key in the vault is damaged.",
+  "chats.locked": "Chats are encrypted and the vault is locked. Unlock it to see the list.",
+  "chats.setup": "To store chats, set up vault protection: master password, DPAPI or \"window only\".",
+  "chats.unlock": "Open protection",
+  "chats.memory": "\"Window only\" mode: chats are kept in memory only and disappear when the window closes.",
+  "chats.legacy": "There are {n} unencrypted chat files from an older version on disk. Choose \"master password\" or DPAPI protection and they will be encrypted the next time this tab opens. In \"window only\" mode they stay unencrypted and are not shown."
 });

@@ -17,6 +17,7 @@ const state = {
   tg: { step: "logged_out", name: null, has_keys: true },
   morphAvailable: false,
   chats: [],
+  chatsState: "ok",
 };
 
 function el(tag, props = {}, children = []) {
@@ -139,12 +140,26 @@ async function chooseTelegram() {
 // --- загруженные чаты ---
 
 async function loadChats() {
-  state.chats = (await call("chats_list")) || [];
+  const answer = (await call("chats_list")) || { state: "error", chats: [] };
+  state.chats = answer.chats || [];
+  state.chatsState = answer.state;
+  state.chatsMemory = Boolean(answer.memory);
+  state.chatsLegacy = Number(answer.legacy || 0);
+  if (answer.error) showErrors([answer.error]);
   renderChats();
 }
 
 function renderChats() {
-  $("chats-empty").hidden = state.chats.length > 0;
+  const open = state.chatsState === "ok";
+  $("chats-empty").hidden = !open || state.chats.length > 0;
+  const closed = state.chatsState === "locked" || state.chatsState === "setup";
+  $("chats-locked").hidden = !closed;
+  $("chats-locked").textContent = closed ? t(`chats.${state.chatsState}`) : "";
+  $("chats-unlock").hidden = !closed;
+  $("chats-memory").hidden = !(open && state.chatsMemory);
+  $("chats-legacy").hidden = !state.chatsLegacy;
+  $("chats-legacy").textContent = state.chatsLegacy ? t("chats.legacy", { n: state.chatsLegacy }) : "";
+  $("chats-upload").disabled = !open || Boolean(state.busy);
   $("chats-list").replaceChildren(
     ...state.chats.map((chat) => {
       const remove = el("button", { class: "btn", "aria-label": t("chats.remove_aria", { name: chat.name }), text: t("chats.remove") });
@@ -181,6 +196,10 @@ async function uploadChat() {
 // Выбор людей из загруженных чатов: один (radio) или несколько (checkbox); пусто при отмене.
 async function chooseFromChats(multi) {
   await loadChats();
+  if (state.chatsState === "locked" || state.chatsState === "setup") {
+    showErrors([{ code: state.chatsState === "setup" ? "chats_setup" : "chats_locked", params: {} }]);
+    return [];
+  }
   const dialog = $("chatpick");
   const select = $("chatpick-chat");
   const list = $("chatpick-senders");
@@ -873,6 +892,8 @@ function bind() {
   $("tab-profile").addEventListener("click", () => selectTab("profile"));
   $("tab-chats").addEventListener("click", () => selectTab("chats"));
   $("chats-upload").addEventListener("click", uploadChat);
+  $("chats-unlock").addEventListener("click", openTelegramDialog);
+  $("tg").addEventListener("close", () => loadChats());
   $("unknown-chat").addEventListener("click", async () => {
     state.unknown = (await chooseFromChats(false))[0] || state.unknown;
     refreshCompare();

@@ -1,4 +1,5 @@
 import json
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,7 @@ from chatstyle.collectors import collect
 from chatstyle.errors import ChatstyleError
 from chatstyle.gui.api import Api
 from chatstyle.pipeline import run_comparison
+from chatstyle.securestore import MODE_PASSWORD, Vault, reset_default_vault
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -40,11 +42,19 @@ def export(
     return path
 
 
+PASSWORD = "правильный-пароль-123"
+
+
 @pytest.fixture
-def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Каталог данных пользователя подменён, настоящие чаты тесты не трогают."""
+def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    """Каталог данных подменён и создано открытое хранилище: чаты шифруются, как в работе."""
     monkeypatch.setenv("CHATSTYLE_HOME", str(tmp_path / "home"))
-    return tmp_path / "home"
+    vault = Vault(tmp_path / "vault.json", backoff=False)
+    vault.create(MODE_PASSWORD, PASSWORD)
+    reset_default_vault(vault)
+    yield tmp_path / "home"
+    reset_default_vault(None)
+    chatstore._MEMORY.clear()
 
 
 def test_import_and_list(tmp_path: Path, home: Path) -> None:
@@ -55,7 +65,7 @@ def test_import_and_list(tmp_path: Path, home: Path) -> None:
         ("user2", "Боря", 12),
     ]
     assert [item.id for item in chatstore.list_chats()] == ["777"]
-    assert (home / "chats" / "777.json").exists()
+    assert (home / "chats" / "777.chat").exists()
 
 
 def test_empty_list_when_nothing_uploaded(home: Path) -> None:
@@ -211,7 +221,9 @@ def test_cli_chats_errors(tmp_path: Path, home: Path) -> None:
 def test_api_lists_chats_and_builds_sources(tmp_path: Path, home: Path) -> None:
     chatstore.import_chat(export(tmp_path / "a.json"))
     api = Api()
-    chats = api.chats_list()
+    answer = api.chats_list()
+    assert answer["state"] == "ok" and answer["memory"] is False
+    chats = answer["chats"]
     assert [(c["id"], c["name"], c["messages"]) for c in chats] == [("777", "Друзья", 24)]
     assert [s["key"] for s in chats[0]["senders"]] == ["user1", "user2"]
 
