@@ -624,12 +624,15 @@ This section is temporary and must disappear by v1.0. An honest list of what is 
   by CI on Linux (there is no display, and the window test is skipped there); installation on
   Linux (building the core, running `chatstyle`) was also checked manually on Kali Linux.
 - **The Telegram collector was verified only on stubs**, with no live account.
-- **`chatstyle.exe`** was built locally (MinGW-w64). The script `packaging/check_exe.py` checked it
-  on this machine: the version and icon in the file properties, working with a `PATH` without
-  Python, reading `.env` from `%APPDATA%\chatstyle`, output in a real console 80 columns wide, the
-  pause on a double-click start. **Not verified:** a clean Windows 10 with no Python at all
-  (Windows Sandbox will do: copy a single `chatstyle.exe` there and run `chatstyle --version` and
-  `compare`), and an exe built with MSVC.
+- **The Windows exe files.** The release workflow builds `chatstyle.exe` and `chatstyle-gui.exe`
+  with MSVC on a GitHub runner and runs smoke tests there (`--version`, `compare`, the window
+  self-test). The release builds were also started by hand on the author's Windows 10 machine and
+  work. A MinGW-w64 build made locally additionally passed `packaging/check_exe.py` (the version
+  and icon in the file properties, a `PATH` without Python, reading `.env` from
+  `%APPDATA%\chatstyle`, output in a real console 80 columns wide, the pause on a double-click
+  start); on the runner that script runs without a real console, so its result is informational
+  only. **Not verified:** a clean Windows 10 with no Python installed at all (Windows Sandbox will
+  do: copy a single `chatstyle.exe` there and run `chatstyle --version` and `compare`).
 - **The evaluation on real data is a single conversation environment, and the choice of method was
   tuned to it.** The check ran on one user's chats: two groups (202 and 16 participants) and
   private chats. Tasks: a person from one context (chat) against the other people whose texts are
