@@ -1,33 +1,49 @@
 # chatstyle
 
-CLI-инструмент верификации авторства русскоязычной переписки. Он отвечает на вопрос: «написаны
-ли сообщения неизвестного отправителя тем же человеком, что и сообщения кандидата?» — и показывает,
-на каких признаках основан ответ.
+**English** | [Русский](README.ru.md)
 
-> **Результат — статистическая оценка сходства стиля, а не доказательство авторства.** Она может
-> ошибаться, зависит от объёма текста и не должна использоваться как единственное основание для
-> выводов о людях. Подробнее — в разделах [«Ограничения»](#ограничения) и
-> [«Этика и приватность»](#этика-и-приватность).
+A command-line tool (with a desktop window) for verifying the authorship of Russian-language chat
+messages. It answers the question: "were the messages of an unknown sender written by the same
+person as the messages of a candidate?" and shows which features the answer is based on.
 
-> **Статус: версия 0.1, до релиза v1.0.** Результаты оценки качества на реальных данных ещё не
-> получены, см. [«Оценка качества»](#оценка-качества) и [«Статус и известные пробелы»](#статус-и-известные-пробелы).
+> **The result is a statistical estimate of style similarity, not proof of authorship.** It can be
+> wrong, depends on the amount of text, and must not be used as the only basis for conclusions
+> about people. See [Limitations](#limitations) and [Ethics and privacy](#ethics-and-privacy).
 
-## Что умеет
+> **Status: version 0.1, before the v1.0 release.** Quality results on real data are not yet
+> published, see [Quality evaluation](#quality-evaluation) and
+> [Status and known gaps](#status-and-known-gaps).
 
-- **Стилевая смесь методов** — порядок кандидатов по умолчанию: «каркас» служебных слов, Delta и языковая модель по тексту, где редкие слова замаскированы (тема почти не влияет), с равными весами z-оценок; ключ `--lexical` добавляет лексику (см. «Как читать результат»). Проверка на реальных чатах — в «Статус и известные пробелы».
-- **Три метода сравнения** (считаются локально):
-  - косинусное сходство TF-IDF символьных n-грамм (1–4) — базовый метод, с объяснением «какие n-граммы дали совпадение»;
-  - **Burrows Delta** по стилевым признакам: привычки пунктуации (скобки «)», «))», многоточия, «!!», «??», запятые и союзы, пробелы вокруг знаков, тире, кавычки), регистр и орфография (КАПС, растянутые слова, «тся/ться», смесь кириллицы и латиницы, двойные пробелы, нестандартные написания), «ё»/«е», латиница, эмодзи, словарное богатство, длина слов, предложений и сообщений, частоты служебных слов и слов-паразитов (всего около 40 признаков, они же образуют профиль стиля);
-  - **General Impostors**: устойчиво ли текст кандидата ближе к неизвестному, чем тексты посторонних авторов. Его оценка (0..1) — **итоговая оценка**.
-- **Три источника данных:** текстовый файл, JSON-экспорт Telegram Desktop, Telegram через Telethon.
-- **Отчёты** в Markdown и HTML: таблица, топ совпавших признаков, различия стилей, описание метода.
-- **Профиль стиля** одного автора: `chatstyle features`.
-- Предупреждение, если у любой стороны меньше 1000 слов.
+The command-line output, reports and error messages are in Russian (the window itself is
+translated into six languages). Examples below show the real output as it is.
 
-## Быстрый старт
+## What it does
 
-В репозитории есть небольшие вымышленные файлы `tests/fixtures/*.txt` (одно сообщение на строку).
-После [установки](#установка):
+- **A style-based ensemble of methods.** By default candidates are ranked by: a "skeleton" of
+  function words, Burrows Delta, and a language model over text in which rare words are masked
+  (so the topic barely matters), with equal weights of z-scores. The `--lexical` flag adds
+  vocabulary (see "How to read the result"). The check on real chats is in "Status and known gaps".
+- **Three comparison methods** (all computed locally):
+  - cosine similarity of TF-IDF character n-grams (1-4), the baseline, with an explanation of
+    which n-grams matched;
+  - **Burrows Delta** over style features: punctuation habits (brackets ")", "))", ellipses, "!!",
+    "??", commas and conjunctions, spaces around marks, dashes, quotes), case and spelling (ALL
+    CAPS, stretched words, the "тся/ться" spelling, mixed Cyrillic and Latin, double spaces,
+    non-standard spellings), "ё"/"е", Latin letters, emoji, vocabulary richness, lengths of words,
+    sentences and messages, frequencies of function words and filler words (about 40 features in
+    total; they also make up the style profile);
+  - **General Impostors**: whether the candidate's text is consistently closer to the unknown text
+    than the texts of outside authors. Its score (0..1) is the **final score**.
+- **Three data sources:** a text file, a Telegram Desktop JSON export, Telegram via Telethon.
+- **Reports** in Markdown and HTML: a table, the top matching features, style differences, a
+  description of the method.
+- **Style profile** of a single author: `chatstyle features`.
+- A warning if either side has fewer than 1000 words.
+
+## Quick start
+
+The repository contains small fictional files `tests/fixtures/*.txt` (one message per line).
+After [installing](#installation):
 
 ```bash
 chatstyle compare -u file:tests/fixtures/unknown.txt -c file:tests/fixtures/same.txt -c file:tests/fixtures/other.txt
@@ -50,292 +66,358 @@ General Impostors недоступен (file:tests/fixtures/same.txt, file:tests
 Результат — статистическая оценка сходства стиля, а не доказательство авторства.
 ```
 
-Прочерки означают, что метод недоступен: текста слишком мало (здесь по 80–120 слов), поэтому
-программа не выдумывает число, а объясняет, чего не хватает. Полный пример с тремя методами —
-в [«Пример отчёта»](#пример-отчёта).
+Column headings: "Кандидат" is the candidate, "Слов" words, "Сообщений" messages, "Сходство" similarity,
+"Impostors (итог)" the final General Impostors score, "Смесь" the ensemble.
 
-## Установка
+A dash means the method is unavailable: there is too little text (here 80-120 words each), so the
+program does not invent a number but explains what is missing. A full example with all three
+methods is in [Example report](#example-report).
 
-Нужны Python 3.11+ и компилятор C++17: ядро собирается при установке (CMake ≥ 3.20, pybind11 и
-scikit-build-core подтягиваются автоматически).
+## Requirements
+
+chatstyle is a C++17 core with a Python interface, so two groups of things are needed: tools to
+**build** the core once (during `pip install`), and libraries to **run** the program.
+
+**You install yourself (system tools):**
+
+| What | Version | Why | Where to get it |
+|---|---|---|---|
+| Python | 3.11 or newer (3.12 is used in CI, 3.14 tested locally) | the program itself | python.org, or `apt install python3 python3-venv` |
+| A C++17 compiler | MSVC (Visual Studio 2022 Build Tools), MinGW-w64, GCC or Clang | builds the core | Windows: Build Tools with the "Desktop development with C++" workload; Linux: `apt install build-essential` |
+| CMake | 3.20 or newer | builds the core | cmake.org, `apt install cmake`, or `pip install cmake` |
+| Python headers | the same as your Python | needed to build the Python module | Linux: `apt install python3-dev`; on Windows they come with Python |
+| Ninja | any (optional) | the build generator for MinGW-w64 only | `pip install ninja` or your package manager |
+| git | any (optional) | only to clone the repository and to download Catch2 when building the C++ tests | git-scm.com |
+
+**Installed automatically by `pip install .`:**
+
+| Package | Used for |
+|---|---|
+| `scikit-build-core` (>= 0.10), `pybind11` (>= 3.0) | building the core (build time only; fetched into an isolated build environment) |
+| `typer` (>= 0.12), `rich` (>= 13) | the command line and the tables |
+| `telethon` (>= 1.36) | Telegram access (used only on your command) |
+| `pywebview` (>= 5) | the application window |
+| `cryptography` (>= 42) | AES-256-GCM encryption of the store and the uploaded chats |
+
+The first `pip install` needs internet access to download these packages; after that the program
+works offline (except Telegram).
+
+**Optional extras** (`pip install ".[name]"`):
+
+| Extra | Packages | Used for |
+|---|---|---|
+| `morph` | `pymorphy3`, `pymorphy3-dicts-ru` | parts of speech (`--morph`, Russian only) |
+| `dev` | `pytest`, `ruff` | tests and linting |
+| `experiments` | `matplotlib` | plots in `experiments/` |
+
+**For the window only** (`chatstyle gui`; the command line does not need this):
+
+- Windows: the Microsoft Edge WebView2 runtime (already in Windows 11 and up-to-date Windows 10).
+- Linux: GTK with WebKit (`apt install python3-gi gir1.2-webkit2-4.1`) or Qt
+  (`pip install "pywebview[qt]"`).
+- macOS has not been tried.
+
+The ready-made `chatstyle.exe` for Windows (see below) needs none of this: it bundles Python and all
+the libraries.
+
+## Installation
+
+You need Python 3.11+ and a C++17 compiler: the core is built during installation (CMake >= 3.20;
+pybind11 and scikit-build-core are fetched automatically). Everything needed is listed in
+[Requirements](#requirements).
 
 ```bash
-git clone <URL репозитория>
+git clone <repository URL>
 cd chatstyle
 pip install .
 ```
 
-Проверка:
+Check:
 
 ```bash
 chatstyle --version
 ```
 
-Если каталог `Scripts` вашего Python не в `PATH`, вызывайте `python -m chatstyle ...`.
+If your Python's `Scripts` directory is not on `PATH`, call `python -m chatstyle ...`.
 
 ### Windows
 
-- Компилятор: **Visual Studio 2022 Build Tools** (рабочая нагрузка «Разработка классических приложений на C++»)
-  или **MinGW-w64**. Флаги сборки для MSVC: `/W4 /utf-8 /permissive-`.
-- С MinGW-w64 укажите генератор Ninja (так проверялась сборка на этой машине):
+- Compiler: **Visual Studio 2022 Build Tools** (the "Desktop development with C++" workload) or
+  **MinGW-w64**. MSVC build flags: `/W4 /utf-8 /permissive-`.
+- With MinGW-w64 select the Ninja generator (this is how the build was tested on the author's
+  machine):
 
   ```powershell
   $env:CMAKE_GENERATOR = "Ninja"
   pip install .
   ```
 
-- **Готовый `chatstyle.exe`** (около 18 МБ, не требует установленного Python) будет прикладываться
-  к релизам. Пока его можно собрать самому (нужен Python и компилятор, как выше):
+- **A ready-made `chatstyle.exe`** (about 18 MB, no installed Python required) will be attached to
+  releases. Until then you can build it yourself (Python and a compiler are needed, as above):
 
   ```powershell
   pip install -e .
-  powershell -File packaging\build_exe.ps1            # один файл dist\chatstyle.exe
-  powershell -File packaging\build_exe.ps1 -OneDir    # папка для отладки
-  python packaging/check_exe.py                       # проверка собранного exe (Windows)
+  powershell -File packaging\build_exe.ps1            # a single file dist\chatstyle.exe
+  powershell -File packaging\build_exe.ps1 -OneDir    # a folder, for debugging
+  python packaging/check_exe.py                       # check the built exe (Windows)
   dist\chatstyle.exe --version
   ```
 
-  Двойной щелчок по `chatstyle.exe` печатает справку и ждёт Enter, чтобы окно не закрылось
-  мгновенно (из `cmd` и PowerShell этого не происходит; отключить паузу можно переменной
-  `CHATSTYLE_NO_PAUSE=1`). Пользовательские файлы exe хранит в `%APPDATA%\chatstyle`, а не рядом
-  с собой. Одиночный exe при каждом запуске распаковывается во временную папку, поэтому
-  стартует за пару секунд.
+  Double-clicking `chatstyle.exe` prints the help and waits for Enter so the window does not close
+  instantly (this does not happen from `cmd` or PowerShell; set `CHATSTYLE_NO_PAUSE=1` to turn the
+  pause off). The exe keeps user files in `%APPDATA%\chatstyle`, not next to itself. A single-file
+  exe is unpacked into a temporary folder on every start, so it starts in a couple of seconds.
 
-### Окно приложения
+### Application window
 
-Кроме командной строки есть окно: выбираете файл неизвестного автора и кандидатов, нажимаете
-«Сравнить» и видите шкалу сходства с пояснениями; вторая вкладка показывает профиль стиля одного
-автора. Сети окно не использует: страница лежит внутри пакета, шрифты системные.
+Besides the command line there is a window: you pick the unknown author's file and the
+candidates, press "Сравнить" (Compare) and see a similarity scale with explanations; the second
+tab shows the style profile of one author. The window uses no network: the page is inside the
+package, fonts are the system ones.
 
 ```powershell
-chatstyle gui                          # из установленного пакета
-dist\chatstyle-gui.exe                 # готовый exe, консольного окна нет
-dist\chatstyle-gui.exe --selftest r.txt  # проверка без показа окна, результат пишется в r.txt
+chatstyle gui                          # from the installed package
+dist\chatstyle-gui.exe                 # a ready exe, no console window
+dist\chatstyle-gui.exe --selftest r.txt  # a check without showing the window, the result goes to r.txt
 ```
 
-Окно построено на pywebview и встроенном движке Microsoft Edge WebView2. В Windows 11 и в
-свежей Windows 10 он уже есть; если нет, при запуске появится сообщение со ссылкой на установщик.
-Собрать exe: `powershell -File packaging\build_exe.ps1 -Target gui`. Войти в Telegram можно из
-окна (кнопка «Telegram» в шапке, см. «Telegram через Telethon» ниже); расчёт нельзя
-отменить. Тема светлая или тёмная, язык русский, English, العربية, Español, 中文 или Français: по
-умолчанию как в системе, переключатели в шапке запоминают выбор (арабский выводится справа налево).
-Переводится всё окно; отчёты и вывод командной строки остаются на русском, как и подробный
-текст ошибок ядра. Переводы сделаны без вычитки носителями языка, поправки приветствуются: словари
-лежат в `python/chatstyle/gui/web/lang/`.
+The window is built on pywebview and the Microsoft Edge WebView2 engine built into Windows. It is
+already present in Windows 11 and in up-to-date Windows 10; if not, a message with a link to the
+installer appears at start. To build the exe: `powershell -File packaging\build_exe.ps1 -Target gui`.
+You can sign in to Telegram from the window (the "Telegram" button in the header, see "Telegram via
+Telethon" below); a calculation cannot be cancelled. The theme is light or dark, the language is
+Russian, English, العربية, Español, 中文 or Français: by default as in the system, and the switches
+in the header remember the choice (Arabic is shown right to left). The whole window is
+translated; reports and command-line output stay in Russian, as do the detailed core error
+messages. The translations were not proofread by native speakers, corrections are welcome: the
+dictionaries are in `python/chatstyle/gui/web/lang/`.
 
 ### Linux
 
-Нужны `g++` (или `clang++`), CMake ≥ 3.20 и заголовки Python:
+You need `g++` (or `clang++`), CMake >= 3.20 and the Python headers:
 
 ```bash
 sudo apt install build-essential cmake python3-dev   # Debian/Ubuntu
 pip install .
 ```
 
-### Для разработки
+The window (`chatstyle gui`) additionally needs GTK (`python3-gi gir1.2-webkit2-4.1`) or Qt
+(`pip install "pywebview[qt]"`); the command line works without them.
+
+### Development
 
 ```bash
 pip install -e ".[dev]"          # pytest, ruff
-pytest                           # тесты Python
+pytest                           # Python tests
 ruff check python tests experiments
 cmake -S . -B build -DCHATSTYLE_BUILD_TESTS=ON -DCHATSTYLE_BUILD_PYTHON=OFF
 cmake --build build
-ctest --test-dir build           # тесты ядра (Catch2 скачивается при настройке CMake)
+ctest --test-dir build           # core tests (Catch2 is downloaded when CMake is configured)
 ```
 
-Для графиков в `experiments/` дополнительно: `pip install -e ".[experiments]"`.
+For the plots in `experiments/` additionally: `pip install -e ".[experiments]"`.
 
-## Источники данных
+## Data sources
 
-Источник задаётся как `схема:значение`. Для сравнения нужен хотя бы один кандидат; `-c` можно
-повторять.
+A source is given as `scheme:value`. At least one candidate is required for a comparison; `-c`
+can be repeated.
 
-| Источник | Пример | Что берётся |
+| Source | Example | What is taken |
 |---|---|---|
-| `file:` | `file:chat.txt` | Текстовый файл UTF-8, одно сообщение на строку. |
-| `tgexport:` | `tgexport:result.json#Анна Петрова` | JSON-экспорт одного чата Telegram Desktop; после `#` — имя отправителя, его `from_id` (`user111`) или числовой id. |
-| `tg:` | `tg:@friend` или `tg:@группа#@человек` | Сообщения через Telethon: личный чат с пользователем либо сообщения человека в группе. |
-| `chat:` | `chat:777#Анна Петрова` | Человек из **загруженного чата** (см. ниже): до `#` id или название чата, после — имя участника или его `from_id`. |
+| `file:` | `file:chat.txt` | A UTF-8 text file, one message per line. |
+| `tgexport:` | `tgexport:result.json#Anna Petrova` | A JSON export of one Telegram Desktop chat; after `#` the sender's name, their `from_id` (`user111`) or a numeric id. |
+| `tg:` | `tg:@friend` or `tg:@group#@person` | Messages via Telethon: a private chat with a user, or one person's messages in a group. |
+| `chat:` | `chat:777#Anna Petrova` | A person from an **uploaded chat** (see below): before `#` the chat's id or title, after it the participant's name or `from_id`. |
 
-Берутся только текстовые сообщения нужного отправителя: пересланные, сервисные сообщения и
-медиа без подписи пропускаются. Ссылки и упоминания заменяются метками, пустые сообщения и
-служебные заполнители вроде `[Фото]` отбрасываются.
+Only text messages of the required sender are taken: forwarded and service messages and media
+without a caption are skipped. Links and mentions are replaced with tags; empty messages and
+placeholders such as `[Фото]` are dropped.
 
-### Загруженные чаты
+### Uploaded chats
 
-Чтобы не собирать экспорты по папкам вручную, загрузите экспорт чата один раз, и он останется в
-списке. Исходный `result.json` после этого можно удалить: сохраняются только тексты и время
-сообщений участников.
+So that you do not have to sort exports into folders by hand, upload a chat export once and it stays
+in the list. The original `result.json` can then be deleted: only the texts and times of the
+participants' messages are kept.
 
-- **В окне:** вкладка «Чаты» → «Загрузить экспорт чата»; в сравнении и профиле кнопки
-  «Из загруженных чатов» и «Добавить из загруженных чатов» (там можно отметить сразу нескольких
-  участников чата).
-- **В командной строке:**
+- **In the window:** the "Чаты" (Chats) tab, then the button to upload a chat export; in the
+  comparison and the profile there are buttons to pick from the uploaded chats (several
+  participants of a chat can be ticked at once).
+- **On the command line:**
 
   ```
-  chatstyle chats add result.json      загрузить чат (повторная загрузка дополняет его без дублей)
-  chatstyle chats list                 список чатов
-  chatstyle chats list Друзья          участники одного чата (имя, идентификатор, сообщений)
-  chatstyle chats remove Друзья        удалить чат из списка
-  chatstyle compare -u chat:Друзья#Аня -c chat:Друзья#Боря -c chat:Друзья#Вера
+  chatstyle chats add result.json      upload a chat (uploading again extends it without duplicates)
+  chatstyle chats list                 list the chats
+  chatstyle chats list Friends         participants of one chat (name, identifier, message count)
+  chatstyle chats remove Friends       remove a chat from the list
+  chatstyle compare -u chat:Friends#Ann -c chat:Friends#Bob -c chat:Friends#Vera
   ```
 
-Чат задаётся id из экспорта или названием (если названия двух чатов совпали, нужен id), участник —
-именем или идентификатором (`user111`). Это тот же разбор, что у `tgexport:`, но файл читается один
-раз. Файлы чатов лежат в каталоге данных (`chats/`) и **зашифрованы** (AES-256-GCM): случайный ключ
-хранится в общем хранилище секретов (то же, где вход в Telegram: мастер-пароль или DPAPI), поэтому
-перед работой с чатами хранилище нужно открыть. **Ключи API и вход в Telegram для этого не нужны:** во вкладке «Чаты»
-окно само предложит настроить защиту (мастер-пароль, DPAPI или «только на время окна») или открыть её
-мастер-паролем; CLI спросит то же. Хранилище с мастер-паролем закрывается само после 15 минут
-бездействия во вкладке «Чаты». В
-режиме «только на время работы окна» чаты живут только в памяти и исчезают при закрытии окна. Чаты,
-загруженные прежними версиями (открытые `*.json`), шифруются при первом открытии хранилища, а
-открытые копии затираются. Файл привязан к своему id: подменённый или изменённый файл не
-расшифруется.
+A chat is given by the id from the export or by its title (if two chats share a title, the id is
+needed), a participant by name or identifier (`user111`). This is the same parsing as in
+`tgexport:`, but the file is read only once. Chat files live in the data directory (`chats/`) and
+are **encrypted** (AES-256-GCM): a random key is kept in the common secret store (the same one that
+holds the Telegram login: a master password or DPAPI), so the store must be opened before working
+with chats. **API keys and a Telegram login are not needed for this:** in the "Чаты" tab the window
+itself offers to set up protection (a master password, DPAPI, or "only while the window is open") or
+to open it with the master password; the CLI asks the same. A store protected by a master password
+locks itself after 15 minutes of inactivity in the "Чаты" tab. In the "only while the window is
+open" mode chats live only in memory and disappear when the window closes. Chats uploaded by
+earlier versions (plain `*.json`) are encrypted when the store is first opened, and the plain
+copies are overwritten. A file is bound to its id: a substituted or modified file will not decrypt.
 
-### Telegram через Telethon
+### Telegram via Telethon
 
-Сеть используется **только** здесь и только по вашей явной команде.
+The network is used **only** here and only on your explicit command.
 
-1. Получите `api_id` и `api_hash` на <https://my.telegram.org> (раздел API development tools).
-2. Один раз выполните вход: команда спросит способ защиты (мастер-пароль или учётная запись
-   Windows), при необходимости ключи `api_id`/`api_hash` (их можно задать и переменными окружения
-   `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` или файлом `.env`), затем телефон, код из Telegram и
-   пароль 2FA, если он включён:
+1. Get an `api_id` and `api_hash` at <https://my.telegram.org> (the API development tools
+   section).
+2. Sign in once: the command asks for a protection method (a master password or the Windows
+   account), if needed for the `api_id`/`api_hash` keys (they can also be given by the environment
+   variables `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` or a `.env` file), then the phone number, the
+   code from Telegram and the 2FA password if it is enabled:
 
    ```bash
    chatstyle login
    ```
 
-3. Сравнивайте (если хранилище защищено мастер-паролем, команда спросит его без эха):
+3. Compare (if the store is protected by a master password, the command asks for it without echo):
 
    ```bash
    chatstyle compare -u tg:@stranger -c tg:@friend1 -c file:friend2.txt --limit 1000
    ```
 
-**Из окна.** Кнопка «Telegram» в шапке открывает мастер: способ защиты входа, ключи (`api_id`,
-`api_hash`), номер телефона, код из Telegram и пароль 2FA, если он включён. Код и пароли нигде не
-сохраняются, а поля очищаются сразу после отправки. После входа у источников появляется «Из
-Telegram» (чат и, при необходимости, отправитель), а лимит сообщений и «загрузить заново» лежат в
-«Дополнительно». Вход из окна и `chatstyle login` используют одно зашифрованное хранилище.
-«Выйти из Telegram» стирает сессию из хранилища и завершает её на стороне Telegram; «Удалить все
-данные Telegram» удаляет ещё и само хранилище. Подробности защиты — в разделе
-[«Безопасность»](#безопасность).
+**From the window.** The "Telegram" button in the header opens a wizard: the sign-in protection
+method, the keys (`api_id`, `api_hash`), the phone number, the code from Telegram and the 2FA
+password if it is enabled. The code and passwords are never saved, and the fields are cleared right
+after sending. After signing in, the sources get "From Telegram" (a chat and, if needed, a sender),
+and the message limit and "load again" are under "Advanced". Signing in from the window and
+`chatstyle login` use the same encrypted store. "Sign out of Telegram" erases the session from the
+store and ends it on Telegram's side; "Delete all Telegram data" also deletes the store itself.
+Details of the protection are in [Security](#security).
 
-`--limit` (по умолчанию 3000) — максимум сообщений на автора; загруженное кэшируется, повторный
-запуск идёт из кэша, `--refresh` загружает заново. Без входа `compare` с `tg:` попросит выполнить
-`chatstyle login`.
+`--limit` (3000 by default) is the maximum number of messages per author; what is loaded is
+cached, a repeated run uses the cache, and `--refresh` loads again. Without signing in, `compare`
+with `tg:` asks you to run `chatstyle login`.
 
-## Использование
+## Usage
 
 ```bash
 chatstyle compare -u file:unknown.txt -c file:a.txt -c file:b.txt \
-    --impostors чужие_тексты/ --seed 1 --report report.html
+    --impostors outsider_texts/ --seed 1 --report report.html
 chatstyle features file:chat.txt --top 10
 chatstyle login
 ```
 
-| Параметр `compare` | Значение |
+| `compare` option | Meaning |
 |---|---|
-| `-u, --unknown` | источник неизвестного автора |
-| `-c, --candidate` | источник кандидата (можно несколько раз) |
-| `--impostors DIR` | папка с чужими текстами для General Impostors: **один файл `.txt` на автора** (UTF-8, одно сообщение на строку) |
-| `--seed N` | seed General Impostors (по умолчанию 1): тот же seed — тот же результат |
-| `--report FILE` | сохранить отчёт; формат по расширению `.md` или `.html` |
-| `--style-groups G` | группы стилевых признаков для Burrows Delta: `all` (по умолчанию), `none` или список через запятую из `punctuation`, `orthography`, `words`, `sentences`; на итоговую оценку Impostors не влияет |
-| `--morph` | добавить колонку «Части речи»: сходство по n-граммам частей речи (1–4); нужно необязательное дополнение `pip install chatstyle[morph]` (pymorphy3), на итоговую оценку не влияет |
-| `--charlm` | добавить колонку «Языковая модель (бит/символ)»: на сколько бит на символ текст неизвестного автора лучше предсказывается символьной моделью этого кандидата, чем моделью остальных (больше нуля — ближе к кандидату); нужно не меньше двух непустых кандидатов, на итоговую оценку не влияет |
-| `--wordgrams` | добавить колонку «Слова (косинус)»: сходство по пословным n-граммам (1–4 слова подряд, TF-IDF); слова, которые есть только у одного автора, не различаются; на итоговую оценку не влияет |
-| `--emoji` | добавить колонку «Эмодзи (косинус)»: сходство по тому, какие эмодзи и в каком порядке ставит автор (1–4 подряд, составные эмодзи с тоном кожи и «клеем» считаются одним); у кого нет ни одного эмодзи, оценки нет; на итоговую оценку не влияет |
-| `--rhythm` | добавить колонку «Ритм (по времени)»: сходство ритма письма (серии сообщений, паузы, время суток, выходные); нужны даты сообщений (источники `tgexport:` и `tg:`; у `file:` дат нет) и не меньше 30 сообщений с датой у каждого автора; на итоговую оценку не влияет |
-| `--lexical` | добавить в смесь методов лексику (обычная языковая модель символов и пословные n-граммы вместо языковой модели по тексту без редких слов): на проверенных чатах чуть точнее (98% против 95%), но чувствительнее к теме; по умолчанию порядок считается только по стилю |
-| `-n, --limit N`, `--refresh` | для `tg:`: лимит сообщений и обновление кэша |
+| `-u, --unknown` | the unknown author's source |
+| `-c, --candidate` | a candidate's source (can be repeated) |
+| `--impostors DIR` | a folder with outside texts for General Impostors: **one `.txt` file per author** (UTF-8, one message per line) |
+| `--seed N` | the General Impostors seed (1 by default): the same seed gives the same result |
+| `--report FILE` | save a report; the format is chosen by the extension, `.md` or `.html` |
+| `--style-groups G` | groups of style features for Burrows Delta: `all` (default), `none`, or a comma-separated list of `punctuation`, `orthography`, `words`, `sentences`; does not affect the final General Impostors score |
+| `--morph` | add a "Части речи" (parts of speech) column: similarity of part-of-speech n-grams (1-4); needs the optional add-on `pip install chatstyle[morph]` (pymorphy3), Russian only, does not affect the final score |
+| `--charlm` | add a "Языковая модель (бит/символ)" (language model, bits per character) column: by how many bits per character the unknown author's text is predicted better by this candidate's character model than by the model of the other candidates (above zero means closer to the candidate); needs at least two non-empty candidates, does not affect the final score |
+| `--wordgrams` | add a "Слова (косинус)" (words, cosine) column: similarity of word n-grams (1-4 consecutive words, TF-IDF); words that only one author has are not distinguished; does not affect the final score |
+| `--emoji` | add an "Эмодзи (косинус)" (emoji, cosine) column: similarity of which emoji the author uses and in what order (1-4 in a row; composite emoji with skin tone and joiners count as one); an author without any emoji gets no score; does not affect the final score |
+| `--rhythm` | add a "Ритм (по времени)" (rhythm by time) column: similarity of writing rhythm (message series, pauses, time of day, weekends); needs message dates (sources `tgexport:` and `tg:`; `file:` has no dates) and at least 30 dated messages per author; does not affect the final score |
+| `--lexical` | add vocabulary to the ensemble (a plain character language model and word n-grams instead of the language model over text without rare words): slightly more accurate on the chats tested (98% against 95%) but more sensitive to the topic; by default the order is computed from style only |
+| `-n, --limit N`, `--refresh` | for `tg:`: the message limit and cache refresh |
 
-При перенаправлении вывода (`chatstyle compare ... > result.txt`) текст записывается в UTF-8.
+When the output is redirected (`chatstyle compare ... > result.txt`) the text is written in UTF-8.
 
-**Части речи.** В `chatstyle.exe` и `chatstyle-gui.exe` они входят по умолчанию (pymorphy3, около +9 МБ;
-сборка без них: `powershell -File packaging\build_exe.ps1 -NoMorph`). При запуске из исходников нужно
-дополнение: `pip install chatstyle[morph]`. Команда `chatstyle compare ... --morph`
-добавляет колонку «Части речи (косинус)», а `chatstyle features ... --morph` и вкладка «Профиль стиля»
-в окне (флажок «Учитывать части речи») показывают доли существительных, глаголов, частиц и слов вне
-словаря. Python только размечает слова однобуквенными кодами частей речи (pymorphy3, локально, без
-сети), а частоты и n-граммы по кодам считает то же ядро. Разметка без контекста неоднозначна
-(«мыла» — существительное или глагол?), а сленг и имена словарь не знает, поэтому признак шумный и
-на итоговую оценку не влияет. В окне флажки частей речи, языковой модели, пословных n-грамм, эмодзи
-и ритма включены сразу (части речи — если они есть в сборке); в командной строке эти методы включаются
-ключами `--morph`, `--charlm`, `--wordgrams`, `--emoji`, `--rhythm`.
+**Parts of speech.** In `chatstyle.exe` and `chatstyle-gui.exe` they are included by default
+(pymorphy3, about +9 MB; a build without them: `powershell -File packaging\build_exe.ps1
+-NoMorph`). When running from source the add-on is needed: `pip install chatstyle[morph]`. The
+command `chatstyle compare ... --morph` adds the "Части речи (косинус)" column, while
+`chatstyle features ... --morph` and the "Style profile" tab of the window (the "Учитывать части
+речи" checkbox) show the shares of nouns, verbs, particles and out-of-dictionary words. Python only
+tags words with one-letter part-of-speech codes (pymorphy3, locally, no network), and the same core
+counts the frequencies and n-grams over the codes. Tagging without context is ambiguous ("мыла" is
+a noun or a verb?), and slang and names are unknown to the dictionary, so the feature is noisy and
+does not affect the final score. In the window the checkboxes for parts of speech, the language
+model, word n-grams, emoji and rhythm are on from the start (parts of speech if they are in the
+build); on the command line these methods are switched on with `--morph`, `--charlm`,
+`--wordgrams`, `--emoji`, `--rhythm`.
 
-**Языковая модель символов.** Для каждого кандидата ядро обучает символьную модель (контекст до трёх
-символов, сглаживание Witten-Bell, регистр сохраняется) и считает, сколько бит на символ нужно, чтобы
-«закодировать» текст неизвестного автора. Из этого числа вычитается то же для модели остальных
-кандидатов: положительное значение — текст ближе к этому кандидату. Объём обучающего текста у
-кандидатов выравнивается (берётся не больше, чем у самого короткого), иначе длинный кандидат
-выигрывал бы просто размером. При одном кандидате оценки нет. Метод включается ключом `--charlm`
-или флажком в окне и на итоговую оценку пока не влияет: польза на реальных данных не измерена.
+**Character language model.** For each candidate the core trains a character model (a context of
+up to three characters, Witten-Bell smoothing, case preserved) and counts how many bits per
+character are needed to "encode" the unknown author's text. The same figure for the model of the
+other candidates is subtracted: a positive value means the text is closer to this candidate. The
+amount of training text is equalized across candidates (no more than the shortest has is taken),
+otherwise a long candidate would win simply by size. With one candidate there is no score. The
+method is switched on with `--charlm` or the checkbox in the window and does not affect the final
+score yet: its usefulness on real data has not been measured.
 
-**Пословные n-граммы.** Ключ `--wordgrams` (и флажок в окне) считает то же косинусное сходство, но по
-последовательностям из 1–4 слов, а не символов: устойчивые обороты («ну вообще», «в принципе»)
-дают больше, чем отдельные буквы. Слова приводятся к нижнему регистру; слово, которого нет минимум у
-двух авторов сравнения, не может ничего подтвердить и заменяется общим значком «редкое слово». Как и
-для частей речи, Python только заменяет слова символами, а n-граммы считает то же ядро. На итоговую
-оценку не влияет, польза на реальных данных не измерена.
+**Word n-grams.** The `--wordgrams` flag (and the checkbox in the window) computes the same cosine
+similarity, but over sequences of 1-4 words rather than characters: stable turns of phrase ("ну
+вообще", "в принципе") contribute more than single letters. Words are lowercased; a word that is
+absent from at least two authors of the comparison cannot confirm anything and is replaced with a
+common "rare word" mark. As with parts of speech, Python only replaces words with symbols, and the
+same core counts the n-grams. It does not affect the final score; its usefulness on real data has
+not been measured.
 
-**Эмодзи подробнее.** Признак «доля эмодзи» в профиле говорит только, много их или мало. Ключ
-`--emoji` (и флажок в окне) сравнивает *какие именно* эмодзи и в каком порядке: из сообщений
-остаются только эмодзи (составные считаются целыми), каждому присваивается символ, а косинус по
-n-граммам 1–4 считает то же ядро. У автора без эмодзи оценки нет. На итоговую оценку не влияет.
+**Emoji in more detail.** The "emoji share" feature of the profile only says whether there are many
+or few of them. The `--emoji` flag (and the checkbox in the window) compares *which exactly* emoji
+and in what order: only the emoji remain from the messages (composite ones count as whole), each is
+given a symbol, and the same core computes the cosine over 1-4 n-grams. An author without emoji
+gets no score. It does not affect the final score.
 
-**Ритм письма по времени.** Если источник знает, когда писались сообщения (экспорт Telegram Desktop и
-загрузка `tg:`), ядро считает по времени автора восемь признаков: долю пауз до минуты, длину серий
-сообщений, типичную паузу (паузы длиннее шести часов — ночной перерыв — не считаются), доли
-сообщений ночью, утром, днём и вечером и долю выходных. Время берётся «настенное», как у автора
-на часах (часовой пояс компьютера), поэтому сравнивать надо экспорты одного человека и его
-собеседника с одного устройства. Профиль (`chatstyle features`, вкладка «Профиль стиля») показывает
-ритм автоматически, когда он есть; в сравнении он включается ключом `--rhythm`. Серией считаются
-сообщения автора с паузами до минуты (сообщения собеседника в источнике не видны). У файлов `file:` дат
-нет, там ритма нет. На итоговую оценку не влияет, польза на реальных данных не измерена. Кэш
-Telegram теперь хранит и время, поэтому кэш прежней версии не читается и сообщения загрузятся
-заново.
+**Writing rhythm over time.** If the source knows when the messages were written (a Telegram
+Desktop export and `tg:` loading), the core counts eight features from the author's times: the
+share of pauses up to a minute, the length of message series, the typical pause (pauses longer than
+six hours, a night break, are not counted), the shares of messages at night, in the morning, in the
+afternoon and in the evening, and the share of weekends. The time is "wall-clock", as on the
+author's watch (the computer's time zone), so you should compare exports of one person and their
+interlocutor from the same device. The profile (`chatstyle features`, the "Style profile" tab) shows
+the rhythm automatically when it exists; in a comparison it is switched on with `--rhythm`. A series
+is the author's messages with pauses up to a minute (the interlocutor's messages are not visible in
+the source). `file:` files have no dates, so they have no rhythm. It does not affect the final
+score; its usefulness on real data has not been measured. The Telegram cache now stores the time
+too, so a cache from an earlier version is not read and the messages are loaded again.
 
-**Привычки, а не ошибки.** Признаки пунктуации и орфографии измеряют *устойчивые привычки* автора
-(как часто он тянет буквы, ставит запятую перед союзом, пишет «щас» или «тся»), а не оценивают,
-«правильно» ли написано: словарь и проверка грамматики не используются, всё считается локально.
-Для сравнения важно, что привычки двух текстов совпадают. Список нестандартных написаний
-(`python/chatstyle/resources/nonstandard_ru.txt`) составлен вручную и носителями языка не вычитан.
-Признаки работают только на Burrows Delta и в профиле стиля; итоговая оценка General Impostors по-прежнему
-считается по символьным n-граммам. Их польза на настоящих данных не измерена: синтетика проверяет лишь
-правильность подсчёта (см. «Статус и известные пробелы»).
+**Habits, not mistakes.** The punctuation and spelling features measure the author's *stable
+habits* (how often they stretch letters, put a comma before a conjunction, write "щас" or "тся"),
+not whether something is written "correctly": no dictionary or grammar checker is used, everything
+is computed locally. What matters for the comparison is that the habits of the two texts coincide.
+The list of non-standard spellings (`python/chatstyle/resources/nonstandard_ru.txt`) was compiled
+by hand and not proofread by native speakers. The features work only in Burrows Delta and in the
+style profile; the final General Impostors score is still computed from character n-grams. Their
+usefulness on real data has not been measured: synthetic data only checks that the counting is
+correct (see "Status and known gaps").
 
-### Как читать результат
+### How to read the result
 
-| Колонка | Смысл |
+| Column | Meaning |
 |---|---|
-| Сходство | косинус TF-IDF n-грамм, 0..1, больше — ближе |
-| Delta | Burrows Delta, меньше — ближе; сравнима только между кандидатами одного запуска |
-| Impostors (итог) | **итоговая оценка**: доля из 100 случайных итераций, где текст кандидата ближе к неизвестному, чем тексты всех посторонних. Число 0..1, но **не вероятность** |
-| Смесь | **порядок кандидатов**: среднее z-оценок трёх сигналов по кандидатам одного размера — «каркас» служебных слов, Delta и языковая модель символов по тексту без редких слов (с `--lexical` вместо последней — обычная языковая модель и пословные n-граммы); больше — ближе; значение относительно набора кандидатов этого запуска. При двух кандидатах это доля «голосов» методов: +1 — все за, −1 — все против |
+| Сходство (similarity) | cosine of TF-IDF n-grams, 0..1, more is closer |
+| Delta | Burrows Delta, less is closer; comparable only between candidates of one run |
+| Impostors (итог) | the **final score**: the share of 100 random iterations in which the candidate's text is closer to the unknown one than the texts of all outsiders. A number 0..1, but **not a probability** |
+| Смесь (ensemble) | the **order of candidates**: the mean of the z-scores of three signals across candidates of equal size: the function-word "skeleton", Delta, and a character language model over text without rare words (with `--lexical`, instead of the last one, a plain language model and word n-grams); more is closer; the value is relative to the set of candidates of this run. With two candidates it is the share of the methods' "votes": +1 all for, -1 all against |
 
-Если кандидатов не меньше двух, строки отсортированы по стилевой смеси; иначе по Impostors (если он
-доступен у всех), иначе по косинусу TF-IDF. Чтобы большой кандидат не выигрывал одним объёмом словаря,
-смесь считается по кандидатам одного размера: у каждого берутся случайные сообщения до 2500 слов (но
-не меньше, чем у самого короткого кандидата). Колонки «Сходство», «Delta» и «Impostors (итог)» при
-этом считаются по всему тексту. В окне полоса показывает *относительную* близость кандидатов
-(softmax смеси с температурой 1,0, сумма долей равна 1) — это не вероятность авторства.
-Строка «Лучший по методам» показывает, согласны ли методы. Когда они расходятся, это
-информация сама по себе: не выбирайте метод, который нравится.
+If there are at least two candidates, the rows are sorted by the style ensemble; otherwise by
+Impostors (if it is available for all), otherwise by TF-IDF cosine. So that a large candidate does
+not win by the size of its vocabulary alone, the ensemble is computed over candidates of equal
+size: random messages up to 2500 words are taken from each (but no fewer than the shortest
+candidate has). The "Сходство", "Delta" and "Impostors (итог)" columns are still computed over the
+whole text. In the window the bar shows the *relative* closeness of the candidates (a softmax of
+the ensemble with temperature 1.0, the shares sum to 1); this is not the probability of authorship.
+The "Лучший по методам" (best by methods) line shows whether the methods agree. When they
+disagree, that is information in itself: do not pick the method you like.
 
-Когда методы недоступны (прочерк):
+When methods are unavailable (a dash):
 
-- **Delta:** нужно не меньше 6 кусков по 200 слов на всё сравнение (около 600 слов на двух авторов).
-- **General Impostors:** нужно не меньше 3 посторонних авторов (остальные кандидаты плюс папка
-  `--impostors`) и не меньше 2 кусков по 200 слов у неизвестного автора и у кандидата. В запуске
-  «неизвестный + 2 кандидата» посторонних по одному на кандидата, поэтому без `--impostors`
-  итоговой оценки не будет: это сознательно.
+- **Delta:** at least 6 chunks of 200 words are needed for the whole comparison (about 600 words
+  for two authors).
+- **General Impostors:** at least 3 outside authors are needed (the other candidates plus the
+  `--impostors` folder) and at least 2 chunks of 200 words from the unknown author and from the
+  candidate. In a run "unknown + 2 candidates" there is one outsider per candidate, so without
+  `--impostors` there will be no final score: this is deliberate.
 
-## Пример отчёта
+## Example report
 
-[`docs/example_report.md`](docs/example_report.md) — отчёт по **вымышленным** данным (не
-реальная переписка). Воспроизведение:
+[`docs/example_report.md`](docs/example_report.md) is a report on **fictional** data (not a real
+conversation). To reproduce it:
 
 ```bash
 python docs/make_example_data.py example_data
@@ -355,226 +437,237 @@ chatstyle compare -u file:unknown.txt -c file:candidate_same.txt -c file:candida
 Лучший по методам: косинус — file:candidate_same.txt; Delta — file:candidate_same.txt; Смесь — file:candidate_same.txt; Impostors — file:candidate_same.txt (методы согласны).
 ```
 
-Отчёт (`.md` и самодостаточный `.html` без внешних ресурсов) содержит: таблицу кандидатов,
-пояснение к итоговой оценке, топ-20 совпавших n-грамм (одиночные буквы и пробел скрыты как
-малоинформативные), главные различия стилей по Delta читаемыми названиями, параметры запуска
-(seed, число посторонних), описание метода и ограничения.
+The report (`.md` and a self-contained `.html` with no external resources) contains: the candidate
+table, an explanation of the final score, the top 20 matching n-grams (single letters and the space
+are hidden as uninformative), the main style differences by Delta under readable names, the run
+parameters (seed, number of outsiders), a description of the method and the limitations.
 
-## Оценка качества
+## Quality evaluation
 
-**Результатов пока нет.** Для честных цифр нужны размеченные реальные тексты по нескольким
-авторам, а такого корпуса у проекта нет. Любое число, полученное на выдуманных данных, не
-говорило бы ничего о качестве на настоящих переписках, поэтому здесь его нет намеренно.
+**There are no results yet.** Honest figures need labelled real texts by several authors, and the
+project has no such corpus. Any number obtained on made-up data would say nothing about quality on
+real conversations, so there is none here on purpose.
 
-**Проверка на своих чатах.** Если вы загрузили несколько чатов (вкладка «Чаты» или
-`chatstyle chats add`), можно проверить порядок кандидатов на них без всякой разметки:
-
-```bash
-python -m experiments.chats_eval            # стилевая смесь (по умолчанию)
-# читает зашифрованное хранилище (спросит мастер-пароль); --chats-dir ПАПКА — открытые файлы чатов
-python -m experiments.chats_eval --lexical  # смесь с лексикой
-```
-
-Один и тот же идентификатор участника в разных чатах считается одним человеком; строятся задачи
-«через контексты» (человек из одного чата против остальных, чьи тексты взяты из других чатов) и «по
-времени» (последние сообщения против остального). Выводятся только числа (доля первых мест, MRR,
-доля при случайном угадывании), ни имён, ни текстов. Это не заменяет оценку на размеченном корпусе
-(см. оговорки в «Статус и известные пробелы»), но позволяет перепроверить, как алгоритм ведёт себя
-именно на ваших данных.
-
-Инструмент оценки уже готов (`experiments/`) и проверен на синтетике:
+**A check on your own chats.** If you have uploaded several chats (the "Чаты" tab or
+`chatstyle chats add`), you can check the order of candidates on them without any labelling:
 
 ```bash
-# датасет: папка, по файлу .txt на автора, анонимные имена, сообщения по порядку
-python -m experiments.evaluate ДАТАСЕТ --words 1000 --impostors 10 --jobs 4 --output results.json
-python -m experiments.volume ДАТАСЕТ --slices 250 500 1000 2000 5000 --jobs 4   # качество от объёма и график
-python -m experiments.prepare_tgexport result.json ДАТАСЕТ --min-messages 300    # датасет из группового чата
+python -m experiments.chats_eval            # the style ensemble (default)
+# reads the encrypted store (asks for the master password); --chats-dir FOLDER means plain chat files
+python -m experiments.chats_eval --lexical  # the ensemble with vocabulary
 ```
 
-Для каждого метода считаются ROC AUC (с доверительным интервалом, бутстрэп по авторам) и
-точность с порогом, подобранным не на тех же данных. Для отладки есть
-`python -m experiments.make_synthetic ПАПКА`; такие данные помечаются, и скрипты дважды
-предупреждают, что числа нельзя публиковать.
+The same participant identifier in different chats counts as one person; two kinds of tasks are
+built: "across contexts" (a person from one chat against the others, whose texts are taken from
+other chats) and "by time" (the latest messages against the rest). Only numbers are printed (the
+share of first places, MRR, the share under random guessing), no names or texts. This does not
+replace an evaluation on a labelled corpus (see the caveats in "Status and known gaps"), but lets
+you re-check how the algorithm behaves on your own data.
 
-Новые группы стилевых признаков (пунктуация, орфография, слова, предложения) можно проверять
-по одной: `python -m experiments.ablation ДАТАСЕТ` считает AUC Burrows Delta без групп, с каждой
-группой и со всеми, а `python -m experiments.evaluate ДАТАСЕТ --style-groups words,sentences`
-запускает обычную оценку с выбранными группами. Датасет с авторами, у которых заложены привычки
-письма, создаёт `python -m experiments.make_synthetic ПАПКА --habits`. Пока корпуса нет, такой
-прогон доказывает лишь то, что группы реально меняют оценку, а не что они полезны на людях.
+The evaluation tooling is ready (`experiments/`) and tested on synthetic data:
 
-Порог предупреждения «меньше 1000 слов» пока предварительный: он будет уточнён по результатам
-оценки на реальных данных.
+```bash
+# dataset: a folder, one .txt file per author, anonymous names, messages in order
+python -m experiments.evaluate DATASET --words 1000 --impostors 10 --jobs 4 --output results.json
+python -m experiments.volume DATASET --slices 250 500 1000 2000 5000 --jobs 4   # quality by volume, and a plot
+python -m experiments.prepare_tgexport result.json DATASET --min-messages 300   # a dataset from a group chat
+```
 
-## Ограничения
+For each method the ROC AUC is computed (with a confidence interval, bootstrapped over authors)
+and the accuracy at a threshold chosen on different data. For debugging there is
+`python -m experiments.make_synthetic FOLDER`; such data is marked, and the scripts warn twice that
+the numbers must not be published.
 
-- **Оценка вероятностная.** Это мера сходства стиля, а не доказательство. Высокая оценка не
-  означает один и тот же автор, низкая не означает разных.
-- **Объём текста решает много.** При малом объёме (меньше 1000 слов у любой стороны) оценка
-  может быть случайной; при очень малом Delta и General Impostors недоступны.
-- **Итоговая оценка зависит от «посторонних».** Если их мало или они непохожи на реальную среду
-  общения, оценка искажается.
-- **Стиль зависит от контекста.** Один человек пишет по-разному в разных чатах, разные люди
-  одного круга, возраста и темы пишут похоже.
-- **Языки.** Буквы и регистр определяются по таблицам Unicode 16 (латиница с диакритикой, греческий,
-  армянский, грузинский, арабский, иврит, индийские письменности и др.), поэтому символьные методы
-  (косинус, языковая модель, «каркас») работают с любым письмом; в китайском и японском
-  (иероглифы и кана) каждый знак считается словом. **Но точность проверена только на русском.** На
-  синтетике для девяти языков (английский, французский, немецкий, испанский, польский, греческий,
-  арабский, китайский, японский) авторы с разными словарями распознаются, это проверка
-  работоспособности, а не точности. Delta опирается на русские списки служебных слов, слов-паразитов
-  и «нестандартных написаний» и признаки вроде «тся/ться», «ё/е», поэтому на других языках у неё
-  остаются только языконезависимые признаки (пунктуация, регистр, длины); части речи (`--morph`)
-  только для русского. На других языках лучше включать `--lexical`. Для тайского, лаосского,
-  кхмерского и бирманского (письмо без пробелов, но не иероглифы) слово по-прежнему равно серии
-  букв. Приведение регистра — простые правила Unicode: турецкая İ и подобные особые случаи не
-  меняются.
-- **Искажения исходных данных:** общие аккаунты, боты, цитаты, пересланные сообщения и
-  вставленный текст влияют на результат; пересланные сообщения Telegram не учитываются, но
-  цитаты внутри обычных сообщений остаются.
-- **Намеренная имитация чужого стиля и перефразирование текста не оценивались** (это
-  отложенная задача в `PLAN.md`).
-- **Метки времени** нужны только для ритма (`--rhythm`): у текстовых файлов их нет.
-- Текстовые файлы читаются только в UTF-8; файл в другой кодировке отклоняется с понятным
-  сообщением, а не читается с искажением.
-- Метод замкнутый: он сравнивает с теми кандидатами, которых вы указали. Настоящий автор может
-  не входить в их число.
+The new groups of style features (punctuation, orthography, words, sentences) can be checked one at a
+time: `python -m experiments.ablation DATASET` computes the Burrows Delta AUC without groups, with
+each group and with all of them, and `python -m experiments.evaluate DATASET --style-groups
+words,sentences` runs the usual evaluation with the chosen groups. A dataset with authors who have
+built-in writing habits is created by `python -m experiments.make_synthetic FOLDER --habits`. While
+there is no corpus, such a run only proves that the groups really change the score, not that they
+are useful on people.
 
-## Этика и приватность
+The "fewer than 1000 words" warning threshold is provisional for now: it will be refined from the
+results of an evaluation on real data.
 
-- **Всё считается локально.** Единственный сетевой доступ — Telegram (Telethon), и только по
-  явной команде: `chatstyle login` и `compare`/`features` с источником `tg:`. Телеметрии нет.
-- **Какие файлы создаёт программа.** В каталоге данных (`%APPDATA%\chatstyle` в Windows,
-  `~/.local/share/chatstyle` или `$XDG_DATA_HOME/chatstyle` в Linux; можно переопределить
-  переменной `CHATSTYLE_HOME`):
-  - `vault.json` — **зашифрованное** хранилище: ключи Telegram API и сессия (она равносильна
-    доступу к вашему аккаунту), см. [«Безопасность»](#безопасность);
-  - `cache/` — кэш загруженных сообщений **реальных людей** (не зашифрован);
-  - `chats/` — загруженные чаты (вкладка «Чаты», `chatstyle chats add`): тексты и время сообщений
-    **реальных людей**, **зашифрованы** ключом из хранилища (`*.chat`);
-  - `gui-settings.json` — язык и тема окна;
-  - `.env` — ключи `api_id` и `api_hash`, только если вы сами поместили их сюда.
+## Limitations
 
-  Чтобы всё удалить, удалите этот каталог (и завершите сессию в настройках Telegram:
-  «Устройства»).
-- **Отчёты содержат фрагменты переписки** (n-граммы) и названия источников. Не публикуйте их и
-  не передавайте без согласия авторов сообщений. В отчёт не попадают имена файлов папки
-  `--impostors`.
-- **Чужая переписка — персональные данные.** Прежде чем анализировать чат, получите согласие
-  его участников и проверьте, что это допустимо по законам вашей страны. Проект не даёт
-  юридических советов.
-- **Репозиторий не должен содержать** `.env`, файлы `.session`, кэш и любые реальные переписки;
-  они исключены в `.gitignore`. Не добавляйте их в коммиты и в примеры.
-- **Для чего инструмент не предназначен:** деанонимизация людей против их воли, слежка,
-  давление и травля, подкрепление обвинений без других доказательств, выдача результата за
-  доказательство авторства.
+- **The estimate is probabilistic.** It is a measure of style similarity, not proof. A high score
+  does not mean the same author, and a low one does not mean different authors.
+- **The amount of text matters a lot.** With a small volume (fewer than 1000 words on either side)
+  the score may be random; with a very small one Delta and General Impostors are unavailable.
+- **The final score depends on the "outsiders".** If there are few of them or they differ from the
+  real environment of communication, the score is distorted.
+- **Style depends on context.** One person writes differently in different chats, and different
+  people of the same circle, age and topic write alike.
+- **Languages.** Letters and case are determined from the Unicode 16 tables (Latin with diacritics,
+  Greek, Armenian, Georgian, Arabic, Hebrew, Indic scripts and others), so the character-based
+  methods (cosine, language model, "skeleton") work with any script; in Chinese and Japanese
+  (ideographs and kana) each sign counts as a word. **But accuracy has been verified only on
+  Russian.** On synthetic data for nine languages (English, French, German, Spanish, Polish, Greek,
+  Arabic, Chinese, Japanese) authors with different vocabularies are told apart; this is a check
+  that it works, not of accuracy. Delta relies on Russian lists of function words, filler words and
+  "non-standard spellings" and on features such as "тся/ться" and "ё/е", so in other languages only
+  the language-independent features remain (punctuation, case, lengths); parts of speech
+  (`--morph`) are Russian only. In other languages it is better to turn on `--lexical`. For Thai,
+  Lao, Khmer and Burmese (scripts without spaces that are not ideographs) a word is still a run of
+  letters. Case folding follows the simple Unicode rules: the Turkish İ and similar special cases
+  are not changed.
+- **Distortions of the source data:** shared accounts, bots, quotes, forwarded messages and pasted
+  text affect the result; forwarded Telegram messages are not counted, but quotes inside ordinary
+  messages remain.
+- **Deliberate imitation of someone else's style and paraphrasing by a neural network have not
+  been evaluated** (this is a deferred task in `PLAN.md`).
+- **Timestamps** are needed only for the rhythm (`--rhythm`): text files have none.
+- Text files are read only as UTF-8; a file in another encoding is rejected with a clear message
+  rather than read with distortion.
+- The method is closed-set: it compares with the candidates you named. The real author may not be
+  among them.
 
-## Безопасность
+## Ethics and privacy
 
-**От чего защищает.** Другие пользователи этого компьютера, кража или копия диска и папки данных,
-облачная синхронизация, случайная публикация файлов, подмена страницы окна и перехват трафика к
-Telegram. **От чего не защищает.** Вредоносная программа, запущенная под вашей учётной записью, и
-кейлоггер или запись экрана: если они есть, ни одна программа не сохранит секреты. Против такой
-угрозы выбирайте режим «только на время работы окна» и включите двухфакторную защиту в Telegram.
+- **Everything is computed locally.** The only network access is Telegram (Telethon), and only on
+  an explicit command: `chatstyle login` and `compare`/`features` with a `tg:` source. There is no
+  telemetry.
+- **Which files the program creates.** In the data directory (`%APPDATA%\chatstyle` on Windows,
+  `~/.local/share/chatstyle` or `$XDG_DATA_HOME/chatstyle` on Linux; it can be overridden with the
+  `CHATSTYLE_HOME` variable):
+  - `vault.json` is the **encrypted** store: the Telegram API keys and the session (which is
+    equivalent to access to your account), see [Security](#security);
+  - `cache/` is a cache of loaded messages of **real people** (not encrypted);
+  - `chats/` holds uploaded chats (the "Чаты" tab, `chatstyle chats add`): texts and times of
+    messages of **real people**, **encrypted** with the key from the store (`*.chat`);
+  - `gui-settings.json` is the window's language and theme;
+  - `.env` holds the `api_id` and `api_hash` keys, only if you put them there yourself.
 
-- **Три способа хранить вход** (`chatstyle login` или мастер в окне):
-  - *мастер-пароль* (рекомендуется): ключи и сессия шифруются AES-256-GCM, ключ выводится из пароля
-    алгоритмом scrypt (64 МБ, около 0,3 с на попытку), пароль нигде не хранится, после трёх
-    неверных вводов попытки замедляются; хранилище закрывается само после 15 минут бездействия;
-  - *учётная запись Windows* (DPAPI): пароль не нужен, но расшифровать вход может любая программа
-    под вашей учётной записью;
-  - *только на время работы окна*: на диск не пишется ничего, при закрытии окна сессия завершается
-    на стороне Telegram.
-- **Криптографию мы не пишем сами:** AES-GCM даёт библиотека `cryptography`, scrypt — стандартная
-  `hashlib`, DPAPI — системный вызов Windows. Файл хранилища аутентифицирован: порча или подмена
-  заголовка обнаруживается. Забытый мастер-пароль восстановить нельзя: вход делается заново.
-- **Загруженные чаты шифруются** тем же хранилищем: ключ AES-256-GCM (256 бит, случайный) лежит в
-  `vault.json`, а не рядом с файлами; без открытого хранилища чаты не прочитать. Удаление чата
-  затирает файл нулями (на SSD это не гарантирует физического стирания). Если вредоносная программа
-  работает под вашей учётной записью, а хранилище открыто, она получит и чаты: так же, как сессию
-  Telegram. Режим «только на время работы окна» хранит чаты только в памяти.
-- **Права:** папка данных закрывается только для вашей учётной записи (в Windows через `icacls`,
-  в Linux права `0700`/`0600`).
-- **Окно:** страница грузится из файла внутри пакета, а не с локального сервера: у процесса нет
-  слушающих портов (проверяет самопроверка). Политика CSP запрещает любые сетевые запросы
-  страницы, переходы на другие адреса блокируются, браузерное хранилище и автозаполнение не
-  используются (приватный режим WebView2), инструменты разработчика отключены. Файлы выбираются
-  только в диалогах окна, отчёты открываются только созданные им самим, а всё, что приходит со
-  страницы, проверяется по типу и длине.
-- **Сборка:** зависимости закреплены версиями и хэшами (`packaging/requirements.lock`, установка
-  `pip install --require-hashes`), `pip-audit` на момент написания известных уязвимостей не нашёл,
-  рядом с exe создаётся `dist/SHA256SUMS.txt`. **exe не подписан** (нужен сертификат), поэтому
-  SmartScreen может предупредить при первом запуске.
-- **Открытые файлы прежней версии** (`telegram.session`, `telegram.account`) при обнаружении
-  окно предлагает удалить: они не зашифрованы. Кэш сообщений Telegram (`cache/`) пока тоже не
-  зашифрован.
+  To delete everything, delete this directory (and end the session in Telegram's settings:
+  "Devices").
+- **Reports contain fragments of conversations** (n-grams) and the names of the sources. Do not
+  publish them or pass them on without the consent of the message authors. The file names of the
+  `--impostors` folder do not get into the report.
+- **Other people's conversations are personal data.** Before analysing a chat, obtain the consent
+  of its participants and check that it is permitted by the laws of your country. The project does
+  not give legal advice.
+- **The repository must not contain** `.env`, `.session` files, the cache or any real
+  conversations; they are excluded in `.gitignore`. Do not add them to commits or examples.
+- **What the tool is not intended for:** de-anonymizing people against their will, surveillance,
+  pressure and harassment, backing up accusations without other evidence, passing the result off as
+  proof of authorship.
 
-## Как устроен проект
+## Security
 
-- **Ядро (`core/`, C++17):** вычисления над текстом как над последовательностью Unicode-кодпоинтов
-  (UTF-8 → `std::u32string`), n-граммы, TF-IDF, косинус, Burrows Delta, General Impostors,
-  объяснения. Ядро не знает про файлы, Telegram и отчёты. Связь с Python — pybind11
-  (`chatstyle._core`).
-- **Python (`python/chatstyle/`):** сборщики (txt, экспорт Telegram, Telethon), предобработка,
-  конвейер, CLI (typer, rich), отчёты. Python сам признаки не считает.
-- **Прочее:** `tests/` (pytest), `core/tests/` (Catch2), `experiments/` (оценка качества, не
-  входит в пакет), `packaging/` (PyInstaller), `docs/` (пример отчёта), `.github/workflows/ci.yml`.
-- Подробный список задач и решений — в [`PLAN.md`](PLAN.md), постановка — в [`PROMT.md`](PROMT.md).
+**What it protects against.** Other users of this computer, theft or a copy of the disk and the data
+folder, cloud synchronization, accidental publication of files, tampering with the window's page,
+and interception of the traffic to Telegram. **What it does not protect against.** Malware running
+under your account, and a keylogger or screen recording: if they are present, no program can keep
+secrets. Against such a threat choose the "only while the window is open" mode and enable two-factor
+protection in Telegram.
 
-## Статус и известные пробелы
+- **Three ways to store the login** (`chatstyle login` or the wizard in the window):
+  - *master password* (recommended): the keys and the session are encrypted with AES-256-GCM, the
+    key is derived from the password with scrypt (64 MB, about 0.3 s per attempt), the password is
+    stored nowhere, attempts slow down after three wrong entries; the store locks itself after 15
+    minutes of inactivity;
+  - *Windows account* (DPAPI): no password is needed, but any program under your account can
+    decrypt the login;
+  - *only while the window is open*: nothing is written to disk, and when the window closes the
+    session is ended on Telegram's side.
+- **We do not write cryptography ourselves:** AES-GCM comes from the `cryptography` library, scrypt
+  from the standard `hashlib`, DPAPI is a Windows system call. The store file is authenticated:
+  corruption or tampering with the header is detected. A forgotten master password cannot be
+  recovered: you sign in again.
+- **Uploaded chats are encrypted** by the same store: the AES-256-GCM key (256 bits, random) is in
+  `vault.json`, not next to the files; without the store open the chats cannot be read. Removing a
+  chat overwrites the file with zeros (on an SSD this does not guarantee physical erasure). If
+  malware runs under your account while the store is open, it will get the chats too, just as it
+  would the Telegram session. The "only while the window is open" mode keeps chats in memory only.
+- **Permissions:** the data folder is closed to everyone but your account (on Windows through
+  `icacls`, on Linux with permissions `0700`/`0600`).
+- **The window:** the page is loaded from a file inside the package, not from a local server: the
+  process has no listening ports (the self-test checks this). A CSP policy forbids any network
+  requests from the page, navigation to other addresses is blocked, browser storage and autofill
+  are not used (WebView2 private mode), and developer tools are disabled. Files are chosen only in
+  the window's dialogs, only reports it created itself are opened, and everything coming from the
+  page is checked for type and length.
+- **The build:** dependencies are pinned by version and hash (`packaging/requirements.lock`,
+  installed with `pip install --require-hashes`), `pip-audit` found no known vulnerabilities at the
+  time of writing, and `dist/SHA256SUMS.txt` is created next to the exe. **The exe is not signed**
+  (a certificate is needed), so SmartScreen may warn on the first start.
+- **Plain files of the earlier version** (`telegram.session`, `telegram.account`) are offered for
+  deletion by the window when found: they are not encrypted. The Telegram message cache (`cache/`)
+  is not encrypted yet either.
 
-Раздел временный, он должен исчезнуть к v1.0. Честный список того, что **не проверено**:
+## How the project is organized
 
-- **CI на GitHub не запускался** (репозиторий не опубликован), поэтому сборка на Windows (MSVC) и
-  Linux не подтверждена автоматически. Локально проверено на Windows 10 с MinGW-w64
-  (Python 3.14); флаги MSVC `/W4` ещё ни разу не применялись к ядру. Установка в Linux
-  (`install.sh`, сборка ядра, запуск `chatstyle`) вручную проверена владельцем проекта на Kali
-  Linux; тесты и окно там не прогонялись.
-- **Telegram-сборщик проверен только на заглушках**, без живого аккаунта.
-- **`chatstyle.exe`** собран локально (MinGW-w64). Скрипт `packaging/check_exe.py` проверил его
-  на этой машине: версия и иконка в свойствах файла, работа при `PATH` без Python, чтение `.env`
-  из `%APPDATA%\chatstyle`, вывод в настоящей консоли шириной 80 столбцов, пауза при запуске
-  двойным щелчком. **Не проверено:** чистая Windows 10, где Python не установлен вовсе (подойдёт
-  Windows Sandbox: скопировать туда один `chatstyle.exe` и выполнить `chatstyle --version` и
-  `compare`), и exe, собранный MSVC.
-- **Оценка на реальных данных — одна переписка, и выбор метода подгонялся под неё.** Проверка шла
-  на чатах одного пользователя: две группы (202 и 16 участников) и личные чаты. Задачи: человек из
-  одного контекста (чата) против остальных людей, чьи тексты взяты из других чатов (25 задач), разрез
-  по времени внутри группы (16), и один реальный случай «аккаунт-двойник» (2); у всех кандидатов по
-  2500 слов, у неизвестного 600–1400 слов, кандидатов 10–36. Первое место настоящего автора:
-  полная смесь с лексикой (языковая модель, слова, «каркас», Delta) 95% (MRR 0,97), стилевая смесь
-  (по умолчанию: «каркас», Delta, языковая модель без редких слов) 91% (MRR 0,93); на задачах «через
-  контексты» это 92% против 84% — стилевая смесь платит несколькими пунктами за независимость от темы
-  (на 129 запусках «настоящий автор и 3 соперника» полная 98%, стилевая 95%); по отдельности языковая модель 88%, пословные n-граммы 88%,
-  Delta 72%, «каркас» 72%, Impostors с остальными кандидатами в роли посторонних 58%, косинус TF-IDF
-  56%. Если оставить настоящего автора и 3 случайных соперника (129 запусков, случайное угадывание —
-  25%): полная смесь 98%, Delta 88%, косинус 84%, Impostors 75%. Подобранные веса смеси лучше равных не
-  оказались (проверка «оставить человека за бортом», разница в пределах шума), добавление «фона»
-  из десятков чужих авторов для z-оценок ничего не изменило, поэтому веса равные, фона нет.
-  **Как к этому относиться:** это одна среда (русскоязычные чаты одной компании, много общих слов и
-  тем), задачи зависят друг от друга, а четыре метода выбирались из примерно десяти по тем же
-  данным, поэтому цифры оптимистичны и к другим людям, языкам и объёмам могут не переноситься.
-  Языковая модель и пословные n-граммы чувствительны к лексике и теме (отчасти компенсируется
-  тем, что неизвестный и кандидаты взяты из разных чатов); «каркас» и Delta от темы зависят слабо.
-  **Сколько нужно текста** (задачи «через контексты» и реальные, 27 задач, шум около ±7 пунктов).
-  Текст неизвестного автора, первое место стилевая смесь / смесь с лексикой: 300 слов — 67% / 70%,
-  600 — 70% / 93%, 1000 — 85% / 96%, 2000 — 81% / 96%, 4000 — 89% / 93%. Стилевая смесь с ростом текста
-  почти не растёт (на этих данных упирается в 85–90%), а лексика уже на 600 словах даёт 93%+: если у
-  неизвестного автора меньше 1000 слов, используйте `--lexical` (программа сама напомнит об этом
-  подсказкой в таблице, отчётах и окне). Объём кандидатов (у всех поровну):
-  2500 слов у каждого — 93% / 98%, 5000 — 86% / 93%, 10000 — 88% / 95%; чем хуже выровнены
-  объёмы, тем хуже результат, поэтому предел по умолчанию 2500 слов (но не меньше самого короткого).
-  Разные случайные выборки сообщений одного и того же объёма дают разброс ещё на 2–3 пункта.
-  Первая проверка на 5 кандидатах говорила в пользу «косинусной Delta», на 36 кандидатах это не
-  подтвердилось: вывод по маленькой выборке оказался неверным, и теперь этого метода в программе нет.
+- **The core (`core/`, C++17):** computations over text as a sequence of Unicode code points
+  (UTF-8 to `std::u32string`), n-grams, TF-IDF, cosine, Burrows Delta, General Impostors,
+  explanations. The core knows nothing about files, Telegram or reports. The link to Python is
+  pybind11 (`chatstyle._core`).
+- **Python (`python/chatstyle/`):** collectors (txt, Telegram export, Telethon), preprocessing, the
+  pipeline, the CLI (typer, rich), reports. Python does not compute features itself.
+- **Other:** `tests/` (pytest), `core/tests/` (Catch2), `experiments/` (quality evaluation, not part
+  of the package), `packaging/` (PyInstaller), `docs/` (the example report),
+  `.github/workflows/ci.yml`.
+- The detailed list of tasks and decisions is in [`PLAN.md`](PLAN.md) (in Russian), the statement of
+  the problem in [`PROMT.md`](PROMT.md) (in Russian).
 
-## Литература
+## Status and known gaps
+
+This section is temporary and must disappear by v1.0. An honest list of what is **not verified**:
+
+- **CI on GitHub has not been run** (the repository is not published), so the build on Windows
+  (MSVC) and Linux is not confirmed automatically. Locally it was checked on Windows 10 with
+  MinGW-w64 (Python 3.14); the MSVC `/W4` flags have never been applied to the core. Installation
+  on Linux (building the core, running `chatstyle`) was checked manually by the project owner on
+  Kali Linux; the tests and the window were not run there.
+- **The Telegram collector was verified only on stubs**, with no live account.
+- **`chatstyle.exe`** was built locally (MinGW-w64). The script `packaging/check_exe.py` checked it
+  on this machine: the version and icon in the file properties, working with a `PATH` without
+  Python, reading `.env` from `%APPDATA%\chatstyle`, output in a real console 80 columns wide, the
+  pause on a double-click start. **Not verified:** a clean Windows 10 with no Python at all
+  (Windows Sandbox will do: copy a single `chatstyle.exe` there and run `chatstyle --version` and
+  `compare`), and an exe built with MSVC.
+- **The evaluation on real data is a single conversation environment, and the choice of method was
+  tuned to it.** The check ran on one user's chats: two groups (202 and 16 participants) and
+  private chats. Tasks: a person from one context (chat) against the other people whose texts are
+  taken from other chats (25 tasks), a time split inside a group (16), and one real "twin account"
+  case (2); all candidates have 2500 words each, the unknown text has 600-1400 words, and there
+  are 10-36 candidates. First place of the true author: the full ensemble with vocabulary (language
+  model, words, "skeleton", Delta) 95% (MRR 0.97), the style ensemble (the default: "skeleton",
+  Delta, language model without rare words) 91% (MRR 0.93); on the "across contexts" tasks that is
+  92% against 84%: the style ensemble pays a few points for independence from the topic (on 129 runs
+  "the true author and 3 rivals" the full one gets 98%, the style one 95%); separately the language
+  model 88%, word n-grams 88%, Delta 72%, "skeleton" 72%, Impostors with the other candidates as
+  outsiders 58%, TF-IDF cosine 56%. If you keep the true author and 3 random rivals (129 runs,
+  random guessing is 25%): the full ensemble 98%, Delta 88%, cosine 84%, Impostors 75%. Fitted
+  ensemble weights were not better than equal ones (a "leave one person out" check, the difference
+  within noise), and adding a "background" of dozens of outside authors for the z-scores changed
+  nothing, so the weights are equal and there is no background.
+  **How to treat this:** this is one environment (Russian-language chats of one circle, many shared
+  words and topics), the tasks depend on each other, and the four methods were chosen from about ten
+  on the same data, so the figures are optimistic and may not carry over to other people,
+  languages and volumes. The language model and word n-grams are sensitive to vocabulary and topic
+  (partly offset by the unknown text and the candidates being taken from different chats); the
+  "skeleton" and Delta depend on the topic weakly.
+  **How much text is needed** ("across contexts" and real tasks, 27 tasks, noise about ±7 points).
+  The unknown author's text, first place for the style ensemble / the ensemble with vocabulary:
+  300 words 67% / 70%, 600 70% / 93%, 1000 85% / 96%, 2000 81% / 96%, 4000 89% / 93%. The style
+  ensemble hardly grows with more text (on this data it tops out at 85-90%), while vocabulary
+  already gives 93%+ at 600 words: if the unknown author has fewer than 1000 words, use `--lexical`
+  (the program reminds you of this itself with a hint in the table, the reports and the window).
+  Candidate volume (equal for all): 2500 words each 93% / 98%, 5000 86% / 93%, 10000 88% / 95%;
+  the worse the volumes are equalized, the worse the result, so the default cap is 2500 words (but
+  no fewer than the shortest has). Different random samples of messages of the same volume give a
+  further spread of 2-3 points. A first check on 5 candidates favoured "cosine Delta"; on 36
+  candidates this was not confirmed: the conclusion from a small sample turned out wrong, and that
+  method is no longer in the program.
+
+## References
 
 - Burrows J. *Delta: a Measure of Stylistic Difference and a Guide to Likely Authorship.*
   Literary and Linguistic Computing, 17(3), 2002.
 - Koppel M., Winter Y. *Determining if two documents are written by the same author.*
   Journal of the Association for Information Science and Technology, 65(1), 2014.
 
-## Лицензия
+## License
 
-MIT, см. [`LICENSE`](LICENSE).
+MIT, see [`LICENSE`](LICENSE).
