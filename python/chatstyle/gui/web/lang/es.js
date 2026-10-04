@@ -287,5 +287,15 @@ registerLanguage("es", {
   "chats.setup": "Para guardar chats, configura la protección del almacén: contraseña maestra, DPAPI o «solo mientras dura la ventana».",
   "chats.unlock": "Abrir la protección",
   "chats.memory": "Modo «solo mientras dura la ventana»: los chats se guardan solo en memoria y desaparecen al cerrar la ventana.",
-  "chats.legacy": "Hay {n} archivos de chat sin cifrar de una versión anterior en el disco. Elige la protección «contraseña maestra» o DPAPI y se cifrarán la próxima vez que se abra esta pestaña. En el modo «solo mientras dura la ventana» siguen sin cifrar y no se muestran."
+  "chats.legacy": "Hay {n} archivos de chat sin cifrar de una versión anterior en el disco. Elige la protección «contraseña maestra» o DPAPI y se cifrarán la próxima vez que se abra esta pestaña. En el modo «solo mientras dura la ventana» siguen sin cifrar y no se muestran.",
+  "chatvault.title_setup": "Protección de los chats cargados",
+  "chatvault.title_unlock": "Abrir la protección de los chats",
+  "chatvault.note": "La protección solo hace falta para los chats cargados. No se necesitan el inicio de sesión de Telegram ni las claves de API.",
+  "chatvault.mode": "Cómo guardar los chats",
+  "chatvault.password": "Contraseña maestra",
+  "chatvault.password2": "Repite la contraseña",
+  "chatvault.create": "Crear la protección",
+  "chatvault.open": "Abrir",
+  "chatvault.mismatch": "Las contraseñas no coinciden.",
+  "chats.setup_button": "Configurar la protección"
 });

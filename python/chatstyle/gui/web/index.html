@@ -151,6 +151,31 @@
   <footer id="disclaimer" data-i18n="disclaimer"></footer>
 </div>
 
+<dialog id="chatvault" aria-labelledby="chatvault-title">
+  <h2 id="chatvault-title"></h2>
+  <p class="hint" data-i18n="chatvault.note"></p>
+  <div class="adv">
+    <label class="field" id="chatvault-mode-row">
+      <span class="label" data-i18n="chatvault.mode"></span>
+      <select id="chatvault-mode"></select>
+    </label>
+    <p class="hint" id="chatvault-desc"></p>
+    <label class="field" id="chatvault-pass-row">
+      <span class="label" data-i18n="chatvault.password"></span>
+      <input type="password" id="chatvault-pass" autocomplete="off">
+    </label>
+    <label class="field" id="chatvault-pass2-row">
+      <span class="label" data-i18n="chatvault.password2"></span>
+      <input type="password" id="chatvault-pass2" autocomplete="off">
+    </label>
+  </div>
+  <div class="error" id="chatvault-error" role="alert" hidden></div>
+  <div class="row end">
+    <button class="btn" id="chatvault-cancel" data-i18n="btn.cancel"></button>
+    <button class="btn" id="chatvault-ok"></button>
+  </div>
+</dialog>
+
 <dialog id="senders" aria-labelledby="senders-title">
   <h2 id="senders-title" data-i18n="senders.title"></h2>
   <ul class="senders" id="senders-list"></ul>

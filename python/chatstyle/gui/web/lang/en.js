@@ -287,5 +287,15 @@ registerLanguage("en", {
   "chats.setup": "To store chats, set up vault protection: master password, DPAPI or \"window only\".",
   "chats.unlock": "Open protection",
   "chats.memory": "\"Window only\" mode: chats are kept in memory only and disappear when the window closes.",
-  "chats.legacy": "There are {n} unencrypted chat files from an older version on disk. Choose \"master password\" or DPAPI protection and they will be encrypted the next time this tab opens. In \"window only\" mode they stay unencrypted and are not shown."
+  "chats.legacy": "There are {n} unencrypted chat files from an older version on disk. Choose \"master password\" or DPAPI protection and they will be encrypted the next time this tab opens. In \"window only\" mode they stay unencrypted and are not shown.",
+  "chatvault.title_setup": "Protection for uploaded chats",
+  "chatvault.title_unlock": "Open the chat protection",
+  "chatvault.note": "Protection is needed only for uploaded chats. Signing in to Telegram and API keys are not required for them.",
+  "chatvault.mode": "How to store chats",
+  "chatvault.password": "Master password",
+  "chatvault.password2": "Repeat the password",
+  "chatvault.create": "Create protection",
+  "chatvault.open": "Open",
+  "chatvault.mismatch": "The passwords do not match.",
+  "chats.setup_button": "Set up protection"
 });

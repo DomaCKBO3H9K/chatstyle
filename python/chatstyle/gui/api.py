@@ -15,6 +15,7 @@ import math
 import os
 import subprocess
 import sys
+import threading
 import webbrowser
 from collections.abc import Callable, Iterable
 from pathlib import Path
@@ -68,7 +69,7 @@ from chatstyle.pipeline import (
     unavailable_facts,
     wordgram_text,
 )
-from chatstyle.securestore import MODE_MEMORY, default_vault
+from chatstyle.securestore import MODE_MEMORY, MODE_PASSWORD, MODES, default_vault
 
 TELEGRAM_SITE = "https://my.telegram.org"  # единственный адрес, который окно открывает в браузере
 MAX_TEXT = 4096  # длиннее любой путь или подпись из формы: такие данные отбрасываются
@@ -81,6 +82,7 @@ WORD_LIST_PREFIXES = (
     ("ms", NONSTANDARD_WORD_PREFIX),
 )
 WORD_LIST_LIMIT = 10
+CHATS_LOCK_SECONDS = 900.0  # хранилище с паролем закрывается после бездействия
 WHY_LIMIT = 6
 
 
@@ -321,6 +323,7 @@ class Api:
         self._job: BackgroundJob[Any] | None = None
         self._job_error_code: str | None = None
         self._job_error_params: dict[str, str] = {}
+        self._vault_timer: threading.Timer | None = None
 
     def get_settings(self) -> dict[str, str]:
         """Сохранённые язык и тема (только значения из белого списка)."""
@@ -422,6 +425,42 @@ class Api:
         spec = tgexport_spec(path, sender, senders)
         return {"spec": spec, "label": short_labels([spec])[spec]}
 
+    def _touch_chats_vault(self) -> None:
+        """Хранилище с мастер-паролем закрывается само после 15 минут бездействия в чатах."""
+        if self._vault_timer is not None:
+            self._vault_timer.cancel()
+            self._vault_timer = None
+        vault = default_vault()
+        if vault.mode() == MODE_PASSWORD and vault.unlocked():
+            self._vault_timer = threading.Timer(CHATS_LOCK_SECONDS, vault.lock)
+            self._vault_timer.daemon = True
+            self._vault_timer.start()
+
+    def chats_setup(self, mode: str, password: str) -> dict[str, Any]:
+        """Создать хранилище для чатов (password, dpapi, memory) без ключей Telegram."""
+        if not (is_text(mode, 16) and is_text(password, MAX_PASSWORD)) or mode not in MODES:
+            return self._bad_input()
+        try:
+            default_vault().create(mode, password or None)
+        except ChatstyleError as exc:
+            return {"ok": False, "error": chat_error(exc)}
+        self._touch_chats_vault()
+        return {"ok": True}
+
+    def chats_unlock(self, password: str) -> dict[str, Any]:
+        """Открыть хранилище мастер-паролем (для DPAPI пароль не нужен)."""
+        if not is_text(password, MAX_PASSWORD):
+            return self._bad_input()
+        vault = default_vault()
+        try:
+            if vault.mode() is None:
+                return {"ok": False, "error": error("vault_missing")}
+            vault.unlock(password or None)
+        except ChatstyleError as exc:
+            return {"ok": False, "error": chat_error(exc)}
+        self._touch_chats_vault()
+        return {"ok": True}
+
     def chats_list(self) -> dict[str, Any]:
         """Загруженные чаты и состояние хранилища: ok, locked (закрыто), setup (нет защиты)."""
         memory = default_vault().mode() == MODE_MEMORY
@@ -439,6 +478,7 @@ class Api:
             return {"state": "error", "chats": [], "memory": memory, "error": chat_error(exc)}
         except ChatstyleError as exc:
             return {"state": "error", "chats": [], "memory": memory, "error": chat_error(exc)}
+        self._touch_chats_vault()
         return {
             "state": "ok",
             "chats": chats,
@@ -640,6 +680,8 @@ class Api:
 
     def shutdown(self) -> None:
         """Вызывается при закрытии окна."""
+        if self._vault_timer is not None:
+            self._vault_timer.cancel()
         self._telegram.shutdown()
 
     def telegram_save_keys(self, api_id: str, api_hash: str) -> dict[str, Any]:

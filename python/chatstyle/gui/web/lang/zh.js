@@ -287,5 +287,15 @@ registerLanguage("zh", {
   "chats.setup": "要保存聊天，请设置保险库保护方式：主密码、DPAPI 或“仅限窗口期间”。",
   "chats.unlock": "打开保护",
   "chats.memory": "“仅限窗口期间”模式：聊天只保存在内存中，关闭窗口后消失。",
-  "chats.legacy": "磁盘上有 {n} 个旧版本留下的未加密聊天文件。选择“主密码”或 DPAPI 保护后，下次打开此标签页时会将其加密。在“仅限窗口期间”模式下它们保持未加密且不会显示。"
+  "chats.legacy": "磁盘上有 {n} 个旧版本留下的未加密聊天文件。选择“主密码”或 DPAPI 保护后，下次打开此标签页时会将其加密。在“仅限窗口期间”模式下它们保持未加密且不会显示。",
+  "chatvault.title_setup": "已上传聊天的保护",
+  "chatvault.title_unlock": "打开聊天保护",
+  "chatvault.note": "保护只用于已上传的聊天，不需要登录 Telegram，也不需要 API 密钥。",
+  "chatvault.mode": "聊天的保存方式",
+  "chatvault.password": "主密码",
+  "chatvault.password2": "再次输入密码",
+  "chatvault.create": "创建保护",
+  "chatvault.open": "打开",
+  "chatvault.mismatch": "两次输入的密码不一致。",
+  "chats.setup_button": "设置保护"
 });

@@ -140,7 +140,7 @@ def _wait(window, expression: str, timeout: float, what: str) -> None:  # noqa: 
 def _check_chats(window, folder: Path) -> None:  # noqa: ANN001
     """Вкладка «Чаты»: загруженный чат виден в списке, из него выбирается участник."""
     from chatstyle import chatstore
-    from chatstyle.securestore import MODE_PASSWORD, Vault, reset_default_vault
+    from chatstyle.securestore import Vault, reset_default_vault
 
     records = [
         {
@@ -159,19 +159,56 @@ def _check_chats(window, folder: Path) -> None:  # noqa: ANN001
         json.dumps({"name": "Друзья", "id": 7, "messages": records}, ensure_ascii=False),
         encoding="utf-8",
     )
-    # рабочий режим требует открытого хранилища: временное, с паролем (свои данные не трогаем)
-    vault = Vault(folder / "chats-vault.json", backoff=False)
-    vault.create(MODE_PASSWORD, "самопроверка-пароль-1")
-    reset_default_vault(vault)
+    # хранилища пока нет: окно должно предложить настроить защиту без ключей Telegram;
+    # свои данные не трогаем (пустое временное хранилище подменяет общее)
+    reset_default_vault(Vault(folder / "chats-vault.json", backoff=False))
     try:
-        chatstore.import_chat(export)
+        _setup_chat_protection(window)
+        chatstore.import_chat(export)  # режим «в памяти»: чат лежит только в памяти процесса
         _check_chats_page(window)
     finally:
         reset_default_vault(None)
+        chatstore._MEMORY.clear()
+
+
+def _setup_chat_protection(window) -> None:  # noqa: ANN001
+    """Вкладка «Чаты» без хранилища: настройка защиты в самом окне, без ключей Telegram."""
+    window.evaluate_js("document.getElementById('tab-chats').click()")
+    _wait(
+        window,
+        "!document.getElementById('chats-locked').hidden"
+        " && !document.getElementById('chats-unlock').hidden"
+        " && document.getElementById('chats-upload').disabled === true",
+        PAGE_TIMEOUT,
+        "предложение настроить защиту чатов",
+    )
+    window.evaluate_js("document.getElementById('chats-unlock').click()")
+    _wait(
+        window,
+        "document.getElementById('chatvault').open === true"
+        " && document.getElementById('chatvault-mode').options.length === 3",
+        PAGE_TIMEOUT,
+        "окно настройки защиты чатов",
+    )
+    window.evaluate_js(
+        "(document.getElementById('chatvault-mode').value = 'memory',"
+        " document.getElementById('chatvault-mode').dispatchEvent(new Event('change')),"
+        " document.getElementById('chatvault-ok').click(), true)"
+    )
+    _wait(
+        window,
+        "document.getElementById('chatvault').open === false"
+        " && document.getElementById('chats-locked').hidden"
+        " && !document.getElementById('chats-memory').hidden"
+        " && document.getElementById('chats-upload').disabled === false",
+        PAGE_TIMEOUT,
+        "защита чатов настроена",
+    )
 
 
 def _check_chats_page(window) -> None:  # noqa: ANN001
     """Страница: список чатов, диалог выбора и выбор участника."""
+    window.evaluate_js("document.getElementById('tab-compare').click()")
     window.evaluate_js("document.getElementById('tab-chats').click()")
     _wait(
         window,

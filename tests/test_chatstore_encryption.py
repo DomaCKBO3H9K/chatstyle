@@ -10,6 +10,8 @@ from chatstyle.securestore import (
     MODE_MEMORY,
     MODE_PASSWORD,
     Vault,
+    default_vault,
+    dpapi_available,
     reset_default_vault,
 )
 
@@ -242,3 +244,118 @@ def test_api_warns_about_plain_legacy_files_in_memory_mode(tmp_path: Path, home:
     after = Api().chats_list()
     assert [chat["id"] for chat in after["chats"]] == ["5"] and after["legacy"] == 0
     assert sorted(path.name for path in folder.iterdir()) == ["5.chat"]
+
+
+# --- настройка и открытие защиты во вкладке «Чаты», без ключей Telegram ---
+
+
+class FakeTimer:
+    """Подмена threading.Timer: запоминает интервал и функцию, ничего не запускает."""
+
+    created: list["FakeTimer"] = []
+
+    def __init__(self, interval: float, function) -> None:  # noqa: ANN001
+        self.interval, self.function = interval, function
+        self.daemon = False
+        self.cancelled = False
+        FakeTimer.created.append(self)
+
+    def start(self) -> None:
+        pass
+
+    def cancel(self) -> None:
+        self.cancelled = True
+
+
+def test_setup_with_a_password_needs_no_telegram_keys(tmp_path: Path, home: Path) -> None:
+    password_vault(tmp_path, create=False)
+    api = Api()
+    assert api.chats_list()["state"] == "setup"
+    assert api.chats_setup("password", PASSWORD) == {"ok": True}
+    assert api.chats_list()["state"] == "ok"
+    chatstore.import_chat(write_export(tmp_path / "a.json"))
+    assert (home / "chats" / "777.chat").exists()
+    assert (tmp_path / "vault.json").exists()
+    assert api.telegram_status()["has_keys"] is False  # ключи Telegram не требовались
+
+
+def test_setup_rejects_bad_input_weak_password_and_second_setup(tmp_path: Path, home: Path) -> None:
+    password_vault(tmp_path, create=False)
+    api = Api()
+    assert api.chats_setup("нет такого", PASSWORD)["error"]["code"] == "bad_input"
+    assert api.chats_setup(5, PASSWORD)["error"]["code"] == "bad_input"  # type: ignore[arg-type]
+    assert api.chats_setup("password", "короткий")["error"]["code"] == "password_weak"
+    assert not (tmp_path / "vault.json").exists()  # неудачная попытка ничего не оставила
+    assert api.chats_setup("password", PASSWORD) == {"ok": True}
+    assert api.chats_setup("password", PASSWORD)["error"]["code"] == "vault_exists"
+
+
+def test_unlock_with_wrong_and_right_password(tmp_path: Path, home: Path) -> None:
+    vault = password_vault(tmp_path)
+    api = Api()
+    chatstore.import_chat(write_export(tmp_path / "a.json"))
+    vault.lock()
+    assert api.chats_list()["state"] == "locked"
+    assert api.chats_unlock("неправильный-пароль-1")["error"]["code"] == "wrong_password"
+    assert api.chats_list()["state"] == "locked"
+    assert api.chats_unlock(PASSWORD) == {"ok": True}
+    assert [chat["id"] for chat in api.chats_list()["chats"]] == ["777"]
+    assert api.chats_unlock(5)["error"]["code"] == "bad_input"  # type: ignore[arg-type]
+
+
+def test_unlock_without_a_vault(tmp_path: Path, home: Path) -> None:
+    password_vault(tmp_path, create=False)
+    assert Api().chats_unlock(PASSWORD)["error"]["code"] == "vault_missing"
+
+
+def test_memory_setup_keeps_chats_in_memory(tmp_path: Path, home: Path) -> None:
+    password_vault(tmp_path, create=False)
+    api = Api()
+    assert api.chats_setup("memory", "") == {"ok": True}
+    chatstore.import_chat(write_export(tmp_path / "a.json"))
+    answer = api.chats_list()
+    assert answer["state"] == "ok" and answer["memory"] is True and len(answer["chats"]) == 1
+    assert not (tmp_path / "vault.json").exists() and not (home / "chats").exists()
+
+
+@pytest.mark.skipif(not dpapi_available(), reason="DPAPI есть только в Windows")
+def test_dpapi_setup_opens_without_a_password(tmp_path: Path, home: Path) -> None:
+    password_vault(tmp_path, create=False)
+    api = Api()
+    assert api.chats_setup("dpapi", "") == {"ok": True}
+    chatstore.import_chat(write_export(tmp_path / "a.json"))
+    reopened = password_vault(tmp_path, create=False)  # «новый запуск»
+    assert not reopened.unlocked()
+    assert api.chats_list()["state"] == "ok"  # DPAPI открывается сам
+
+
+def test_password_vault_locks_itself_after_idle_time(
+    tmp_path: Path, home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from chatstyle.gui import api as api_module
+
+    FakeTimer.created.clear()
+    monkeypatch.setattr(api_module.threading, "Timer", FakeTimer)
+    api = Api()
+    password_vault(tmp_path, create=False)
+    vault = default_vault()
+    api.chats_setup("password", PASSWORD)
+    (timer,) = FakeTimer.created
+    assert timer.interval == api_module.CHATS_LOCK_SECONDS and timer.daemon is True
+    api.chats_list()  # активность продлевает срок: прежний таймер отменён, взят новый
+    assert timer.cancelled and len(FakeTimer.created) == 2
+    FakeTimer.created[-1].function()  # «прошло 15 минут»
+    assert not vault.unlocked()
+    api.shutdown()
+
+
+def test_memory_and_dpapi_vaults_get_no_idle_timer(
+    tmp_path: Path, home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from chatstyle.gui import api as api_module
+
+    FakeTimer.created.clear()
+    monkeypatch.setattr(api_module.threading, "Timer", FakeTimer)
+    password_vault(tmp_path, create=False)
+    Api().chats_setup("memory", "")
+    assert FakeTimer.created == []

@@ -156,6 +156,7 @@ function renderChats() {
   $("chats-locked").hidden = !closed;
   $("chats-locked").textContent = closed ? t(`chats.${state.chatsState}`) : "";
   $("chats-unlock").hidden = !closed;
+  $("chats-unlock").textContent = state.chatsState === "setup" ? t("chats.setup_button") : t("chats.unlock");
   $("chats-memory").hidden = !(open && state.chatsMemory);
   $("chats-legacy").hidden = !state.chatsLegacy;
   $("chats-legacy").textContent = state.chatsLegacy ? t("chats.legacy", { n: state.chatsLegacy }) : "";
@@ -251,6 +252,74 @@ async function chooseFromChats(multi) {
     dialog.addEventListener("close", () => resolve([]), { once: true }); // Esc: без выбора
     dialog.showModal();
   });
+}
+
+// --- защита загруженных чатов: создание и открытие хранилища без ключей Telegram ---
+
+function fillChatVaultMode() {
+  const select = $("chatvault-mode");
+  const current = select.value || "password";
+  select.replaceChildren(
+    el("option", { value: "password", text: t("tg.mode.password") }),
+    el("option", { value: "dpapi", text: t("tg.mode.dpapi") }),
+    el("option", { value: "memory", text: t("tg.mode.memory") })
+  );
+  select.value = current;
+  const mode = select.value;
+  const descriptions = {
+    password: t("tg.mode.password.desc"),
+    dpapi: t("tg.mode.dpapi.desc"),
+    memory: t("tg.mode.memory.desc"),
+  };
+  $("chatvault-desc").textContent = descriptions[mode];
+  const setup = state.chatsState === "setup";
+  $("chatvault-pass-row").hidden = setup && mode !== "password";
+  $("chatvault-pass2-row").hidden = !(setup && mode === "password");
+}
+
+function openChatVault() {
+  const setup = state.chatsState === "setup";
+  const title = setup ? t("chatvault.title_setup") : t("chatvault.title_unlock");
+  $("chatvault-title").textContent = title;
+  $("chatvault-ok").textContent = setup ? t("chatvault.create") : t("chatvault.open");
+  $("chatvault-mode-row").hidden = !setup;
+  $("chatvault-desc").hidden = !setup;
+  $("chatvault-pass").value = "";
+  $("chatvault-pass2").value = "";
+  $("chatvault-error").hidden = true;
+  if (setup) $("chatvault-mode").value = "password";
+  fillChatVaultMode();
+  $("chatvault").showModal();
+}
+
+function chatVaultFail(text) {
+  $("chatvault-error").textContent = text;
+  $("chatvault-error").hidden = false;
+}
+
+async function submitChatVault() {
+  const setup = state.chatsState === "setup";
+  const password = $("chatvault-pass").value;
+  let answer = null;
+  if (setup) {
+    const mode = $("chatvault-mode").value;
+    if (mode === "password" && password !== $("chatvault-pass2").value) {
+      chatVaultFail(t("chatvault.mismatch"));
+      return;
+    }
+    answer = await call("chats_setup", mode, mode === "password" ? password : "");
+  } else {
+    answer = await call("chats_unlock", password);
+  }
+  if (!answer) return;
+  if (answer.error) {
+    chatVaultFail(translateError(answer.error));
+    return;
+  }
+  $("chatvault-pass").value = "";
+  $("chatvault-pass2").value = "";
+  $("chatvault").close();
+  await loadChats();
 }
 
 // Источник напрямую из Telegram: нужен вход, иначе открывается окно подключения.
@@ -892,7 +961,15 @@ function bind() {
   $("tab-profile").addEventListener("click", () => selectTab("profile"));
   $("tab-chats").addEventListener("click", () => selectTab("chats"));
   $("chats-upload").addEventListener("click", uploadChat);
-  $("chats-unlock").addEventListener("click", openTelegramDialog);
+  $("chats-unlock").addEventListener("click", openChatVault);
+  $("chatvault-mode").addEventListener("change", fillChatVaultMode);
+  $("chatvault-ok").addEventListener("click", submitChatVault);
+  $("chatvault-cancel").addEventListener("click", () => $("chatvault").close());
+  for (const id of ["chatvault-pass", "chatvault-pass2"]) {
+    $(id).addEventListener("keydown", (event) => {
+      if (event.key === "Enter") submitChatVault();
+    });
+  }
   $("tg").addEventListener("close", () => loadChats());
   $("unknown-chat").addEventListener("click", async () => {
     state.unknown = (await chooseFromChats(false))[0] || state.unknown;

@@ -287,5 +287,15 @@ registerLanguage("fr", {
   "chats.setup": "Pour conserver des conversations, configurez la protection du coffre : mot de passe maître, DPAPI ou « le temps de la fenêtre ».",
   "chats.unlock": "Ouvrir la protection",
   "chats.memory": "Mode « le temps de la fenêtre » : les conversations restent en mémoire et disparaissent à la fermeture de la fenêtre.",
-  "chats.legacy": "{n} fichiers de conversation non chiffrés d'une ancienne version sont sur le disque. Choisissez la protection « mot de passe maître » ou DPAPI : ils seront chiffrés à la prochaine ouverture de l'onglet. En mode « le temps de la fenêtre », ils restent non chiffrés et ne sont pas affichés."
+  "chats.legacy": "{n} fichiers de conversation non chiffrés d'une ancienne version sont sur le disque. Choisissez la protection « mot de passe maître » ou DPAPI : ils seront chiffrés à la prochaine ouverture de l'onglet. En mode « le temps de la fenêtre », ils restent non chiffrés et ne sont pas affichés.",
+  "chatvault.title_setup": "Protection des conversations importées",
+  "chatvault.title_unlock": "Ouvrir la protection des conversations",
+  "chatvault.note": "La protection ne concerne que les conversations importées. La connexion à Telegram et les clés API ne sont pas nécessaires.",
+  "chatvault.mode": "Comment conserver les conversations",
+  "chatvault.password": "Mot de passe maître",
+  "chatvault.password2": "Répétez le mot de passe",
+  "chatvault.create": "Créer la protection",
+  "chatvault.open": "Ouvrir",
+  "chatvault.mismatch": "Les mots de passe ne correspondent pas.",
+  "chats.setup_button": "Configurer la protection"
 });
