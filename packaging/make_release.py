@@ -20,7 +20,7 @@ RELEASE = REPO / "release"
 ARCHIVE_NAME = "chatstyle-linux.tar.gz"
 GUI_EXE = "chatstyle-gui.exe"
 INSTALL_SCRIPT = REPO / "packaging" / "linux" / "install.sh"
-ROOTS = ("CMakeLists.txt", "pyproject.toml", "LICENSE", "README.md", "README.ru.md")
+ROOTS = ("CMakeLists.txt", "pyproject.toml", "LICENSE")
 TREES = ("core/include", "core/src", "python")
 
 
@@ -32,7 +32,8 @@ def tracked_files() -> list[str]:
 
 
 def wanted(name: str) -> bool:
-    return name in ROOTS or any(name.startswith(tree + "/") for tree in TREES)
+    is_readme = name.startswith("README") and name.endswith(".md") and "/" not in name
+    return name in ROOTS or is_readme or any(name.startswith(tree + "/") for tree in TREES)
 
 
 def build_linux_archive(target: Path) -> int:

@@ -1,6 +1,6 @@
 # chatstyle
 
-**English** | [Русский](README.ru.md)
+**English** | [Русский](README.ru.md) | [Español](README.es.md) | [Français](README.fr.md) | [中文](README.zh.md) | [العربية](README.ar.md)
 
 A command-line tool (with a desktop window) for verifying the authorship of Russian-language chat
 messages. It answers the question: "were the messages of an unknown sender written by the same
@@ -39,6 +39,18 @@ translated into six languages). Examples below show the real output as it is.
   description of the method.
 - **Style profile** of a single author: `chatstyle features`.
 - A warning if either side has fewer than 1000 words.
+
+## Screenshots
+
+The real application window on **fictional** data from `docs/demo/`: two chats (a lake trip and a work project) between the same four invented people. Unknown text: Anya in the work chat; candidates: the four people from the trip chat. The window is shown in English (it also speaks Russian, Español, Français, 中文 and العربية).
+
+![Comparison](docs/screenshots/compare-en.png)
+
+![Style profile](docs/screenshots/profile-en.png)
+
+![Uploaded chats](docs/screenshots/chats-en.png)
+
+The fictional chats also exist in Russian, English, Spanish, French, Chinese and Arabic (translated by the author, not written by native speakers): `python docs/demo_eval.py` checks, for every language, that the same author is recognized from one chat to the other (8 tasks per language; 8 of 8 here). The habits of the characters are deliberately pronounced, so this check shows that the method works with these scripts, not how accurate it is on real people.
 
 ## Quick start
 

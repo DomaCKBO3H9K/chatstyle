@@ -45,6 +45,18 @@ ventana está traducida a seis idiomas). Los ejemplos siguientes muestran la sal
 - **Perfil de estilo** de un solo autor: `chatstyle features`.
 - Una advertencia si alguno de los lados tiene menos de 1000 palabras.
 
+## Capturas de pantalla
+
+La ventana real de la aplicación con datos **ficticios** de `docs/demo/`: dos chats (un viaje al lago y un proyecto de trabajo) entre las mismas cuatro personas inventadas. Texto desconocido: Anya en el chat de trabajo; candidatos: las cuatro personas del chat del viaje. La ventana se muestra en inglés (también habla ruso, Español, Français, 中文 y العربية).
+
+![Comparación](docs/screenshots/compare-en.png)
+
+![Perfil de estilo](docs/screenshots/profile-en.png)
+
+![Chats cargados](docs/screenshots/chats-en.png)
+
+Los chats ficticios existen también en ruso, inglés, español, francés, chino y árabe (traducidos por el autor, no escritos por hablantes nativos): `python docs/demo_eval.py` comprueba, en cada idioma, que el mismo autor se reconoce de un chat al otro (8 tareas por idioma; aquí 8 de 8). Los hábitos de los personajes están marcados a propósito, así que esta comprobación muestra que el método funciona con estas escrituras, no su precisión con personas reales.
+
 ## Inicio rápido
 
 El repositorio contiene pequeños archivos ficticios `tests/fixtures/*.txt` (un mensaje por línea).
