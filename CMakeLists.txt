@@ -56,7 +56,7 @@ if(CHATSTYLE_BUILD_TESTS)
     )
     FetchContent_MakeAvailable(Catch2)
 
-    add_executable(core_tests core/tests/test_smoke.cpp core/tests/test_text.cpp core/tests/test_ngrams.cpp core/tests/test_similarity.cpp core/tests/test_compare.cpp core/tests/test_style_features.cpp core/tests/test_style_habits.cpp core/tests/test_delta.cpp core/tests/test_impostors.cpp core/tests/test_charlm.cpp core/tests/test_rhythm.cpp)
+    add_executable(core_tests core/tests/test_smoke.cpp core/tests/test_text.cpp core/tests/test_ngrams.cpp core/tests/test_similarity.cpp core/tests/test_compare.cpp core/tests/test_style_features.cpp core/tests/test_style_habits.cpp core/tests/test_delta.cpp core/tests/test_impostors.cpp core/tests/test_charlm.cpp core/tests/test_rhythm.cpp core/tests/test_unicode.cpp)
     target_link_libraries(core_tests PRIVATE chatstyle_core Catch2::Catch2WithMain)
 
     if(MSVC)

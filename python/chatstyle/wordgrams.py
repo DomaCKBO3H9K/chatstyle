@@ -9,8 +9,12 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 
-# Регулярное выражение для «слова»: буквы Unicode, допускаются дефисы внутри
-_WORD = re.compile(r"[^\W\d_]+(?:-[^\W\d_]+)*", re.UNICODE)
+# Иероглифы и кана: в этих письменностях нет пробелов, поэтому каждый знак считается словом
+# (так же считает ядро: `is_ideographic` в core/src/text.cpp)
+CJK_CLASS = "぀-ゟ゠-ヿㇰ-ㇿ㐀-䶿一-鿿豈-﫿ｦ-ﾟ𠀀-𯨟𰀀-𲎯"
+_LETTER = rf"(?![{CJK_CLASS}])[^\W\d_]"
+# «слово»: один иероглиф или кана, либо буквы Unicode с дефисами внутри
+_WORD = re.compile(rf"[{CJK_CLASS}]|{_LETTER}+(?:-{_LETTER}+)*", re.UNICODE)
 
 # Символ для слова, которое есть только у одного автора
 RARE_CODE = chr(0xF0000)

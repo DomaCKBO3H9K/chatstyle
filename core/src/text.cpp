@@ -1,27 +1,41 @@
 #include "chatstyle/text.hpp"
 #include <cstdint>
 #include <cstddef>
+#include <algorithm>
 
 namespace chatstyle {
 
 namespace {
     constexpr char32_t kReplacement = 0xFFFD;
 
+    struct CodepointRange {
+        char32_t first;
+        char32_t last;
+    };
+
+    struct LowerRange {
+        char32_t first;
+        char32_t last;
+        std::int32_t delta;
+        std::uint32_t step;
+    };
+
+    constexpr CodepointRange kLetterRanges[] = {
+        #include "unicode_letters.inc"
+    };
+
+    constexpr LowerRange kLowerRanges[] = {
+        #include "unicode_lower.inc"
+    };
+
     char32_t lower_codepoint(char32_t cp) {
-        if (cp >= 0x41 && cp <= 0x5A) {
-            return cp + 0x20;
-        }
-        if (cp >= 0x0410 && cp <= 0x042F) {
-            return cp + 0x20;
-        }
-        if (cp == 0x0401) {
-            return 0x0451;
-        }
-        if (cp >= 0x0402 && cp <= 0x040F) {
-            return cp + 0x50;
-        }
-        if (cp == 0x0490) {
-            return 0x0491;
+        auto it = std::upper_bound(std::begin(kLowerRanges), std::end(kLowerRanges), cp,
+            [](char32_t val, const LowerRange& r) { return val < r.first; });
+        if (it != std::begin(kLowerRanges)) {
+            --it;
+            if (cp <= it->last && (cp - it->first) % it->step == 0) {
+                return cp + it->delta;
+            }
         }
         return cp;
     }
@@ -180,12 +194,52 @@ std::u32string to_lower(const std::u32string& text) {
 }
 
 bool is_letter(char32_t cp) {
-    return (cp >= 0x41 && cp <= 0x5A) || (cp >= 0x61 && cp <= 0x7A) ||
-           (cp >= 0x0400 && cp <= 0x0481) || (cp >= 0x048A && cp <= 0x04FF);
+    auto it = std::upper_bound(std::begin(kLetterRanges), std::end(kLetterRanges), cp,
+        [](char32_t val, const CodepointRange& r) { return val < r.first; });
+    if (it != std::begin(kLetterRanges)) {
+        --it;
+        if (cp >= it->first && cp <= it->last) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool is_upper(char32_t cp) {
     return lower_codepoint(cp) != cp;
+}
+
+bool is_latin(char32_t cp) {
+    return (cp >= 0x41 && cp <= 0x5A) || (cp >= 0x61 && cp <= 0x7A) ||
+           cp == 0xAA || cp == 0xBA ||
+           (cp >= 0xC0 && cp <= 0xD6) || (cp >= 0xD8 && cp <= 0xF6) ||
+           (cp >= 0xF8 && cp <= 0x2AF) ||
+           (cp >= 0x1E00 && cp <= 0x1EFF) ||
+           (cp >= 0x2C60 && cp <= 0x2C7F) ||
+           (cp >= 0xA720 && cp <= 0xA7FF) ||
+           (cp >= 0xFB00 && cp <= 0xFB06) ||
+           (cp >= 0xFF21 && cp <= 0xFF3A) ||
+           (cp >= 0xFF41 && cp <= 0xFF5A);
+}
+
+bool is_cyrillic(char32_t cp) {
+    return (cp >= 0x0400 && cp <= 0x052F) ||
+           (cp >= 0x1C80 && cp <= 0x1C8F) ||
+           (cp >= 0x2DE0 && cp <= 0x2DFF) ||
+           (cp >= 0xA640 && cp <= 0xA69F);
+}
+
+bool is_ideographic(char32_t cp) {
+    if (!is_letter(cp)) return false;
+    if (cp == 0x3099 || cp == 0x309A) return false;
+    return (cp >= 0x3040 && cp <= 0x30FF) ||
+           (cp >= 0x31F0 && cp <= 0x31FF) ||
+           (cp >= 0x3400 && cp <= 0x4DBF) ||
+           (cp >= 0x4E00 && cp <= 0x9FFF) ||
+           (cp >= 0xF900 && cp <= 0xFAFF) ||
+           (cp >= 0xFF66 && cp <= 0xFF9F) ||
+           (cp >= 0x20000 && cp <= 0x2FA1F) ||
+           (cp >= 0x30000 && cp <= 0x323AF);
 }
 
 } // namespace chatstyle

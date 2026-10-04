@@ -107,11 +107,20 @@ std::vector<Span> word_spans(const std::u32string& text) {
             ++i;
             continue;
         }
+        if (is_ideographic(text[i])) {  // иероглиф или кана: без пробелов, знак = слово
+            spans.push_back({i, i + 1});
+            ++i;
+            continue;
+        }
         std::size_t j = i + 1;
         while (j < size) {
+            if (is_ideographic(text[j])) {
+                break;
+            }
             if (is_letter(text[j])) {
                 ++j;
-            } else if (text[j] == U'-' && j + 1 < size && is_letter(text[j + 1])) {
+            } else if (text[j] == U'-' && j + 1 < size && is_letter(text[j + 1]) &&
+                       !is_ideographic(text[j + 1])) {
                 j += 2;
             } else {
                 break;
@@ -194,10 +203,6 @@ constexpr std::size_t kLongSentenceWords = 15;
 
 bool is_digit(char32_t cp) {
     return cp >= U'0' && cp <= U'9';
-}
-
-bool is_cyrillic(char32_t cp) {
-    return cp >= 0x0400 && cp <= 0x04FF;
 }
 
 bool is_sentence_end(char32_t cp) {
@@ -292,7 +297,11 @@ void count_orthography_habits(const std::u32string& text, const std::vector<Span
             if (!is_upper(text[k])) {
                 all_upper = false;
             }
-            (is_cyrillic(text[k]) ? cyrillic : latin) = true;
+            if (is_cyrillic(text[k])) {
+                cyrillic = true;
+            } else if (is_latin(text[k])) {
+                latin = true;
+            }
         }
         if (letters >= 2 && all_upper) {
             h.caps_words += 1;
@@ -481,7 +490,7 @@ SparseVector style_features(const std::vector<std::u32string>& messages,
                 continue;
             }
             ++total_letters;
-            if (cp < 0x80) {
+            if (is_latin(cp)) {
                 ++latin_letters;
             }
             if (!first_letter_seen) {

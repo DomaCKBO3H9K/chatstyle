@@ -41,7 +41,7 @@ from chatstyle.impostors import (
 )
 from chatstyle.preprocess import MENTION_TOKEN, URL_TOKEN, preprocess_timed
 from chatstyle.timeline import known_times
-from chatstyle.wordgrams import word_views
+from chatstyle.wordgrams import CJK_CLASS, word_views
 
 MIN_WORDS: int = 1000
 # Сколько общих n-грамм хранится на кандидата: отчёт скрывает тривиальные и берёт из них 20
@@ -163,18 +163,21 @@ class ComparisonResult:
         return bool(set.intersection(*(set(labels) for labels in best)))
 
 
+# слово: один иероглиф или знак каны (в этих письменностях нет пробелов) либо серия букв и цифр
+_WORDS = re.compile(rf"[{CJK_CLASS}]|(?:(?![{CJK_CLASS}])\w)+")
+
+
 def count_words(messages: Sequence[str]) -> int:
     """Суммарное число слов во всех сообщениях.
 
-    Слово — совпадение ``re.findall(r"\\w+", текст)`` после удаления
-    из текста подстрок URL_TOKEN и MENTION_TOKEN.
+    Слово — серия букв и цифр (``\\w+``) или один иероглиф/знак каны (в этих письменностях нет
+    пробелов; так же считает ядро) после удаления из текста подстрок URL_TOKEN и MENTION_TOKEN.
     """
     total = 0
     for msg in messages:
         # Удаляем токены, которые не должны считаться словами
         cleaned = msg.replace(URL_TOKEN, "").replace(MENTION_TOKEN, "")
-        words = re.findall(r"\w+", cleaned)
-        total += len(words)
+        total += len(_WORDS.findall(cleaned))
     return total
 
 
