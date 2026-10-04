@@ -226,3 +226,17 @@ def test_table_headers_stay_whole_at_80_columns(monkeypatch: pytest.MonkeyPatch)
     header = next(line for line in result.output.splitlines() if "Кандидат" in line)
     for title in ("Слов", "Сообщений", "Сходство", "Delta", "Impostors (итог)"):
         assert title in header
+
+
+def test_version_is_utf8_when_output_is_redirected_with_a_legacy_encoding() -> None:
+    """Команда chatstyle должна переживать вывод в канал при кодировке cp1252 (как в CI Windows)."""
+    import os
+    import subprocess
+    import sys
+
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252", "PYTHONUTF8": "0"}
+    done = subprocess.run(
+        [sys.executable, "-m", "chatstyle", "--version"], capture_output=True, env=env, check=False
+    )
+    assert done.returncode == 0, done.stderr.decode("utf-8", "replace")
+    assert "ядро" in done.stdout.decode("utf-8")

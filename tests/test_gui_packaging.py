@@ -72,7 +72,7 @@ def test_pyproject_declares_the_gui_launcher() -> None:
     project = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     assert project["gui-scripts"] == {"chatstyle-gui": "chatstyle.gui:main"}
     assert any(item.startswith("pywebview") for item in project["dependencies"])
-    assert project["scripts"]["chatstyle"] == "chatstyle.cli:app"
+    assert project["scripts"]["chatstyle"] == "chatstyle.__main__:main"
 
 
 def test_gui_spec_is_windowed_and_ships_the_web_page() -> None:
