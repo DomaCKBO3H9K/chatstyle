@@ -203,7 +203,7 @@ def build_markdown(report: VolumeReport, target_auc: float = DEFAULT_TARGET_AUC)
     lines += [
         "",
         "Это ориентир для пересмотра порога предупреждения о малом объёме "
-        "(`MIN_WORDS` в `chatstyle/pipeline.py` и PROMT.md); решать по нему можно только на "
+        "(`MIN_WORDS` в `chatstyle/pipeline.py`); решать по нему можно только на "
         "реальных данных.",
     ]
     return "\n".join(lines) + "\n"

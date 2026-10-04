@@ -87,7 +87,7 @@ def test_differences_are_sorted_limited_and_named() -> None:
     assert len(differences) == 5
     values = [abs(item.z_difference) for item in differences]
     assert values == sorted(values, reverse=True)
-    # самое заметное различие стилей — в признаках из PROMT.md
+    # самое заметное различие стилей — в признаках стиля
     assert differences[0].feature in FEATURE_LABELS or differences[0].feature[:3] in {"fw:", "fl:"}
     assert result["formal"].features_used > 5
 

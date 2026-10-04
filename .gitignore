@@ -19,3 +19,19 @@ _skbuild/
 # данные и результаты оценки качества (реальные переписки и их производные не коммитятся)
 experiments/data/
 experiments/results/
+
+# готовые сборки и архивы (собираются скриптом packaging/make_release.py)
+release/
+*.tar.gz
+*.zip
+*.bundle
+*.spec.bak
+
+# служебное
+.mypy_cache/
+.coverage
+htmlcov/
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store

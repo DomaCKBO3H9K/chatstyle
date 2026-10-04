@@ -515,8 +515,8 @@ results of an evaluation on real data.
 - **Distortions of the source data:** shared accounts, bots, quotes, forwarded messages and pasted
   text affect the result; forwarded Telegram messages are not counted, but quotes inside ordinary
   messages remain.
-- **Deliberate imitation of someone else's style and paraphrasing by a neural network have not
-  been evaluated** (this is a deferred task in `PLAN.md`).
+- **Deliberate imitation of someone else's style and paraphrasing of the text have not
+  been evaluated** (planned for a later version).
 - **Timestamps** are needed only for the rhythm (`--rhythm`): text files have none.
 - Text files are read only as UTF-8; a file in another encoding is rejected with a clear message
   rather than read with distortion.
@@ -607,8 +607,6 @@ protection in Telegram.
 - **Other:** `tests/` (pytest), `core/tests/` (Catch2), `experiments/` (quality evaluation, not part
   of the package), `packaging/` (PyInstaller), `docs/` (the example report),
   `.github/workflows/ci.yml`.
-- The detailed list of tasks and decisions is in [`PLAN.md`](PLAN.md) (in Russian), the statement of
-  the problem in [`PROMT.md`](PROMT.md) (in Russian).
 
 ## Status and known gaps
 
