@@ -65,6 +65,7 @@ VSVersionInfo(
 
 
 def main(target: Path) -> None:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(render(), encoding="utf-8")
     print(f"Ресурс версии записан: {target} (версия {__version__})")

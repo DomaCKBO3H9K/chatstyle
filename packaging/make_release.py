@@ -11,6 +11,7 @@ import hashlib
 import io
 import shutil
 import subprocess
+import sys
 import tarfile
 from pathlib import Path
 
@@ -58,6 +59,7 @@ def sha256(path: Path) -> str:
 
 
 def main() -> None:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
     RELEASE.mkdir(exist_ok=True)
     archive = RELEASE / ARCHIVE_NAME
     count = build_linux_archive(archive)

@@ -69,6 +69,7 @@ def build_ico(frames: dict[int, bytes]) -> bytes:
 
 
 def main(target: Path) -> None:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
     frames = {size: render_png(size) for size in SIZES}
     target.write_bytes(build_ico(frames))
     print(f"Иконка записана: {target} ({target.stat().st_size} байт, размеры: {list(SIZES)})")
