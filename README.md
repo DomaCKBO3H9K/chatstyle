@@ -122,12 +122,18 @@ the libraries.
 
 ## Installation
 
+**Ready-made files** are attached to each release on the
+[Releases page](https://github.com/DomaCKBO3H9K/chatstyle/releases): `chatstyle.exe` and
+`chatstyle-gui.exe` for Windows (no Python needed; not signed, so SmartScreen may warn),
+`chatstyle-linux.tar.gz` for Linux (unpack and run `./install.sh`), a source distribution, and
+`SHA256SUMS.txt` to verify the downloads. To build from source, read on.
+
 You need Python 3.11+ and a C++17 compiler: the core is built during installation (CMake >= 3.20;
 pybind11 and scikit-build-core are fetched automatically). Everything needed is listed in
 [Requirements](#requirements).
 
 ```bash
-git clone <repository URL>
+git clone https://github.com/DomaCKBO3H9K/chatstyle.git
 cd chatstyle
 pip install .
 ```

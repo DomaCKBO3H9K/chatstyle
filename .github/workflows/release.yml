@@ -1,0 +1,129 @@
+name: Release
+
+# Тег vX.Y.Z (совпадающий с chatstyle.__version__) собирает файлы и создаёт ЧЕРНОВИК релиза.
+# Запуск вручную (Actions → Release → Run workflow) собирает те же файлы как артефакты, без релиза.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows exe
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install the project (builds the core)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Build chatstyle.exe and chatstyle-gui.exe
+        shell: pwsh
+        run: powershell -NoProfile -File packaging\build_exe.ps1
+
+      - name: Smoke test chatstyle.exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:PYTHONIOENCODING = 'utf-8'
+          dist\chatstyle.exe --version
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          dist\chatstyle.exe compare -u file:tests/fixtures/unknown.txt -c file:tests/fixtures/same.txt -c file:tests/fixtures/other.txt
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Smoke test chatstyle-gui.exe (self-test without a visible window)
+        shell: pwsh
+        run: |
+          $result = Join-Path $env:RUNNER_TEMP 'selftest.txt'
+          Start-Process -FilePath dist\chatstyle-gui.exe -ArgumentList '--selftest', $result -Wait
+          $text = Get-Content $result -Raw -Encoding UTF8
+          Write-Host $text
+          if (-not $text.StartsWith('OK')) { exit 1 }
+
+      - name: Full exe check (packaging/check_exe.py)
+        # консольные проверки на runner без настоящей консоли могут не работать: результат только в журнале
+        continue-on-error: true
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python packaging/check_exe.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: |
+            dist/chatstyle.exe
+            dist/chatstyle-gui.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  linux:
+    name: Linux archive and sdist
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build the Linux archive
+        run: python packaging/make_release.py
+
+      - name: Build the source distribution
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --sdist -o sdist .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-and-sdist
+          path: |
+            release/chatstyle-linux.tar.gz
+            sdist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+
+      - name: Check the tag and prepare the notes
+        run: |
+          python3 packaging/release_notes.py "$GITHUB_REF_NAME" > notes_with_kind.txt
+          head -n 1 notes_with_kind.txt > kind.txt
+          tail -n +2 notes_with_kind.txt > notes.md
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir out
+          find files -type f -exec cp {} out/ \;
+          (cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          flags=""
+          if [ "$(cat kind.txt)" = "prerelease" ]; then flags="--prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" out/* --draft $flags \
+            --title "chatstyle ${GITHUB_REF_NAME#v}" --notes-file notes.md

@@ -58,11 +58,17 @@ General Impostors недоступен (file:tests/fixtures/same.txt, file:tests
 
 ## Установка
 
+**Готовые файлы** лежат в каждом релизе на
+[странице Releases](https://github.com/DomaCKBO3H9K/chatstyle/releases): `chatstyle.exe` и
+`chatstyle-gui.exe` для Windows (Python не нужен; файлы не подписаны, поэтому SmartScreen может
+предупредить), `chatstyle-linux.tar.gz` для Linux (распакуйте и запустите `./install.sh`),
+исходный архив и `SHA256SUMS.txt` для проверки загрузок. Сборка из исходников описана ниже.
+
 Нужны Python 3.11+ и компилятор C++17: ядро собирается при установке (CMake ≥ 3.20, pybind11 и
 scikit-build-core подтягиваются автоматически).
 
 ```bash
-git clone <URL репозитория>
+git clone https://github.com/DomaCKBO3H9K/chatstyle.git
 cd chatstyle
 pip install .
 ```
