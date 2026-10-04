@@ -16,6 +16,10 @@ def isolated_environment(
     monkeypatch.setenv("CHATSTYLE_HOME", str(home))
     monkeypatch.delenv("TELEGRAM_API_ID", raising=False)
     monkeypatch.delenv("TELEGRAM_API_HASH", raising=False)
+    # CI и пользователи принудительно включают цвет; тестам нужен чистый текст
+    for name in ("FORCE_COLOR", "PY_COLORS", "FORCE_TERMINAL", "GITHUB_ACTIONS"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr("typer.rich_utils.FORCE_TERMINAL", None)
 
     original_connect = socket.socket.connect
 

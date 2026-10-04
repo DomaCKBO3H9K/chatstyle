@@ -118,7 +118,7 @@ def test_quick_start_output_matches_the_real_output(monkeypatch: pytest.MonkeyPa
     assert result.exit_code == 0
     actual = [line.rstrip() for line in result.output.splitlines()]
     for line in readme_output_block("Неизвестный автор: file:tests/fixtures/unknown.txt"):
-        assert line in actual, f"строки нет в реальном выводе: {line}"
+        assert line in actual, f"строки нет в реальном выводе: {line}\n" + "\n".join(actual)
 
 
 @pytest.fixture(scope="module")

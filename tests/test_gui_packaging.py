@@ -17,8 +17,8 @@ def test_selftest_passes_and_writes_ok(tmp_path: Path) -> None:
     result = tmp_path / "result.txt"
     code = selftest.run(result)
     text = result.read_text(encoding="utf-8")
-    if code != 0 and "WebView2" in text:
-        pytest.skip("нет WebView2 для окна")
+    if code != 0 and ("WebView2" in text or "WebViewException" in text):
+        pytest.skip("нет движка окна (WebView2 в Windows, GTK или Qt в Linux)")
     assert code == 0, text
     assert text.startswith(
         "OK: сравнение 2 кандидатов, отчёт, профиль, языки, Telegram, хранилище, тема"

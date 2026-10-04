@@ -4,6 +4,7 @@
 и никогда не попадает в репозиторий.
 """
 
+import contextlib
 import hashlib
 import json
 import os
@@ -68,4 +69,5 @@ def store_cached(
         temp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
         os.replace(temp, path)
     except OSError:
-        temp.unlink(missing_ok=True)
+        with contextlib.suppress(OSError):
+            temp.unlink(missing_ok=True)

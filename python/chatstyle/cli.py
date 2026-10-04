@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich import box
 from rich.console import Console
 from rich.table import Table
 
@@ -288,7 +289,7 @@ def _print_profile(profile: AuthorProfile, top: int) -> None:
         soft_wrap=True,
     )
 
-    table = Table(title=None)
+    table = Table(title=None, box=box.SQUARE)
     table.add_column("Признак")
     table.add_column("Значение", justify="right")
     current_section = None
@@ -346,7 +347,7 @@ def chats_list(
         _open_chat_vault()
         if chat is not None:
             stored = chatstore.get_chat(chat)
-            table = Table(title=f"Чат «{stored.name}» (id {stored.id})")
+            table = Table(title=f"Чат «{stored.name}» (id {stored.id})", box=box.SQUARE)
             table.add_column("Участник", overflow="fold")
             table.add_column("Идентификатор", overflow="fold")
             table.add_column("Сообщений", justify="right", no_wrap=True)
@@ -361,7 +362,7 @@ def chats_list(
     if not chats:
         typer.echo("Загруженных чатов нет. Добавьте: chatstyle chats add result.json")
         return
-    table = Table(title=None)
+    table = Table(title=None, box=box.SQUARE)
     table.add_column("id", overflow="fold")
     table.add_column("Название", overflow="fold")
     table.add_column("Участников", justify="right", no_wrap=True)
@@ -498,7 +499,7 @@ def _print_result(unknown_spec: str, result: ComparisonResult) -> None:
     )
 
     # 2. Таблица кандидатов
-    table = Table(title=None)
+    table = Table(title=None, box=box.SQUARE)
     # длинная подпись источника переносится, а заголовки чисел не сокращаются
     table.add_column("Кандидат", overflow="fold")
     headers = ("Слов", "Сообщений", "Сходство", "Delta", "Impostors (итог)")
