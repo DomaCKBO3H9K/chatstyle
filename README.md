@@ -612,11 +612,11 @@ protection in Telegram.
 
 This section is temporary and must disappear by v1.0. An honest list of what is **not verified**:
 
-- **CI on GitHub has not been run** (the repository is not published), so the build on Windows
-  (MSVC) and Linux is not confirmed automatically. Locally it was checked on Windows 10 with
-  MinGW-w64 (Python 3.14); the MSVC `/W4` flags have never been applied to the core. Installation
-  on Linux (building the core, running `chatstyle`) was checked manually by the project owner on
-  Kali Linux; the tests and the window were not run there.
+- **CI** (GitHub Actions) is green on Windows (MSVC, Python 3.12) and Ubuntu (Python 3.11 and
+  3.12): linting, the Python tests, the core tests and building and running a wheel. Locally the
+  project was also checked on Windows 10 with MinGW-w64 (Python 3.14). The window is not covered
+  by CI on Linux (there is no display, and the window test is skipped there); installation on
+  Linux (building the core, running `chatstyle`) was also checked manually on Kali Linux.
 - **The Telegram collector was verified only on stubs**, with no live account.
 - **`chatstyle.exe`** was built locally (MinGW-w64). The script `packaging/check_exe.py` checked it
   on this machine: the version and icon in the file properties, working with a `PATH` without
