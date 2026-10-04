@@ -1,0 +1,116 @@
+Boris	Bonjour, chers collègues. Je propose que nous commencions à discuter des délais du projet de site web.
+Anya	bon salut, alors ce site, on le rend quand
+Vera	SALUT-SALUT !!! J'ai déjà tout imaginé pour le design !!! 🔥
+Gleb	Bonjour... les délais sont serrés...
+Boris	Exact. Le client exige une maquette finie pour vendredi, et la version complète dans deux semaines.
+Anya	franchement c'est dingue, moi j'ai encore trois tâches qui traînent))
+Vera	Pas de souci-pas de souci !!! On va y ARRIVER !!! Je dessine la page d'accueil en une journée !!! 🎨
+Gleb	La page d'accueil, ce n'est que le début...
+Boris	Je vous prie de répartir les responsabilités. Je propose de me charger de la documentation et de la communication avec le client.
+Anya	ok, alors moi je fais l'intégration, genre pour les polices, vous les avez choisies
+Vera	OUIIII !!! J'ai choisi deux polices !!! Une pour les titres, une autre pour le texte !!! ✨
+Gleb	Il faut vérifier les polices sur mobile...
+Boris	Tout à fait. L'adaptabilité fait partie des exigences du cahier des charges.
+Anya	je regarde ça, j'ai un téléphone à petit écran pour les tests))
+Vera	Youpiii, ça c'est une approche !!! Anya, tu es géniale !!! ❤️
+Gleb	Bon... on verra ce que ça donne...
+Boris	Il faut ensuite convenir de la palette de couleurs. Le client a demandé des tons sobres.
+Vera	SOBRES ?!! Mais je voulais un orange vif !!! 🧡
+Anya	vera, allez, sobres c'est genre gris et bleu, pas orange))
+Gleb	L'orange peut servir d'accent...
+Boris	La proposition de Gleb paraît raisonnable. L'orange est acceptable pour les boutons et les liens.
+Vera	Aaah, j'ai compris !!! Des boutons orange sur un fond gris-bleu !!! Ce sera GÉNIAL !!! 🔥
+Anya	ok, ça me plaît, je l'intègre comme ça
+Gleb	D'accord... je vérifierai le contraste...
+Boris	Le contraste doit en effet être vérifié. Les exigences d'accessibilité sont obligatoires pour les clients publics.
+Vera	L'accessibilité, c'est tellement important !!! Pour tout le monde !!! 🙌
+Anya	bon je mets une vérification du contraste dans la compilation, pour que ça râle tout seul
+Boris	Excellente solution. Je vous prie également de la consigner dans la documentation.
+Gleb	Je le noterai...
+Vera	Gleeeeb, tu notes toujours tout, tu es le meilleur !!! 😍
+Gleb	Bon... j'essaie...
+Anya	aaa dites, qui va faire le formulaire de contact
+Boris	Je propose de le confier à Anya, car le formulaire est étroitement lié à l'intégration.
+Anya	bon ok, mais il me faut les textes d'erreur, genre quoi écrire si l'email est faux
+Vera	J'écris les textes !!! Courts et gentils !!! « Oh, il semble y avoir une faute de frappe dans l'adresse ! » 😊
+Gleb	Il vaut mieux valider les textes avec le client...
+Boris	Je suis d'accord avec Gleb. Je vous prie de m'envoyer les textes, je les transmettrai au client.
+Vera	D'accord-d'accord !!! Je les envoie aujourd'hui avant ce soir !!! ⏰
+Anya	super, alors en attendant je fais des maquettes provisoires
+Gleb	D'accord...
+Boris	La question suivante est l'hébergement. Le client propose d'utiliser son propre serveur.
+Anya	oh, donc ça veut dire qu'on n'aura pas d'accès, c'est ça
+Gleb	Il faudra sans doute déployer via eux...
+Vera	Oh, quel casse-tête !!! Mais on y arrivera !!! 💪
+Boris	Je pense qu'il faut demander au client un environnement de test pour ne pas travailler à l'aveugle.
+Anya	franchement oui, sans serveur de test je ne publie rien, on sait jamais ce qui peut casser))
+Gleb	C'est juste...
+Boris	J'enverrai dès aujourd'hui au client la demande correspondante.
+Vera	Boris, tu es notre sauveur !!! 🙏
+Boris	Merci, mais il s'agit d'une procédure de travail ordinaire.
+Anya	mais non, quand même un crack))
+Gleb	Bon... merci, Boris...
+Boris	Je propose maintenant de discuter des tests. Il faut désigner un responsable.
+Gleb	Je peux m'en charger...
+Anya	oh, Gleb, vas-y, t'es minutieux de toute façon
+Vera	OUI !!! Gleb trouvera TOUTES les erreurs !!! 🔍
+Gleb	Bon... j'essaierai... il y aura beaucoup d'erreurs...
+Boris	Je vous prie d'établir une liste de contrôle et de la valider avec l'équipe avant lundi.
+Gleb	D'accord... je l'établis...
+Anya	bon je vous envoie le lien de la version de test dès que je l'ai compilée
+Vera	Youpiii, j'attends !!! Je veux voir à quoi ça ressemble !!! 👀
+Boris	Je vous prie également de prêter attention à la vitesse de chargement des pages.
+Anya	bon ça c'est genre il faut compresser les images, je regarde combien elles pèsent
+Vera	Oh, mes images sont grosses !!! Je les compresse !!! 📉
+Gleb	Mieux vaut un format moderne...
+Boris	Exact. Je recommande d'utiliser un format à compression efficace pris en charge par tous les navigateurs modernes.
+Anya	webp c'est bon, ça marche littéralement partout
+Vera	D'accord !!! Je convertis tout en webp !!! 🔄
+Gleb	D'accord...
+Boris	Reste la question de l'analyse d'audience. Le client demande de brancher un compteur de visites.
+Anya	oh non, pas une tonne de scripts, ça ralentit le site))
+Gleb	Mieux vaut un seul compteur léger...
+Vera	Prenons le plus simple !!! Pour qu'il ne gêne pas !!! ☝️
+Boris	D'accord. Je propose de choisir une solution n'utilisant pas de cookies, afin qu'un consentement distinct des utilisateurs ne soit pas nécessaire.
+Anya	carrément top, moins de prise de tête avec les bandeaux de cookies
+Gleb	C'est raisonnable...
+Vera	Boris, tu penses à tout !!! 😍
+Boris	Ma tâche est de prévoir les difficultés possibles.
+Anya	bon résumé : maquette vendredi, tests lundi, tout le reste dans deux semaines
+Boris	Tout est exact. Je vous prie de consigner ces délais dans le calendrier partagé.
+Vera	Je note !!! Youpiii, on commence !!! 🎉
+Gleb	Bon... on commence...
+Anya	je vais intégrer, écrivez-moi si besoin))
+Boris	Je vous remercie tous. Si des questions se posent, je vous prie de me contacter.
+Vera	Bonne chance à tous !!! On peut le faire !!! 💪💪
+Gleb	Bonne chance...
+Anya	dites, quelqu'un a accès au dépôt, le mien ne s'ouvre pas
+Boris	L'accès a été accordé à tous les participants. Je vous prie de vérifier votre messagerie, l'invitation a pu atterrir dans les spams.
+Anya	aaa je l'ai trouvée dans les spams, merci))
+Vera	La mienne aussi était dans les spams !!! Quelle horreur !!! 😂
+Gleb	Ça arrive...
+Boris	Je vous prie également de configurer l'authentification à deux facteurs. C'est une exigence de sécurité du client.
+Anya	ok, je la configure là, genre il faut installer une appli
+Vera	Je l'ai déjà configurée !!! C'est rapide !!! ✅
+Gleb	Moi aussi...
+Boris	Je vous remercie de votre réactivité.
+Anya	au fait, comment on nomme les branches pour pas que ce soit le bazar
+Boris	Je propose d'utiliser des préfixes : « feature » pour les nouvelles fonctions et « fix » pour les corrections.
+Gleb	Et le numéro de la tâche dans le nom...
+Anya	ok, on fait comme ça, tout est clair
+Vera	D'accord !!! J'ai retenu !!! 🧠
+Boris	Je vous prie également de rédiger des descriptions pertinentes des modifications. Cela facilitera la relecture.
+Anya	ouais, sinon après tu restes à te demander ce que la personne voulait dire))
+Gleb	C'est vrai...
+Vera	Oh, des fois j'écris « corrigé » et c'est tout !!! Maintenant je vais faire des efforts !!! 😅
+Boris	Merci, cela améliorera sensiblement le travail de l'équipe.
+Anya	bon voilà, je file, on reste en contact))
+Vera	Salut-salut !!! Bon travail !!! ❤️
+Boris	Au revoir.
+Gleb	Salut...
+Anya	ah, j'ai failli oublier, j'ai une réunion demain, je ne serai pas là après le déjeuner
+Boris	Pris en compte. Je vous prie de déposer à l'avance les résultats de votre travail.
+Anya	ok, je dépose le matin, y a rien de compliqué)) et j'écrirai ce que j'ai fait
+Vera	Anya, tu es tellement responsable !!! 🙌
+Gleb	D'accord...
+Boris	Merci, cela aidera à éviter les retards.

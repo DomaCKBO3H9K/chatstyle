@@ -1,0 +1,116 @@
+Boris	Good afternoon, colleagues. I suggest we begin discussing the deadlines for the website project.
+Anya	so hi, what's up with the site, when do we deliver
+Vera	HI-HI!!! I've already come up with everything for the design!!! 🔥
+Gleb	Hello... the deadlines there are tight...
+Boris	Correct. The client requires a finished mock-up by Friday, and the full version in two weeks.
+Anya	honestly insane, i still have three tasks hanging))
+Vera	Never mind-never mind!!! We'll MAKE IT!!! I'll draw the home page in one day!!! 🎨
+Gleb	The home page is only the beginning...
+Boris	Please distribute the responsibilities. I propose to take on the documentation and communication with the client.
+Anya	ok, then i'll do the layout, like what about fonts, have you picked them yet
+Vera	YEEES!!! I picked two fonts!!! One for headings, another for body text!!! ✨
+Gleb	The fonts need to be checked on mobile...
+Boris	Quite right. Responsiveness is part of the requirements of the technical specification.
+Anya	lemme look now, i have a phone with a small screen for testing))
+Vera	Yaaaay, now that's an approach!!! Anya, you're super!!! ❤️
+Gleb	Well... we'll see what comes out...
+Boris	Next, we must agree on the color scheme. The client asked for restrained tones.
+Vera	RESTRAINED?!! But I wanted a bright orange!!! 🧡
+Anya	vera, come on, restrained is like grey and blue, not orange))
+Gleb	Orange could work as an accent...
+Boris	Gleb's suggestion seems reasonable. Orange is acceptable for buttons and links.
+Vera	Aaah, I get it!!! Orange buttons on a grey-blue background!!! It'll be GREAT!!! 🔥
+Anya	ok, i like it, i'll build it that way
+Gleb	Fine... I'll check the contrast...
+Boris	The contrast indeed needs to be checked. Accessibility requirements are mandatory for government clients.
+Vera	Accessibility is so important!!! For all people!!! 🙌
+Anya	so i'll add a contrast check to the build, so it complains automatically
+Boris	An excellent solution. Please also record it in the documentation.
+Gleb	I'll write it down...
+Vera	Gleeeeb, you always write everything down, you're the best!!! 😍
+Gleb	Well... I try...
+Anya	aaa listen, who's going to make the feedback form
+Boris	I suggest entrusting this to Anya, since the form is closely tied to the layout.
+Anya	well ok, but i need the error texts, like what to write if the email is wrong
+Vera	I'll write the texts!!! Short and kind!!! "Oh, there seems to be a typo in the address!" 😊
+Gleb	The texts are better agreed with the client...
+Boris	I agree with Gleb. Please send the texts to me, and I will pass them to the client.
+Vera	Okay-okay!!! I'll send them today before the evening!!! ⏰
+Anya	great, then i'll make placeholders for now
+Gleb	Fine...
+Boris	The next question is hosting. The client proposes to use its own server.
+Anya	oh, so that means we won't have access, right
+Gleb	Most likely we'll have to deploy through them...
+Vera	Oh, how complicated!!! But we'll manage!!! 💪
+Boris	I believe we need to request a test environment from the client so as not to work blind.
+Anya	honestly yes, without a staging server i'm not publishing anything, who knows what might break))
+Gleb	Right...
+Boris	I will send the client the corresponding request today.
+Vera	Boris, you're our savior!!! 🙏
+Boris	Thank you, but this is an ordinary working procedure.
+Anya	oh come on, still a legend))
+Gleb	Well... thanks, Boris...
+Boris	Now I suggest we discuss testing. A person responsible must be appointed.
+Gleb	I could take it...
+Anya	oh, Gleb, go ahead, you're careful anyway
+Vera	YES!!! Gleb will find ALL the bugs!!! 🔍
+Gleb	Well... I'll try... there will be many bugs...
+Boris	Please draw up a checklist and agree it with the team by Monday.
+Gleb	Fine... I'll draw it up...
+Anya	so i'll send a link to the test version as soon as i've built it
+Vera	Yaaaay, waiting!!! I want to see how everything looks!!! 👀
+Boris	Please also pay attention to the page loading speed.
+Anya	well that's like images need compressing, lemme see how much they weigh
+Vera	Oh, my images are big!!! I'll compress them!!! 📉
+Gleb	Better in a modern format...
+Boris	Correct. I recommend using a format with efficient compression supported by all modern browsers.
+Anya	webp is fine, it works literally everywhere
+Vera	Okay!!! I'll convert everything to webp!!! 🔄
+Gleb	Fine...
+Boris	There remains the question of analytics. The client asks us to connect a visit counter.
+Anya	oh no, not a pile of scripts, they slow the site down))
+Gleb	Better one light counter...
+Vera	Let's take the simplest one!!! So it doesn't get in the way!!! ☝️
+Boris	Agreed. I suggest choosing a solution that does not use cookies, so that separate user consent is not required.
+Anya	absolutely top, less headache with the cookie banners
+Gleb	That's reasonable...
+Vera	Boris, you think of everything!!! 😍
+Boris	My task is to foresee possible difficulties.
+Anya	so the summary: mock-up on friday, tests on monday, everything else in two weeks
+Boris	All correct. Please record these deadlines in the shared calendar.
+Vera	Recording!!! Yaaaay, we're starting!!! 🎉
+Gleb	Well... we're starting...
+Anya	i'm off to do the layout, write if anything))
+Boris	Thank you all. If any questions arise, please get in touch.
+Vera	Good luck, everyone!!! We can do it!!! 💪💪
+Gleb	Good luck...
+Anya	listen, does anyone have access to the repository, mine won't open
+Boris	Access has been granted to all participants. Please check your email, the invitation may have ended up in spam.
+Anya	aaa found it in spam, thanks))
+Vera	Mine was in spam too!!! How awful!!! 😂
+Gleb	It happens...
+Boris	Please also set up two-factor authentication. This is the client's security requirement.
+Anya	ok, i'll set it up now, like you have to install an app
+Vera	I've already set it up!!! It's quick!!! ✅
+Gleb	Me too...
+Boris	Thank you for the promptness.
+Anya	by the way, what do we call the branches so there's no mess
+Boris	I suggest using prefixes: "feature" for new functions and "fix" for corrections.
+Gleb	And the task number in the name...
+Anya	ok, we'll do that, all clear
+Vera	Okay!!! I remembered!!! 🧠
+Boris	Please also write meaningful descriptions for changes. This will make review easier.
+Anya	yeah, otherwise you sit there afterwards guessing what the person meant))
+Gleb	That's true...
+Vera	Oh, sometimes I write "fixed" and that's it!!! Now I'll try!!! 😅
+Boris	Thank you, this will substantially improve the team's work.
+Anya	so that's it, i'm off, in touch))
+Vera	Bye-bye!!! Good work!!! ❤️
+Boris	Goodbye.
+Gleb	Bye...
+Anya	oh, almost forgot, i have a meeting tomorrow, i won't be here after lunch
+Boris	Noted. Please upload the results of your work in advance.
+Anya	ok, i'll upload in the morning, nothing complicated there)) and i'll write what i did
+Vera	Anya, you're so responsible!!! 🙌
+Gleb	Fine...
+Boris	Thank you, this will help avoid delays.

@@ -1,0 +1,116 @@
+Boris	Buenas tardes, colegas. Propongo empezar a discutir los plazos del proyecto del sitio web.
+Anya	bueno hola, qué hay del sitio, cuándo lo entregamos
+Vera	¡¡¡HOLA-HOLA!!! ¡¡¡Ya lo tengo todo pensado para el diseño!!! 🔥
+Gleb	Buenas... los plazos son ajustados...
+Boris	Correcto. El cliente exige una maqueta terminada para el viernes y la versión completa en dos semanas.
+Anya	la verdad que flipo, yo todavía tengo tres tareas colgando))
+Vera	¡¡¡No pasa nada-no pasa nada!!! ¡¡¡LLEGAMOS!!! ¡¡¡Dibujaré la página principal en un día!!! 🎨
+Gleb	La página principal es solo el principio...
+Boris	Ruego repartir las responsabilidades. Propongo encargarme yo de la documentación y de la comunicación con el cliente.
+Anya	vale, pues yo maqueto, o sea, qué hay de las fuentes, ya las habéis elegido
+Vera	¡¡¡SIIIÍ!!! ¡¡¡Elegí dos fuentes!!! ¡¡¡Una para los títulos y otra para el texto!!! ✨
+Gleb	Hay que comprobar las fuentes en móviles...
+Boris	Totalmente cierto. La adaptabilidad forma parte de los requisitos del pliego técnico.
+Anya	ahora miro, tengo un móvil con pantalla pequeña para probar))
+Vera	¡¡¡Yupiii, eso sí que es un planteamiento!!! ¡¡¡Anya, eres genial!!! ❤️
+Gleb	Bueno... a ver qué sale...
+Boris	A continuación hay que acordar la gama de colores. El cliente pidió tonos sobrios.
+Vera	¡¡¿¿SOBRIOS??!! ¡¡¡Pero yo quería un naranja intenso!!! 🧡
+Anya	vera, venga ya, sobrios es como gris y azul, no naranja))
+Gleb	El naranja se puede usar como acento...
+Boris	La propuesta de Gleb parece razonable. El naranja es admisible para botones y enlaces.
+Vera	¡¡¡Aaah, ya lo entiendo!!! ¡¡¡Botones naranjas sobre fondo gris azulado!!! ¡¡¡Quedará GENIAL!!! 🔥
+Anya	vale, me gusta, así lo maqueto
+Gleb	Vale... comprobaré el contraste...
+Boris	En efecto, hay que comprobar el contraste. Los requisitos de accesibilidad son obligatorios para clientes públicos.
+Vera	¡¡¡La accesibilidad es importantísima!!! ¡¡¡Para todas las personas!!! 🙌
+Anya	pues meto una comprobación de contraste en la compilación, para que proteste sola
+Boris	Excelente solución. Ruego también dejarla recogida en la documentación.
+Gleb	Lo apuntaré...
+Vera	¡¡¡Gleeeeb, tú siempre lo apuntas todo, eres el mejor!!! 😍
+Gleb	Bueno... lo intento...
+Anya	aaa oíd, quién va a hacer el formulario de contacto
+Boris	Propongo encomendárselo a Anya, ya que el formulario está estrechamente ligado a la maquetación.
+Anya	bueno vale, pero necesito los textos de error, o sea qué poner si el correo está mal
+Vera	¡¡¡Yo escribo los textos!!! ¡¡¡Cortos y amables!!! «¡Ay, parece que hay una errata en la dirección!» 😊
+Gleb	Los textos es mejor acordarlos con el cliente...
+Boris	Estoy de acuerdo con Gleb. Ruego enviarme los textos y yo se los pasaré al cliente.
+Vera	¡¡¡Vale-vale!!! ¡¡¡Los mando hoy antes de la noche!!! ⏰
+Anya	genial, pues mientras hago marcadores de posición
+Gleb	Vale...
+Boris	La siguiente cuestión es el alojamiento. El cliente propone usar su propio servidor.
+Anya	ay, eso significa que no tendremos acceso, ¿no?
+Gleb	Lo más probable es que haya que desplegar a través de ellos...
+Vera	¡¡¡Ay, qué complicado!!! ¡¡¡Pero podremos con ello!!! 💪
+Boris	Considero que hay que pedir al cliente un entorno de pruebas para no trabajar a ciegas.
+Anya	la verdad que sí, sin entorno de pruebas yo no publico nada, por si se rompe algo))
+Gleb	Correcto...
+Boris	Hoy mismo enviaré al cliente la solicitud correspondiente.
+Vera	¡¡¡Boris, eres nuestro salvador!!! 🙏
+Boris	Gracias, pero se trata de un procedimiento de trabajo habitual.
+Anya	venga ya, igualmente un crack))
+Gleb	Bueno... gracias, Boris...
+Boris	Ahora propongo hablar de las pruebas. Hay que designar a un responsable.
+Gleb	Puedo encargarme yo...
+Anya	ay, Gleb, dale, tú eres cuidadoso de todas formas
+Vera	¡¡¡SÍ!!! ¡¡¡Gleb encontrará TODOS los errores!!! 🔍
+Gleb	Bueno... lo intentaré... habrá muchos errores...
+Boris	Ruego elaborar una lista de comprobación y acordarla con el equipo antes del lunes.
+Gleb	Vale... la elaboro...
+Anya	pues os paso el enlace de la versión de prueba en cuanto la compile
+Vera	¡¡¡Yupiii, espero!!! ¡¡¡Quiero ver cómo queda todo!!! 👀
+Boris	Ruego también prestar atención a la velocidad de carga de las páginas.
+Anya	bueno eso es como que hay que comprimir las imágenes, ahora miro cuánto pesan
+Vera	¡¡¡Ay, mis imágenes son grandes!!! ¡¡¡Las comprimo!!! 📉
+Gleb	Mejor en un formato moderno...
+Boris	Correcto. Recomiendo emplear un formato de compresión eficiente compatible con todos los navegadores modernos.
+Anya	webp está bien, funciona literalmente en todas partes
+Vera	¡¡¡Vale!!! ¡¡¡Lo convierto todo a webp!!! 🔄
+Gleb	Vale...
+Boris	Queda la cuestión de la analítica. El cliente pide conectar un contador de visitas.
+Anya	ay no, un montón de scripts no, que ralentizan el sitio))
+Gleb	Mejor un solo contador ligero...
+Vera	¡¡¡Pongamos el más sencillo!!! ¡¡¡Para que no moleste!!! ☝️
+Boris	De acuerdo. Propongo elegir una solución que no use cookies, para que no se necesite un consentimiento aparte de los usuarios.
+Anya	buenísimo, menos dolor de cabeza con los avisos de cookies
+Gleb	Es razonable...
+Vera	¡¡¡Boris, piensas en todo!!! 😍
+Boris	Mi tarea es prever las posibles dificultades.
+Anya	pues resumen: maqueta el viernes, pruebas el lunes, lo demás en dos semanas
+Boris	Todo correcto. Ruego dejar constancia de estos plazos en el calendario compartido.
+Vera	¡¡¡Lo apunto!!! ¡¡¡Yupiii, empezamos!!! 🎉
+Gleb	Bueno... empezamos...
+Anya	me voy a maquetar, si algo escribid))
+Boris	Gracias a todos. Si surgen dudas, ruego ponerse en contacto.
+Vera	¡¡¡Suerte a todos!!! ¡¡¡Podemos!!! 💪💪
+Gleb	Suerte...
+Anya	oíd, ¿alguien tiene acceso al repositorio?, a mí no se me abre
+Boris	Se ha concedido acceso a todos los participantes. Ruego revisar el correo, la invitación pudo ir a parar al spam.
+Anya	aaa la encontré en el spam, gracias))
+Vera	¡¡¡A mí también me llegó al spam!!! ¡¡¡Qué horror!!! 😂
+Gleb	Pasa...
+Boris	Ruego también configurar la autenticación en dos pasos. Es un requisito de seguridad del cliente.
+Anya	vale, ahora lo configuro, o sea hay que instalar una aplicación
+Vera	¡¡¡Yo ya la configuré!!! ¡¡¡Es rápido!!! ✅
+Gleb	Yo también...
+Boris	Gracias por la rapidez.
+Anya	por cierto, cómo llamamos a las ramas para que no sea un lío
+Boris	Propongo usar prefijos: «feature» para funciones nuevas y «fix» para correcciones.
+Gleb	Y el número de la tarea en el nombre...
+Anya	vale, así lo hacemos, todo claro
+Vera	¡¡¡Vale!!! ¡¡¡Lo he memorizado!!! 🧠
+Boris	Ruego también escribir descripciones con sentido de los cambios. Eso facilitará la revisión.
+Anya	sí, que luego te quedas ahí adivinando qué quería decir la persona))
+Gleb	Es verdad...
+Vera	¡¡¡Ay, a veces escribo «corregido» y ya está!!! ¡¡¡Ahora me esforzaré!!! 😅
+Boris	Gracias, esto mejorará sustancialmente el trabajo del equipo.
+Anya	pues ale, me voy, estamos en contacto))
+Vera	¡¡¡Chao-chao!!! ¡¡¡Buen trabajo!!! ❤️
+Boris	Hasta luego.
+Gleb	Chao...
+Anya	uy, casi se me olvida, mañana tengo una reunión, no estaré desde la hora de comer
+Boris	Tomo nota. Ruego subir con antelación los resultados del trabajo.
+Anya	vale, los subo por la mañana, no tiene nada de complicado)) y además escribo lo que hice
+Vera	¡¡¡Anya, qué responsable eres!!! 🙌
+Gleb	Vale...
+Boris	Gracias, esto ayudará a evitar retrasos.
