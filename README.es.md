@@ -679,6 +679,7 @@ está verificado**:
   resultado es solo informativo. **No verificado:** un Windows 10 limpio sin Python instalado en
   absoluto (sirve Windows Sandbox: copiar allí un único `chatstyle.exe` y ejecutar
   `chatstyle --version` y `compare`).
+- **El caso con el que empezó el proyecto (un solo caso, no una prueba).** Un conocido perdió el acceso a su cuenta principal de Telegram y siguió escribiendo desde una segunda cuenta, una «gemela». El autor comparó los mensajes de la gemela con cinco candidatos: la cuenta original, el propio autor y otros tres conocidos. La primera versión, sin pulir, de la herramienta (solo similitud coseno, Burrows Delta y General Impostors) puso al autor verdadero en **tercer** lugar. Después de añadir los demás métodos (categorías gramaticales, modelo de lenguaje de caracteres, n-gramas de palabras, emoji, ritmo de escritura y el conjunto de métodos de estilo), el autor verdadero quedó en **primer** lugar. Es un solo caso, y los métodos se desarrollaron mirando estos mismos datos y otros parecidos, así que muestra por qué se añadieron los métodos extra, no que la herramienta haga lo mismo contigo.
 - **La evaluación con datos reales es un único entorno de conversación, y la elección del método
   se ajustó a él.** La comprobación se hizo con los chats de un usuario: dos grupos (202 y 16
   participantes) y chats privados. Tareas: una persona de un contexto (chat) frente a las demás
